@@ -1,0 +1,45 @@
+<!-- EdgeDeck's keys: forward and back, Shift for a whole slide, a number then Enter, the blank screen, and keys a focused control or the browser owns. Run with scripts/test.sh. -->
+<div id="viewport" style="position:fixed;inset:0"><div id="stage" style="width:1600px;height:900px">
+  <section class="slide" data-steps="2"><h2>One</h2></section>
+  <section class="slide" data-steps="0"><h2>Two</h2></section>
+  <section class="slide" data-steps="1"><h2>Three</h2></section>
+</div></div>
+<div><button id="b-prev">‹</button><button id="b-next">›</button><button id="b-full">full</button><span id="prog"></span><span id="count"></span></div>
+<pre id="out"></pre>
+<script src="../lib/edgedeck.js"></script>
+<script>
+var deck = EdgeDeck.run({}), bad = [];
+function key(k, o, target) {
+  o = o || {};
+  var e = new KeyboardEvent('keydown', {key: k, bubbles: true, cancelable: true, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, altKey: !!o.alt});
+  (target || document.body).dispatchEvent(e);
+}
+function at(slide, step, what) {
+  var s = deck.state();
+  if (s.slide !== slide || s.step !== step) bad.push(what + ': at ' + s.slide + '.' + s.step + ', want ' + slide + '.' + step);
+}
+at(0, 0, 'start');
+key('ArrowRight'); at(0, 1, 'right steps');
+key('ArrowDown'); at(0, 2, 'down steps');
+key(' '); at(1, 0, 'space past the last step turns the page');
+key('ArrowLeft'); at(0, 2, 'left comes back to the last step');
+key(' ', {shift: true}); at(0, 1, 'shift+space goes back');
+key('PageDown'); key('PageDown'); at(1, 0, 'a clicker\'s PageDown');
+key('PageUp'); at(0, 2, 'a clicker\'s PageUp');
+key('ArrowRight', {shift: true}); at(1, 0, 'shift+right: the next slide, past the steps');
+key('ArrowLeft', {shift: true}); at(0, 0, 'shift+left: the previous slide');
+key('n'); key('j'); at(0, 2, 'n and j forward');
+key('p'); at(0, 1, 'p back');
+key('End'); at(2, 1, 'End'); key('Home'); at(0, 0, 'Home');
+key('3'); key('Enter'); at(2, 0, 'a number then Enter');
+key('ArrowRight', {ctrl: true}); key('ArrowLeft', {alt: true}); at(2, 0, 'keys with Ctrl or Alt are the browser\'s');
+var b = document.getElementById('b-next'); b.focus();
+key('Enter', {}, b); key(' ', {}, b); at(2, 0, 'Enter and space on a focused button are left to it');
+key('ArrowLeft', {}, b); at(1, 0, 'arrows still work with a button focused');
+key('b'); if (!deck.state().blank) bad.push('b does not blank the screen');
+key('ArrowRight'); if (deck.state().blank) bad.push('a key does not bring the screen back'); at(1, 0, 'the key that unblanks does not also turn the page');
+var inp = document.createElement('input'); document.body.appendChild(inp); inp.focus();
+key('ArrowRight', {}, inp); at(1, 0, 'keys typed in a field are left to it');
+if (EdgeDeck.version !== '1.1.0') bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

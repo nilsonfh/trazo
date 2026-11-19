@@ -8,8 +8,10 @@
  * builds[name](slide) returns a paused GSAP timeline whose labels s0..sN are the state after step N
  * (tl.onStep(k) is called on every step, with -1 when the slide is left), or null. Without GSAP the
  * builds named in lib still run once, to draw their final state. With icons, the sprite is injected
- * once as #ed-icons, which EdgeDiagram then reuses. Arrow keys, space, PageUp/PageDown, Home/End,
- * a click (left 30% back), a swipe; a bare #n in the address opens slide n. Changing slide releases
+ * once as #ed-icons, which EdgeDiagram then reuses. Keys: right, down, PageDown, space, Enter, N, J
+ * forward; left, up, PageUp, Backspace, Shift+space, P, K back; with Shift a whole slide; Home/End;
+ * a number then Enter to go to that slide; F fullscreen; B, W or . blanks the screen (a clicker's
+ * key). A click (left 30% back), a swipe; a bare #n in the address opens slide n. Changing slide releases
  * any pinned tooltip. With window.ED_DEBUG every slide is built at the start, so EdgeDiagram's
  * check covers the whole deck.
  */
@@ -89,21 +91,56 @@
     }
 
     /* input */
+    function nextSlide() { if (cur < slides.length - 1) show(cur + 1, 0, 1); else show(cur, steps(cur), 1); }
+    function prevSlide() { if (step > 0) show(cur, 0, -1); else if (cur > 0) show(cur - 1, 0, -1); }
+    function go(n) { show(Math.max(0, Math.min(slides.length - 1, n - 1)), 0, n - 1 < cur ? -1 : 1); }
+    function full() {
+      var d = document, el = d.documentElement;
+      var p = d.fullscreenElement ? d.exitFullscreen && d.exitFullscreen() : el.requestFullscreen && el.requestFullscreen();
+      if (p && p.catch) p.catch(function () {});
+    }
+    function blank(on) { stage.style.visibility = (on == null ? stage.style.visibility !== 'hidden' : on) ? 'hidden' : ''; }
+
+    /* keys: a keyboard's and a presenter's clicker's. Enter and space on a focused button, link or diagram
+       item are left to it, so one press never acts twice; keys with Ctrl, Alt or Cmd are the browser's. */
+    var FWD = {ArrowRight: 1, ArrowDown: 1, PageDown: 1, ' ': 1, Enter: 1, n: 1, N: 1, j: 1, J: 1};
+    var BACK = {ArrowLeft: 1, ArrowUp: 1, PageUp: 1, Backspace: 1, p: 1, P: 1, k: 1, K: 1};
+    var typed = '', typedT = 0;
     document.addEventListener('keydown', function (e) {
-      if (e.target.closest && e.target.closest('input,textarea')) return;
-      var k = e.key;
-      if (k === 'ArrowRight' || k === ' ' || k === 'PageDown' || k === 'Enter') { e.preventDefault(); next(); }
-      else if (k === 'ArrowLeft' || k === 'PageUp' || k === 'Backspace') { e.preventDefault(); prev(); }
-      else if (k === 'Home') show(0, 0, -1); else if (k === 'End') show(slides.length - 1, steps(slides.length - 1), 1);
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = e.target, k = e.key;
+      if (t.closest && t.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"]')) return;
+      if ((k === 'Enter' || k === ' ') && t.closest && t.closest('button,a[href],[role=button],.ed-node[tabindex],.ed-link[tabindex]')) return;
+      if (/^[0-9]$/.test(k)) { typed = (typed + k).slice(-3); clearTimeout(typedT); typedT = setTimeout(function () { typed = ''; }, 2000); return; }
+      if (k === 'Enter' && typed) { e.preventDefault(); go(+typed); typed = ''; return; }   // a number, then Enter: that slide
+      if (stage.style.visibility === 'hidden' && (FWD[k] || BACK[k] || k === 'Escape')) { e.preventDefault(); blank(false); return; }
+      if (FWD[k] || BACK[k]) {
+        e.preventDefault();
+        if (e.shiftKey && k === ' ') prev();
+        else if (e.shiftKey) (FWD[k] ? nextSlide : prevSlide)();   // Shift: a whole slide, past its steps
+        else (FWD[k] ? next : prev)();
+      }
+      else if (k === 'Home') { e.preventDefault(); show(0, 0, -1); }
+      else if (k === 'End') { e.preventDefault(); show(slides.length - 1, steps(slides.length - 1), 1); }
+      else if (k === 'f' || k === 'F') full();
+      else if (k === 'b' || k === 'B' || k === '.' || k === 'w' || k === 'W') blank();   // a clicker's blank-screen key
     });
-    // a click on a diagram node pins its detail; anywhere else it turns the page
-    vp.addEventListener('click', function (e) { if (e.target.closest('a,button,.ed-node[tabindex],.ed-link[tabindex]')) return; var r = vp.getBoundingClientRect(); (e.clientX - r.left < r.width * 0.3) ? prev() : next(); });
+    // a click on a diagram node pins its detail; anywhere else it turns the page, except the click that
+    // only brings the page into focus (an embedded deck, an artifact): that one just lets the keys work
+    var focusing = false;
+    vp.addEventListener('pointerdown', function () { focusing = !document.hasFocus(); }, true);
+    vp.addEventListener('click', function (e) {
+      if (focusing) { focusing = false; return; }
+      if (e.target.closest('a,button,.ed-node[tabindex],.ed-link[tabindex]')) return;
+      var r = vp.getBoundingClientRect(); (e.clientX - r.left < r.width * 0.3) ? prev() : next();
+    });
     var tx = null;
     vp.addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; }, {passive: true});
     vp.addEventListener('touchend', function (e) { if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 40) { dx < 0 ? next() : prev(); } tx = null; });
     document.getElementById('b-next').addEventListener('click', next);
     document.getElementById('b-prev').addEventListener('click', prev);
-    document.getElementById('b-full').addEventListener('click', function () { var el = document.documentElement; var p = el.requestFullscreen && el.requestFullscreen(); if (p && p.catch) p.catch(function () {}); });
+    document.getElementById('b-full').addEventListener('click', full);
+    try { global.focus(); } catch (e) {}
 
     if (global.ED_DEBUG) slides.forEach(function (s, i) { tlFor(i); });
 
@@ -111,7 +148,8 @@
     var start = parseInt((location.hash || '').replace('#', ''), 10);
     slides[0].classList.add('on');
     show(isNaN(start) ? 0 : Math.max(0, Math.min(slides.length - 1, start - 1)), 0, 1);
-    return {next: next, prev: prev, show: show};
+    return {next: next, prev: prev, show: show, go: go, nextSlide: nextSlide, prevSlide: prevSlide,
+      state: function () { return {slide: cur, step: step, blank: stage.style.visibility === 'hidden'}; }};
   }
   global.EdgeDeck = {run: run, version: '1.1.0'};
 })(window);

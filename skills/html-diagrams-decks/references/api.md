@@ -171,12 +171,22 @@ With `window.ED_DEBUG` set, every slide is built at the start, so the check cove
 
 Input:
 
-- arrows, space, Enter, PageUp/PageDown, Home/End;
-- a click (the left 30% goes back);
-- a swipe;
-- a bare `#n` in the URL opens slide n.
+| Keys | What they do |
+| --- | --- |
+| right, down, PageDown, space, Enter, N, J | The next step, then the next slide |
+| left, up, PageUp, Backspace, Shift+space, P, K | The previous step, then the previous slide |
+| Shift with an arrow or PageUp/PageDown | A whole slide, past its steps |
+| Home, End | The first slide, the end of the last one |
+| a number, then Enter | That slide |
+| F | Fullscreen on and off |
+| B, W or `.` | Blanks the screen (the key a presenter's clicker sends); any key brings it back |
 
-A click on a diagram node pins its tooltip instead of turning the page.
+- Presenter clickers send PageDown and PageUp, so they work as they are.
+- Enter and space on a focused button, link or diagram item are left to it, so one press never acts twice; keys with Ctrl, Alt or Cmd are left to the browser, and keys typed into a field to the field.
+- A click turns the page (the left 30% goes back), a swipe too, and a click on a diagram node pins its tooltip instead. When the deck is embedded (an iframe, a claude.ai artifact), the first click only brings it into focus, so that the keys reach it.
+- A bare `#n` in the URL opens slide n.
+
+`EdgeDeck.run` returns `{next, prev, show, go, nextSlide, prevSlide, state}`; `state()` is `{slide, step, blank}`.
 
 ## Icons (`lib/icons.js`)
 
