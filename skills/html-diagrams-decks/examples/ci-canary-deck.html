@@ -1,0 +1,205 @@
+<title>Commit to Canary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* An example deck: a neutral software-delivery workflow on two slides, in its own palette.
+   Build it with scripts/inline.py, check it with scripts/shot.sh --check. */
+:root{
+  --bg:#eceef5; --slide:#fbfbfe; --ink:#161a2e; --ink2:#454a66; --muted:#6b7090; --rule:#d6d9e6; --accent:#4f46e5;
+  --display:"Space Grotesk","Segoe UI",sans-serif; --sans:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono);
+  --ed-ink:#161a2e; --ed-ink2:#454a66; --ed-muted:#7b80a0; --ed-surface:#ffffff; --ed-layer:#f0f1f8; --ed-rule:#d6d9e6;
+  --ed-accent:#4f46e5; --ed-accent-soft:#e8e7fd; --ed-gap:#d9480f; --ed-gap-soft:#fdece4; --ed-add:#0b8f6a; --ed-add-soft:#e1f5ee;
+  --ed-tip-bg:#161a2e; --ed-tip-ink:#f2f3fa;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#0a0b14; --slide:#12142a; --ink:#e9eaf6; --ink2:#b6b9d4; --muted:#8a8eae; --rule:#2a2d4a; --accent:#a5b4fc;
+  --ed-ink:#e9eaf6; --ed-ink2:#b6b9d4; --ed-muted:#8a8eae; --ed-surface:#191c36; --ed-layer:#161932; --ed-rule:#2a2d4a;
+  --ed-accent:#a5b4fc; --ed-accent-soft:#25285a; --ed-gap:#ff8a5c; --ed-gap-soft:#3a2016; --ed-add:#34d399; --ed-add-soft:#123528;
+  --ed-tip-bg:#e9eaf6; --ed-tip-ink:#12142a; } }
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#0a0b14; --slide:#12142a; --ink:#e9eaf6; --ink2:#b6b9d4; --muted:#8a8eae; --rule:#2a2d4a; --accent:#a5b4fc;
+  --ed-ink:#e9eaf6; --ed-ink2:#b6b9d4; --ed-muted:#8a8eae; --ed-surface:#191c36; --ed-layer:#161932; --ed-rule:#2a2d4a;
+  --ed-accent:#a5b4fc; --ed-accent-soft:#25285a; --ed-gap:#ff8a5c; --ed-gap-soft:#3a2016; --ed-add:#34d399; --ed-add-soft:#123528;
+  --ed-tip-bg:#e9eaf6; --ed-tip-ink:#12142a; }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
+h2{font-family:var(--display);font-weight:700;line-height:1.05;margin:0;text-wrap:balance;letter-spacing:-.01em}
+p{margin:0}
+
+.viewport{position:fixed;inset:0;bottom:calc(52px + env(safe-area-inset-bottom,0px));overflow:hidden}
+.stage{width:1600px;height:900px;position:absolute;left:50%;top:50%;transform-origin:center center}
+.slide{position:absolute;inset:0;background:var(--slide);border-radius:18px;padding:60px 68px;visibility:hidden;overflow:hidden;
+  box-shadow:0 24px 60px -36px rgba(20,22,60,.45)}
+.slide.on{visibility:visible}
+.slide::before{content:"";position:absolute;left:0;top:0;bottom:0;width:8px;background:linear-gradient(var(--ed-accent),var(--ed-add))}
+.eyebrow{font-family:var(--mono);font-size:16px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+.s-content{display:grid;grid-template-columns:400px 1fr;grid-template-rows:auto 1fr;column-gap:48px;row-gap:28px}
+.s-content header{grid-column:1 / -1;display:grid;gap:10px}
+.s-content h2{font-size:58px}
+.caps{grid-column:1;grid-row:2;list-style:none;margin:0;padding:0;position:relative;align-self:start}
+.caps li{position:absolute;inset:0 0 auto 0;font-size:26px;line-height:1.45;opacity:0}
+.caps li.cur{position:relative;opacity:1}
+.caps li b{font-weight:600;color:var(--ed-accent)}
+.fig{grid-column:2;grid-row:2;display:grid;place-items:start center;min-height:0}
+.fig svg{width:100%;height:100%;display:block}
+.stepdots{position:absolute;left:68px;bottom:52px;display:flex;gap:8px}
+.stepdots i{width:30px;height:5px;border-radius:3px;background:var(--rule)}
+.stepdots i.on{background:var(--accent)}
+.hint{font-family:var(--mono);font-size:14px;color:var(--muted);position:absolute;right:68px;bottom:44px}
+
+.bar{position:fixed;left:0;right:0;bottom:0;height:calc(52px + env(safe-area-inset-bottom,0px));padding:0 16px env(safe-area-inset-bottom,0px);display:flex;align-items:center;gap:10px;background:var(--bg);font-family:var(--mono);font-size:13px;color:var(--muted)}
+.bar button{font:inherit;font-size:14px;color:var(--ink);background:var(--slide);border:1px solid var(--rule);border-radius:999px;height:32px;min-width:36px;padding:0 12px;cursor:pointer}
+.bar button:hover{border-color:var(--accent)}
+.bar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.progress{flex:1;height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.count{min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:620px){ .bar .keys{display:none} }
+</style>
+
+<div class="viewport" id="viewport">
+<div class="stage" id="stage">
+
+  <section class="slide s-content" data-steps="4" data-build="pipeline" aria-label="From commit to production">
+    <header><p class="eyebrow">1 · Delivery pipeline</p><h2>From commit to production</h2></header>
+    <ol class="caps">
+      <li>A developer pushes a commit. The repository records it and <b>fires a webhook</b>.</li>
+      <li>CI <b>builds an image</b> and runs the test suite against it, in a clean container every time.</li>
+      <li>A failing check goes <b>straight back to the author</b>, with the log. Nothing moves on.</li>
+      <li>A passing image is <b>signed</b> and pushed to the registry. Only signed images can be deployed.</li>
+      <li>The deployer pulls the signed image and <b>rolls it out</b>. Hover any stage for its numbers.</li>
+    </ol>
+    <div class="fig"><svg id="pipe" viewBox="0 0 1000 420" role="img" aria-label="A commit goes from the developer to the repository, then through build, test and signing in CI, then from the registry through the deployer to production; failed tests return to the developer."></svg></div>
+    <div class="stepdots" aria-hidden="true"></div>
+    <p class="hint">→ step · hover for detail</p>
+  </section>
+
+  <section class="slide s-content" data-steps="4" data-build="canary" aria-label="Canary, then everyone">
+    <header><p class="eyebrow">2 · Progressive rollout</p><h2>Canary, then everyone</h2></header>
+    <ol class="caps">
+      <li>Today every request goes to <b>version 1</b>, spread across three replicas.</li>
+      <li>Version 2 starts as a canary: the load balancer sends it <b>5% of the traffic</b>.</li>
+      <li>Metrics compare the canary with the baseline: <b>error rate and latency</b>, for ten minutes.</li>
+      <li>If the canary holds, the analysis <b>promotes</b> it; if not, the same path rolls it back.</li>
+      <li>Version 2 now takes <b>all the traffic</b>, and version 1 is drained and retired.</li>
+    </ol>
+    <div class="fig"><svg id="can" viewBox="0 0 1000 490" role="img" aria-label="Users reach a load balancer that sends most traffic to three version-1 replicas and five percent to a version-2 canary; metrics on the canary feed a promotion decision back to the load balancer."></svg></div>
+    <div class="stepdots" aria-hidden="true"></div>
+    <p class="hint">→ step · hover for detail</p>
+  </section>
+
+</div>
+</div>
+
+<nav class="bar" aria-label="Slide controls">
+  <button type="button" id="b-prev" aria-label="Previous">‹</button>
+  <button type="button" id="b-next" aria-label="Next">›</button>
+  <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+  <span class="keys">→ / space to advance · ← back</span>
+  <span class="count" id="count">1 / 2</span>
+  <button type="button" id="b-full" aria-label="Full screen">⤢</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgedeck.js"></script>
+<script>
+(function () {
+  var BUILDS = {
+    /* slide 1: two rows, CI above and CD below, joined by the signing step */
+    pipeline: function (slide) {
+      var d = EdgeDiagram.create(slide.querySelector('#pipe'), {});
+      var W = 160, H = 76, X = [20, 210, 400, 590, 780], Y1 = 50, Y2 = 280;
+      d.zone('ci', {x: 385, y: 18, w: 575, h: 140, label: 'CONTINUOUS INTEGRATION'})
+       .zone('cd', {x: 385, y: 248, w: 575, h: 140, label: 'CONTINUOUS DELIVERY'});
+      d.node('dev', {x: X[0], y: Y1 + 20, w: W, h: H - 10, icon: 'desktop', title: 'Developer', sub: 'laptop · branch',
+          info: {text: 'Writes the change and pushes it; hears back within minutes either way.', facts: [['feedback', '≈ 6 min'], ['branch', 'feature/*']]}})
+       .node('repo', {x: X[1], y: Y1 + 20, w: W, h: H - 10, icon: 'code', title: 'Repository', sub: 'main · reviews',
+          info: 'Holds the history and the review; every push fires a webhook to CI.'})
+       .node('build', {x: X[2], y: Y1 + 20, w: W, h: H - 10, icon: 'container', tone: 'accent', title: 'Build', sub: 'image per commit',
+          info: {text: 'Builds one container image per commit from a pinned base.', facts: [['cache hit', '82 %'], ['duration', '2 min 10 s']]}})
+       .node('test', {x: X[3], y: Y1 + 20, w: W, h: H - 10, icon: 'evidence', tone: 'accent', title: 'Test', sub: 'unit · integration',
+          info: {text: 'Runs the suite inside the image just built.', facts: [['tests', '1 482'], ['flaky', '0.3 %']]}})
+       .node('sign', {x: X[4], y: Y1 + 20, w: W, h: H - 10, icon: 'certificate', tone: 'add', title: 'Sign', sub: 'provenance',
+          info: 'Signs the image digest and attaches where, from what and by whom it was built.'})
+       .node('reg', {x: X[4], y: Y2 + 20, w: W, h: H - 10, icon: 'database', title: 'Registry', sub: 'signed images',
+          info: 'Stores images by digest; refuses to serve an unsigned one to the deployer.'})
+       .node('deploy', {x: X[3], y: Y2 + 20, w: W, h: H - 10, icon: 'apps', tone: 'add', title: 'Deployer', sub: 'verifies, applies',
+          info: 'Checks the signature against the trusted keys, then applies the new version.'})
+       .node('prod', {x: X[2], y: Y2 + 20, w: W, h: H - 10, icon: 'cloud', tone: 'add', title: 'Production', sub: 'three regions',
+          info: {text: 'Where users meet the change.', facts: [['deploys / day', '14'], ['change failure', '3 %']]}});
+
+      d.link('push', {from: ['dev', 'auto'], to: ['repo', 'auto'], route: 'straight', arrow: 'end', flow: {dir: 1}, info: 'git push to a feature branch.'})
+       .link('hook', {from: ['repo', 'right'], to: ['build', 'left'], route: 'straight', arrow: 'end', flow: {dir: 1}, info: 'The repository calls CI with the commit and its branch.'})
+       .link('img', {from: ['build', 'auto'], to: ['test', 'auto'], route: 'straight', arrow: 'end', flow: {dir: 1}})
+       .link('ok', {from: ['test', 'auto'], to: ['sign', 'auto'], route: 'straight', arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add'}})
+       .link('fail', {from: ['test', 'bottom'], to: ['dev', 'bottom'], route: 'ortho', arrow: 'end', tone: 'gap', dashed: true, label: 'failed checks + log',
+          flow: {dir: 1, tone: 'gap', period: 2.2}, info: 'A red build blocks the merge and posts the failing test and its log on the review.'})
+       .link('store', {from: ['sign', 'bottom'], to: ['reg', 'top'], route: 'straight', arrow: 'end', tone: 'add', label: 'signed digest', flow: {dir: 1, tone: 'add'}})
+       .link('pull', {from: ['reg', 'auto'], to: ['deploy', 'auto'], route: 'straight', arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add'}})
+       .link('roll', {from: ['deploy', 'auto'], to: ['prod', 'auto'], route: 'straight', arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add', count: 2}});
+      d.bindFocus();
+
+      var ctl = d.steps([
+        {show: ['dev', 'repo', 'push'], flows: ['push']},
+        {show: ['ci', 'ci.label', 'hook', 'build', 'img', 'test'], flows: ['hook', 'img']},
+        {show: ['fail'], flows: ['fail'], stopFlows: ['push', 'hook', 'img']},
+        {show: ['ok', 'sign', 'cd', 'cd.label', 'store', 'reg'], dim: ['fail'], stopFlows: ['fail'], flows: ['push', 'hook', 'img', 'ok', 'store']},
+        {show: ['pull', 'deploy', 'roll', 'prod'], flows: ['pull', 'roll']}
+      ]);
+      var tl = ctl.timeline; if (tl) tl.onStep = ctl.flowsAt;
+      return tl;
+    },
+
+    /* slide 2: traffic split, analysis, promotion */
+    canary: function (slide) {
+      var d = EdgeDiagram.create(slide.querySelector('#can'), {});
+      d.zone('v1z', {x: 450, y: 14, w: 320, h: 268, label: 'VERSION 1 · STABLE'})
+       .zone('v2z', {x: 450, y: 310, w: 320, h: 136, label: 'VERSION 2 · CANARY'});
+      d.node('users', {x: 10, y: 198, w: 145, h: 76, icon: 'phone', title: 'Users', sub: '4 200 req/s',
+          info: {text: 'Real traffic; nobody opts in to the canary.', facts: [['peak', '6 100 req/s'], ['regions', '3']]}})
+       .node('lb', {x: 205, y: 198, w: 190, h: 76, icon: 'broker', tone: 'accent', title: 'Load balancer', sub: 'weighted routes',
+          info: 'Splits traffic by weight; the weights are the only thing a rollout changes.'});
+      ['a', 'b', 'c'].forEach(function (k, i) {
+        d.node('v1' + k, {x: 480, y: 52 + i * 74, w: 260, h: 56, icon: 'server', title: 'Replica v1.' + (i + 1), sub: 'stable',
+          info: {text: 'A version-1 replica behind the same service name.', facts: [['error rate', '0.21 %'], ['p99', '180 ms']]}});
+      });
+      d.node('v2', {x: 480, y: 352, w: 260, h: 60, icon: 'container', tone: 'add', title: 'Canary v2.0', sub: 'one replica',
+          info: {text: 'The new version, receiving a small share of real traffic.', facts: [['error rate', '0.19 %'], ['p99', '172 ms']]}})
+       .node('met', {x: 815, y: 198, w: 178, h: 76, icon: 'gauge', title: 'Analysis', sub: 'canary vs baseline',
+          info: {text: 'Compares the canary with the stable replicas for ten minutes before any decision.', facts: [['window', '10 min'], ['max error Δ', '+0.1 pt'], ['max p99 Δ', '+10 %']]}});
+
+      d.link('req', {from: ['users', 'auto'], to: ['lb', 'auto'], route: 'straight', arrow: 'end', flow: {dir: 1, count: 3, period: 1.4}, info: 'HTTPS requests from all three regions.'});
+      ['a', 'b', 'c'].forEach(function (k, i) {
+        d.link('to' + k, {from: ['lb', 'right', 0.2 + i * 0.2], to: ['v1' + k, 'left'], route: 'curve', arrow: 'end', flow: {dir: 1, period: 1.5}});
+      });
+      d.link('to2', {from: ['lb', 'bottom', 0.75], to: ['v2', 'left'], route: 'ortho', arrow: 'end', tone: 'add', label: '5 %', labelAt: 0.75,
+          flow: {dir: 1, tone: 'add', period: 3.2}, info: {text: 'The canary weight; raised in steps only after each analysis passes.', facts: [['now', '5 %'], ['next', '25 %, then 100 %']]}})
+       .link('toall', {from: ['lb', 'bottom', 0.75], to: ['v2', 'left'], route: 'ortho', arrow: 'end', tone: 'add', label: '100 %', labelAt: 0.75,
+          flow: {dir: 1, tone: 'add', count: 3, period: 1.5}, info: 'Promoted: every request now reaches version 2.'})
+       .link('obs', {from: ['v2', 'right'], to: ['met', 'left', 'auto'], route: 'ortho', arrow: 'end', tone: 'muted', dashed: true, label: 'metrics', flow: {dir: 1, tone: 'muted', period: 2}})
+       .link('base', {from: ['v1c', 'right'], to: ['met', 'left', 'auto'], route: 'ortho', arrow: 'end', tone: 'muted', dashed: true, label: 'baseline'})
+       .link('promote', {from: ['met', 'bottom'], to: ['lb', 'bottom', 0.3], route: 'ortho', arrow: 'end', tone: 'add', label: 'promote', stub: 24,
+          flow: {dir: 1, tone: 'add', period: 2.4}, info: 'The analysis passed: the controller sets the canary weight to 100 % and drains version 1.'});
+      d.bindFocus();
+
+      var v1 = ['v1z', 'v1z.label', 'v1a', 'v1b', 'v1c', 'toa', 'tob', 'toc'];
+      var ctl = d.steps([
+        {show: ['users', 'lb', 'req'].concat(v1), flows: ['req', 'toa', 'tob', 'toc']},
+        {show: ['v2z', 'v2z.label', 'v2', 'to2'], flows: ['to2']},
+        {show: ['met', 'obs', 'base'], flows: ['obs']},
+        {show: ['promote'], flows: ['promote']},
+        {show: ['toall'], hide: ['to2'], dim: v1.concat(['base']), flows: ['toall'], stopFlows: ['toa', 'tob', 'toc', 'to2', 'obs', 'promote']}
+      ]);
+      var tl = ctl.timeline; if (tl) tl.onStep = ctl.flowsAt;
+      return tl;
+    }
+  };
+  EdgeDeck.run({builds: BUILDS, lib: {pipeline: 1, canary: 1}, icons: window.EDGE_ICONS});
+})();
+</script>

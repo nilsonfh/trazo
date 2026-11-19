@@ -1,0 +1,57 @@
+/* SGAM isometric cube: classes used by sgam_cube.py */
+/* The cube's own names for the theme tokens, so any theme in ../../themes fits it. */
+#cube3d,.focusbar{--surface:var(--card);--rule2:var(--rule);--amber:var(--warn);--amber-line:var(--ed-gap);--amber-soft:var(--warn-soft);--accent-ink:var(--accent)}
+/* 3-D cube */
+.p3-face{fill:var(--bg);stroke:var(--rule);stroke-width:1}
+.p3-grid{stroke:var(--rule2);stroke-width:1}
+.p3-foot{fill:var(--ink);opacity:.14}
+.p3-oc{fill:none;stroke:var(--amber-line);stroke-width:1.4;stroke-dasharray:7 5;opacity:.85}
+.p3-vp{stroke:var(--amber-line);stroke-width:1.3;stroke-dasharray:3 4}
+.p3-va{stroke:var(--accent);stroke-width:1.3;stroke-dasharray:3 4}
+.p3-vn{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:2 4}
+.d-lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;fill:var(--muted)}
+
+
+/* cube: badges, depth, focus, motion */
+.p3-slice{fill:var(--amber);opacity:.07}
+.p3-shadow{fill:var(--ink);opacity:.06}
+.p3-badge{fill:var(--surface);stroke-width:1.2}
+.p3-badge.b-p{stroke:var(--amber-line)} .p3-badge.b-a{stroke:var(--accent)} .p3-badge.b-n{stroke:var(--muted)}
+.p3-ico{fill:none;stroke:currentColor;stroke-width:1.7}
+.p3-ico.b-p{color:var(--amber)} .p3-ico.b-a{color:var(--accent-ink)} .p3-ico.b-n{color:var(--ink2)}
+#cube3d .cellgroup{transition:opacity .25s}
+#cube3d .p3-vp,#cube3d .p3-va,#cube3d .p3-vn{transition:opacity .25s}
+#cube3d[data-focus="ops"] .cellgroup:not([data-s="ops"]),
+#cube3d[data-focus="plat"] .cellgroup:not([data-s="plat"]),
+#cube3d[data-focus="mkt"] .cellgroup:not([data-s="mkt"]){opacity:.16}
+#cube3d[data-focus="ops"] [class^="p3-v"]:not([data-s="ops"]),
+#cube3d[data-focus="plat"] [class^="p3-v"]:not([data-s="plat"]),
+#cube3d[data-focus="mkt"] [class^="p3-v"]:not([data-s="mkt"]){opacity:.12}
+#cube3d:has(.cellgroup:hover) .cellgroup:not(:hover){opacity:.35}
+.focusbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.focusbar button{font:500 13px var(--sans);color:var(--ink2);background:var(--surface);border:1px solid var(--rule);border-radius:999px;padding:5px 13px;display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.focusbar button i{width:12px;height:3px;border-radius:2px;display:inline-block}
+.focusbar button[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-ink)}
+.focusbar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@keyframes march{to{stroke-dashoffset:-14}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: no-preference){
+  #cube3d .p3-vp,#cube3d .p3-va,#cube3d .p3-vn{animation:march 1.6s linear infinite}
+  #cube3d .p3-oc{animation:march 4s linear infinite}
+  #cube3d.armed:not(.in) .p3-plane,#cube3d.armed:not(.in) .cellgroup{opacity:0}
+  #cube3d.armed.in .p3-plane{animation:rise .7s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc((4 - var(--i)) * .12s)}
+  #cube3d.armed.in .cellgroup{animation:rise .6s ease backwards;animation-delay:.7s}
+}
+
+.p3-sl{fill:var(--ink);opacity:.16}
+.p3-sr{fill:var(--ink);opacity:.26}
+.tl-t.tl-p{fill:var(--amber-soft);stroke:var(--amber-line);stroke-width:1.1}
+.tl-t.tl-a{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.1}
+.tl-t.tl-n{fill:var(--surface);stroke:var(--muted);stroke-width:1.1}
+.tl-t.tl-dash{stroke-dasharray:4 3}
+.tl-l.tl-p{fill:var(--amber-line);opacity:.55} .tl-r.tl-p{fill:var(--amber-line);opacity:.85}
+.tl-l.tl-a{fill:var(--accent);opacity:.5} .tl-r.tl-a{fill:var(--accent);opacity:.8}
+.tl-l.tl-n,.tl-r.tl-n{fill:var(--muted)} .tl-l.tl-n{opacity:.4} .tl-r.tl-n{opacity:.65}
+.p3-stem{stroke:var(--muted);stroke-width:1;opacity:.7}
+#cube3d .cellgroup > .p3-lab{transition:transform .2s ease}
+#cube3d .cellgroup:hover > .p3-lab{transform:translateY(-4px)}

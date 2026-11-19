@@ -1,0 +1,56 @@
+<!-- EdgeSketch draws boxes that fit their text, and its check finds what does not fit, in its own figures and in any SVG. Run with scripts/test.sh. -->
+<svg id="ok" viewBox="0 0 600 300" role="img" aria-label="clean"></svg>
+<svg id="bad" viewBox="0 0 600 240" role="img" aria-label="broken"></svg>
+<svg id="raw" viewBox="0 0 400 120" role="img" aria-label="hand-written">
+  <g><rect x="10" y="10" width="120" height="40" fill="#eee" stroke="#333"/><text x="20" y="35" font-size="13">a title far too long for this box</text></g>
+  <g><rect x="200" y="10" width="120" height="40" fill="transparent" stroke="none"/><text x="210" y="35" font-size="13">a hit area, not a box at all</text></g>
+  <g data-check="false"><rect x="10" y="70" width="40" height="40" fill="#eee"/><text x="14" y="95" font-size="13">left out on purpose</text></g>
+</svg>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgesketch.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function none(list, what) { if (list.length) bad.push(what + ': ' + list.join(' / ')); }
+
+// a clean figure: long titles shrink to fit, a vertical box, a centred bar, arrows both ways
+var a = EdgeSketch.create(document.getElementById('ok'), {icons: window.EDGE_ICONS});
+a.zone(0, 0, 600, 300, {label: 'ZONE'});
+// the box is sized from the title's own length at the 10 px floor, so the test holds whatever font the machine has
+var probe = a.text(0, -50, 'A rather long title for a box', {size: 10, cls: 'sk-t'}), w10 = probe.getComputedTextLength(); probe.remove();
+var bw = Math.ceil(w10 * 1.12) + 46;
+var long = a.box(20, 236, bw, 52, {icon: 'server', title: 'A rather long title for a box', sub: 'sub', tone: 'accent', info: 'what it does'});
+if (!(parseFloat(long.querySelector('.sk-t').style.fontSize) < 12.5)) bad.push('a long title was not set smaller');
+a.box(20, 40, 180, 52, {title: 'No icon', sub: ['two', 'lines'], tone: 'p3'});
+a.box(230, 30, 52, 190, {icon: 'broker', title: 'Event stream', sub: 'one profile', vertical: true, tone: 'add'});
+a.box(310, 40, 270, 46, {icon: 'shield', title: 'Security · identity', sub: 'trusted boot · signed artefacts', align: 'center', shadow: true});
+a.arrow(200, 66, 228, 66, {heads: 'both', dashed: true});
+a.arrow([[282, 120], [300, 120], [300, 63], [308, 63]], {tone: 'p3', label: 'up'});
+none(a.check(), 'clean figure');
+var g = document.querySelector('#ok .sk-box[tabindex]');
+if (!g || !g.querySelector('title')) bad.push('a box with info is not focusable with a title');
+if (document.querySelectorAll('#ok marker').length !== 2) bad.push('markers: want one per tone, got ' + document.querySelectorAll('#ok marker').length);
+
+// a broken figure: a floor too high to fit, overlapping texts, an icon on text, text off the viewBox and on another box
+var b = EdgeSketch.create(document.getElementById('bad'), {icons: window.EDGE_ICONS});
+b.box(20, 40, 120, 40, {title: 'This title cannot shrink enough to fit', minSize: 12});
+b.text(300, 50, 'first label'); b.text(310, 52, 'second label');
+b.icon('server', 300, 90, 24); b.text(296, 104, 'under the icon');
+b.text(560, 200, 'off the right edge of the figure');
+b.box(400, 150, 100, 40, {title: 'Box'}); b.text(380, 172, 'straddles');
+expect(b.check(), ['runs', 'texts "first label" and "second label" overlap', 'covers text "under the icon"', 'outside the viewBox', 'partly on a box'], 'broken figure');
+
+// a figure not made with EdgeSketch: boxes are inferred, hit areas and data-check="false" are left alone
+var r = EdgeSketch.check(document.getElementById('raw'));
+expect(r, ['"a title far too long for this box" runs'], 'raw figure');
+if (r.some(function (m) { return /hit area|left out/.test(m); })) bad.push('raw figure: flagged a hit area or a left-out group: ' + r.join(' / '));
+
+// the shared report
+EdgeSketch.report('t', ['x']);
+var pre = document.getElementById('ed-issues');
+if (!pre || pre.textContent !== 'x' || pre.getAttribute('data-diagrams') !== '1') bad.push('report does not fill <pre id="ed-issues">');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

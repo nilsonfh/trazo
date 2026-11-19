@@ -1,0 +1,19 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install a headless Chromium
+        run: npx -y playwright@1.49.1 install --with-deps chromium-headless-shell
+      - name: Run the tests
+        run: skills/html-diagrams-decks/scripts/test.sh

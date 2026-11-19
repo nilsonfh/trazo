@@ -1,0 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+/* indigo -- indigo on cool lavender-grey; Space Grotesk, Inter, JetBrains Mono.
+   The palette of examples/ci-canary-deck.html. Product and software-delivery flavour, a little brighter.
+   Tones: accent indigo = the subject; gap orange = a gap, a risk, a failure; add teal-green = what is added;
+   p3 magenta = a further phase or option, drawn dashed. */
+:root{
+  --bg:#eceef5; --card:#fbfbfe; --ink:#161a2e; --ink2:#454a66; --muted:#62678a; --rule:#d6d9e6;
+  --accent:#4f46e5; --accent-soft:#e8e7fd;
+  --ok:#0a7556; --ok-soft:#e1f5ee; --warn:#a15c07; --warn-soft:#fdf0dc; --bad:#c0262d; --bad-soft:#fde6e7; --p3:#a21caf; --p3-soft:#fae8fb;
+  --display:"Space Grotesk","Segoe UI",sans-serif; --sans:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono);
+  --ed-ink:#161a2e; --ed-ink2:#454a66; --ed-muted:#62678a; --ed-surface:#ffffff; --ed-layer:#f0f1f8; --ed-rule:#d6d9e6;
+  --ed-accent:#4f46e5; --ed-accent-soft:#e8e7fd; --ed-gap:#d9480f; --ed-gap-soft:#fdece4; --ed-add:#0b8f6a; --ed-add-soft:#e1f5ee; --ed-p3:#a21caf; --ed-p3-soft:#fae8fb;
+  --ed-tip-bg:#161a2e; --ed-tip-ink:#f2f3fa;
+  --f-display:var(--display); --f-body:var(--sans); --f-mono:var(--mono); --slide:var(--card);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#0a0b14; --card:#12142a; --ink:#e9eaf6; --ink2:#b6b9d4; --muted:#8a8eae; --rule:#2a2d4a; --accent:#a5b4fc; --accent-soft:#25285a;
+  --ok:#34d399; --ok-soft:#123528; --warn:#fbbf24; --warn-soft:#33270c; --bad:#fb8a8f; --bad-soft:#3a1519; --p3:#f0abfc; --p3-soft:#3b1340;
+  --ed-ink:#e9eaf6; --ed-ink2:#b6b9d4; --ed-muted:#8a8eae; --ed-surface:#191c36; --ed-layer:#161932; --ed-rule:#2a2d4a;
+  --ed-accent:#a5b4fc; --ed-accent-soft:#25285a; --ed-gap:#ff8a5c; --ed-gap-soft:#3a2016; --ed-add:#34d399; --ed-add-soft:#123528; --ed-p3:#f0abfc; --ed-p3-soft:#3b1340;
+  --ed-tip-bg:#e9eaf6; --ed-tip-ink:#12142a; } }
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#0a0b14; --card:#12142a; --ink:#e9eaf6; --ink2:#b6b9d4; --muted:#8a8eae; --rule:#2a2d4a; --accent:#a5b4fc; --accent-soft:#25285a;
+  --ok:#34d399; --ok-soft:#123528; --warn:#fbbf24; --warn-soft:#33270c; --bad:#fb8a8f; --bad-soft:#3a1519; --p3:#f0abfc; --p3-soft:#3b1340;
+  --ed-ink:#e9eaf6; --ed-ink2:#b6b9d4; --ed-muted:#8a8eae; --ed-surface:#191c36; --ed-layer:#161932; --ed-rule:#2a2d4a;
+  --ed-accent:#a5b4fc; --ed-accent-soft:#25285a; --ed-gap:#ff8a5c; --ed-gap-soft:#3a2016; --ed-add:#34d399; --ed-add-soft:#123528; --ed-p3:#f0abfc; --ed-p3-soft:#3b1340;
+  --ed-tip-bg:#e9eaf6; --ed-tip-ink:#12142a; }

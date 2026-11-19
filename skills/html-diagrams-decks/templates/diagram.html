@@ -1,0 +1,108 @@
+<title>Request Path Diagram</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.body{display:grid;gap:22px}
+@media (min-width:980px){.body{grid-template-columns:300px 1fr;align-items:start}}
+.body>*{min-width:0}
+.cap{font-size:19px;line-height:1.5;min-height:6.2em;margin:0}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · stepped diagram</p>
+  <h1>How a write reaches the database</h1>
+  <div class="body">
+    <div>
+      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="hint">Hover or tap a component for details; tap again or press Esc to release it. Arrow keys step.</p>
+    </div>
+    <div class="stage"><svg id="rq" viewBox="0 0 1000 560" role="img" aria-label="A browser sends a write through the API, which queues it; a worker drains the queue into the database, so the API answers without waiting for the database."></svg></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Restart</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  var d = EdgeDiagram.create(document.getElementById('rq'), {icons: window.EDGE_ICONS});
+
+  d.zone('client', {x: 20, y: 20, w: 220, h: 520, label: 'CLIENT'})
+   .zone('svc', {x: 270, y: 20, w: 460, h: 520, label: 'SERVICE'})
+   .zone('data', {x: 760, y: 20, w: 220, h: 520, label: 'DATA'});
+
+  d.node('browser', {x: 40, y: 230, w: 180, h: 72, icon: 'desktop', title: 'Browser', sub: 'POST /orders',
+      info: 'Sends the write and waits only for the API to accept it.'})
+   .node('api', {x: 300, y: 110, w: 190, h: 80, icon: 'server', tone: 'accent', title: 'API', sub: 'validates · enqueues',
+      info: 'Checks the request, writes it to the queue and answers 202 Accepted.'})
+   .node('queue', {x: 520, y: 230, w: 190, h: 72, icon: 'broker', title: 'Queue', sub: 'durable · ordered',
+      info: 'Holds accepted writes until a worker takes them, in arrival order.'})
+   .node('worker', {x: 300, y: 360, w: 190, h: 80, icon: 'container', tone: 'add', title: 'Worker', sub: 'drains the queue',
+      info: 'Takes writes from the queue in batches and applies them to the database.'})
+   .node('db', {x: 780, y: 230, w: 180, h: 72, icon: 'database', title: 'Database', sub: 'primary',
+      info: 'Receives batched writes from the worker, never directly from the API.'})
+   .node('lock', {x: 300, y: 470, w: 190, h: 34, shape: 'pill', tone: 'gap', icon: 'lock', title: 'Idempotency key', titleSize: 12,
+      info: 'A retried write carries the same key, so the worker applies it once.'});
+
+  d.link('req', {from: ['browser', 'top', 0.5], to: ['api', 'left'], route: 'curve', arrow: 'end', label: 'POST', flow: {dir: 1}})
+   .link('enq', {from: ['api', 'right'], to: ['queue', 'top'], route: 'curve', arrow: 'end', label: 'enqueue', flow: {dir: 1, period: 1.8}})
+   .link('ack', {from: ['api', 'bottom', 0.2], to: ['browser', 'right', 0.8], route: 'curve', arrow: 'end', tone: 'gap', label: '202', flow: {dir: 1, tone: 'gap'}})
+   .link('take', {from: ['queue', 'bottom'], to: ['worker', 'right'], route: 'curve', arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add', period: 2}})
+   .link('write', {from: ['worker', 'right', 0.8], to: ['db', 'bottom'], route: 'ortho', arrow: 'end', tone: 'add', label: 'batch', labelAt: 0.3, flow: {dir: 1, tone: 'add', period: 2.4},
+      info: {text: 'The worker writes in batches, so the database sees few large transactions.', facts: [['batch', 'up to 500 rows'], ['every', '200 ms']]}});
+
+  d.bindFocus();
+
+  var caps = document.getElementById('cap'), dots = document.getElementById('dots');
+  var STEPS = [
+    {show: ['client', 'client.label', 'browser'],
+     caption: 'A browser sends a write.'},
+    {show: ['svc', 'svc.label', 'api', 'req'], flows: ['req'],
+     caption: 'The API receives it and checks it.'},
+    {show: ['queue', 'enq', 'ack'], flows: ['enq', 'ack'], stopFlows: ['req'],
+     caption: 'It puts the write on a queue and answers at once. The browser does not wait for the database.'},
+    {show: ['data', 'data.label', 'worker', 'db', 'take', 'write'], flows: ['take', 'write'], dim: ['ack'],
+     caption: 'A worker drains the queue and writes to the database in batches.'},
+    {show: ['lock'],
+     caption: 'An idempotency key makes a retried write safe: the worker applies it once.'}
+  ];
+  STEPS.forEach(function () { dots.appendChild(document.createElement('i')); });
+  var ctl = d.steps(STEPS, {onStep: function (k, s) {
+    caps.innerHTML = '<b>' + (k + 1) + ' / ' + STEPS.length + '</b>';
+    caps.appendChild(document.createTextNode(s.caption));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }});
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>

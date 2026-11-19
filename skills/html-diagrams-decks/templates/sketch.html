@@ -1,0 +1,77 @@
+<title>Message Platform View</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* A figure drawn by hand with EdgeSketch: zones left to right, boxes on a grid, two-headed arrows.
+   Use it when EdgeDiagram's routed links and steps are not what the figure needs. The theme defines
+   every colour; scripts/shot.sh --check checks the figure like any other. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 48px}
+.wrap{max-width:1180px;margin-inline:auto;display:grid;gap:16px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4vw,42px);line-height:1.05;margin:0;text-wrap:balance}
+.lede{max-width:68ch;color:var(--ink2);margin:0}
+.pane{overflow-x:auto;border:1px solid var(--rule);border-radius:12px;background:var(--card);padding:12px}
+.pane svg{display:block;width:100%;min-width:880px;height:auto}
+figure{margin:0;display:grid;gap:10px}
+figcaption{font-size:13.5px;color:var(--muted);max-width:86ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:14px;height:14px;border-radius:3px;display:inline-block;border:1.4px solid var(--ink2);background:var(--card)}
+.legend i.acc{background:var(--accent-soft);border-color:var(--accent)}
+.legend i.add{background:var(--ok-soft);border-color:var(--ok)}
+.legend i.p3{background:var(--p3-soft);border-color:var(--p3);border-style:dashed}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · hand-drawn figure</p>
+  <h1>A message platform, left to right</h1>
+  <p class="lede">Producers on the left, the platform in the middle, the consumers on the right. Every arrow has two heads because every path is used both ways: events travel right, acknowledgements and commands come back left.</p>
+  <figure>
+    <div class="pane"><svg id="mp" viewBox="0 0 1000 440" role="img" aria-label="Three zones left to right. Producers: a web shop, a mobile app and a partner feed. The platform: four columns a message crosses, ingress, schema check, topics and access rules, then three services facing right, subscriptions, storage and actions. Consumers: billing, analytics, and a planned recommendation service."></svg></div>
+    <div class="legend"><span><i class="acc"></i>the platform</span><span><i class="add"></i>consumers in production</span><span><i class="p3"></i>planned</span><span><i></i>producers</span></div>
+    <figcaption>Hover a box for what it does. Replace the content, keep the grid: equal box sizes, equal gaps, arrows from edge to edge.</figcaption>
+  </figure>
+</div>
+
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgesketch.js"></script>
+<script>
+(function () {
+  var s = EdgeSketch.create(document.getElementById('mp'), {icons: window.EDGE_ICONS});
+  // zones and their heads
+  s.zone(0, 0, 200, 440, {r: 0}); s.zone(200, 0, 480, 440, {r: 0, tone: 'accent'}); s.zone(680, 0, 320, 440, {r: 0});
+  s.text(100, 34, 'Producers', {cls: 'head', anchor: 'middle', size: 17});
+  s.text(440, 34, 'Platform', {cls: 'head', anchor: 'middle', size: 17});
+  s.text(840, 34, 'Consumers', {cls: 'head', anchor: 'middle', size: 17});
+
+  // producers, one per row
+  var RY = [90, 190, 290], RH = 56;
+  [['desktop', 'Web shop', 'orders'], ['phone', 'Mobile app', 'orders · returns'], ['link', 'Partner feed', 'stock levels']].forEach(function (p, i) {
+    s.box(20, RY[i], 160, RH, {icon: p[0], title: p[1], sub: p[2], info: 'Publishes ' + p[2] + ' to the platform.'});
+    s.arrow(182, RY[i] + RH / 2, 218, RY[i] + RH / 2, {heads: 'both', dashed: true});
+  });
+
+  // the columns a message crosses, then the services facing right
+  var CX = [222, 298, 374, 450], CW = 52;
+  [['plug', 'Ingress', 'HTTP · MQTT'], ['verified', 'Schema check', 'one profile'], ['broker', 'Topics', 'ordered · durable'], ['policy', 'Access rules', 'per consumer']].forEach(function (c, i) {
+    s.box(CX[i], 70, CW, 296, {icon: c[0], title: c[1], sub: c[2], vertical: true, tone: 'accent', shadow: true, info: c[1] + ': ' + c[2] + '.'});
+    if (i) s.arrow(CX[i - 1] + CW + 4, 218, CX[i] - 3, 218, {heads: 'both', dashed: true});
+  });
+  var SY = [90, 190, 290], SX = 524, SW = 146;
+  [['radio', 'Subscriptions', 'live topics'], ['database', 'Storage', 'retention · replay'], ['control', 'Actions', 'commands back']].forEach(function (o, i) {
+    s.box(SX, SY[i], SW, RH, {icon: o[0], title: o[1], sub: o[2], tone: 'accent', shadow: true, info: o[1] + ' for the consumers: ' + o[2] + '.'});
+    s.arrow(CX[3] + CW + 4, SY[i] + RH / 2, SX - 3, SY[i] + RH / 2, {heads: 'both', dashed: true});
+  });
+
+  // consumers
+  [['coin', 'Billing', 'invoices', 'add'], ['model', 'Analytics', 'dashboards', 'add'], ['target', 'Recommendations', 'planned', 'p3']].forEach(function (c, i) {
+    s.box(780, SY[i], 190, RH, {icon: c[0], title: c[1], sub: c[2], tone: c[3], info: c[1] + ' reads through the platform, never from the producers.'});
+    s.arrow(SX + SW + 6, SY[i] + RH / 2, 778, SY[i] + RH / 2, {heads: 'both', dashed: true, tone: c[3] === 'p3' ? 'p3' : 'add'});
+  });
+
+  // a bar across the platform
+  s.box(222, 384, 448, 40, {icon: 'shield', title: 'Identity · encryption · audit', sub: 'every producer and consumer signs in', align: 'center', tone: 'accent', shadow: true});
+})();
+</script>

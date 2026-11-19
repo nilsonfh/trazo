@@ -1,0 +1,29 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&family=Red+Hat+Mono:wght@400;500&display=swap");
+/* drafting -- a drawing office: deep teal ink on warm tracing paper; Barlow Condensed, Source Sans 3, Red Hat Mono.
+   Warmer and more editorial than engineering: proposals, field studies, documents read on paper or projected.
+   Tones: accent teal = the subject; gap vermilion = a gap, a risk, a failure (the red pencil of a check print);
+   add olive = what is added; p3 plum = a further phase or option, drawn dashed.
+   Status warn is ochre, kept apart from the vermilion gap. */
+:root{
+  --bg:#f2eee5; --card:#faf8f2; --ink:#1f1c17; --ink2:#4a443a; --muted:#6f6556; --rule:#ddd5c5;
+  --accent:#0e6372; --accent-soft:#dcebec;
+  --ok:#44700b; --ok-soft:#e7efd8; --warn:#8f5a07; --warn-soft:#f8ecd2; --bad:#b4301b; --bad-soft:#f9e1da; --p3:#7b3f8c; --p3-soft:#f1e6f3;
+  --display:"Barlow Condensed","Arial Narrow",sans-serif; --sans:"Source Sans 3","Segoe UI",system-ui,sans-serif; --mono:"Red Hat Mono",ui-monospace,Menlo,monospace;
+  --ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono);
+  --ed-ink:#1f1c17; --ed-ink2:#4a443a; --ed-muted:#6f6556; --ed-surface:#fffdf8; --ed-layer:#ede7da; --ed-rule:#d6cdbb;
+  --ed-accent:#0e6372; --ed-accent-soft:#dcebec; --ed-gap:#c2410c; --ed-gap-soft:#fbe5d9; --ed-add:#4d7c0f; --ed-add-soft:#e7efd8; --ed-p3:#7b3f8c; --ed-p3-soft:#f1e6f3;
+  --ed-tip-bg:#1f1c17; --ed-tip-ink:#f7f3ea;
+  --f-display:var(--display); --f-body:var(--sans); --f-mono:var(--mono); --slide:var(--card);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#9a907f; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
+  --ok:#a3cc5c; --ok-soft:#232e17; --warn:#e8b04a; --warn-soft:#33270f; --bad:#f4876c; --bad-soft:#3b1a12; --p3:#cfa2e3; --p3-soft:#2c1d33;
+  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#9a907f; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
+  --ed-accent:#62bccc; --ed-accent-soft:#143338; --ed-gap:#f28c55; --ed-gap-soft:#3a2115; --ed-add:#a3cc5c; --ed-add-soft:#232e17; --ed-p3:#cfa2e3; --ed-p3-soft:#2c1d33;
+  --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; } }
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#9a907f; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
+  --ok:#a3cc5c; --ok-soft:#232e17; --warn:#e8b04a; --warn-soft:#33270f; --bad:#f4876c; --bad-soft:#3b1a12; --p3:#cfa2e3; --p3-soft:#2c1d33;
+  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#9a907f; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
+  --ed-accent:#62bccc; --ed-accent-soft:#143338; --ed-gap:#f28c55; --ed-gap-soft:#3a2115; --ed-add:#a3cc5c; --ed-add-soft:#232e17; --ed-p3:#cfa2e3; --ed-p3-soft:#2c1d33;
+  --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; }

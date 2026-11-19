@@ -1,0 +1,59 @@
+---
+name: html-diagrams-decks
+description: Build animated, interactive SVG diagrams, hand-drawn architecture figures and 16:9 slide decks as single self-contained HTML files (light and dark themes, stepped builds with captions, packets flowing along connectors, hover details, a layout check, a 50-icon sprite including grid/energy symbols). Use when asked for an architecture or flow diagram, a layered or platform view, an explainer figure, a stepped walkthrough, or a presentation/deck as an HTML page or claude.ai artifact.
+license: MIT
+compatibility: The libraries run in any browser. The tools need Python 3, bash, and a headless Chromium for screenshots and checks (npx playwright install chromium-headless-shell, or set CHROME).
+---
+
+# HTML diagrams and decks
+
+This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilot and other agents read it) provides two small figure libraries, a deck engine, three themes and three templates. Each result is one HTML file that works offline once GSAP is cached, follows the viewer's light or dark theme, and can be published as a claude.ai artifact.
+
+| Path | What it is |
+| --- | --- |
+| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (curve/ortho/straight, arrows, labels, packet flows), `bindFocus`, `steps`, and a layout check at every step |
+| `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (two heads, polylines), `text`; and `EdgeSketch.check`, a layout check for any SVG |
+| `lib/icons.js` | `window.EDGE_ICONS`: 50 line icons on a 24-unit grid (grid equipment, compute, trust, operations) |
+| `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, swipe and `#n` links |
+| `themes/*.css` | Colour and type themes, light and dark, on one token contract: `engineering` (blue on green-grey, Archivo Narrow and IBM Plex), `indigo` (indigo on lavender-grey, Space Grotesk and Inter), `drafting` (teal on warm paper, Barlow Condensed and Source Sans 3) |
+| `templates/diagram.html` | A stepped EdgeDiagram figure with captions, Previous/Next and dots |
+| `templates/sketch.html` | A hand-drawn EdgeSketch figure: zones left to right, columns, services, two-headed arrows, a legend |
+| `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step |
+| `scripts/inline.py` | Inlines the library files and the theme into a page so it publishes as one file; fails on anything it cannot find |
+| `scripts/shot.sh` | Headless screenshots (light or dark, any width, after given clicks, `--only` one element, `--full` page) and `--check`, the layout check of every figure on a page |
+| `scripts/check_theme.py` | Checks a theme's WCAG contrast in light and dark, and that its two dark blocks agree |
+| `scripts/theme_from_design.py` | Makes a theme from a DESIGN.md file (a brand's colours and faces), light and dark, every pair at its contrast |
+| `scripts/test.sh` | Runs the tests in `tests/`; run it after changing `lib/`, `scripts/` or `themes/` |
+| `scripts/vendor.sh` | Copies the library into another project, and `--check` shows whether that copy is behind |
+| `references/api.md` | Every option of both libraries and the deck engine |
+| `references/conventions.md` | Tokens, the meaning of each tone, layout rules, publishing, and the checks to run |
+| `examples/ci-canary-deck.html` | A complete two-slide deck on a neutral workflow (CI/CD, then a canary rollout) |
+| `examples/isometric/` | An isometric layered-figure generator (the SGAM cube), with lessons learned |
+| `examples/design-md/DESIGN.md` | A sample DESIGN.md (Harbor) to make a theme from |
+
+## Workflow
+
+1. **Decide what the figure must show.** Name the mechanism, the parts it depends on, and the sequence in which to reveal it. A sentence that says it faster beats a figure.
+2. **Pick the library.** A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with either library on its slides.
+3. **Copy the template** into the working directory, for example `cp <skill>/templates/sketch.html ./my-figure.html`. Fix the `<script src>` and theme paths so they point at `<skill>/lib/` and `<skill>/themes/`, or run `inline.py` with `--lib` and `--themes` at the end.
+4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires. In EdgeDiagram prefer `'auto'` sides, `route: 'ortho'` where wires must go around boxes, and `info` on links that carry meaning. Read `references/api.md` for the options.
+5. **Write the steps** (EdgeDiagram). Step 0 is the resting state. Each later step adds one idea and has a short caption. Use `flows` for the data that moves, and `dim` or `hide` for what the step moves past.
+6. **Theme.** Pages link one theme, `<link rel="stylesheet" href="../themes/engineering.css">`; swap the name to change it. `engineering` for dense technical material, `indigo` for product and software delivery, `drafting` for proposals and studies read like documents. Keep each tone's meaning (`references/conventions.md`). For a brand's look, make a theme from its DESIGN.md: `python3 <skill>/scripts/theme_from_design.py DESIGN.md -o themes/<name>.css` (`examples/design-md/DESIGN.md` is a sample). By hand, copy a theme, keep every token name, change the values, and run `scripts/check_theme.py themes/<name>.css` until it passes.
+7. **Build, check and look:**
+   ```bash
+   python3 <skill>/scripts/inline.py my-figure.html > build/my-figure.html
+   <skill>/scripts/shot.sh --check build/my-figure.html          # every figure; exit 1 on any issue
+   <skill>/scripts/shot.sh --only '#my-fig' build/my-figure.html /tmp/f-light.png light 1280
+   <skill>/scripts/shot.sh --only '#my-fig' build/my-figure.html /tmp/f-dark.png dark 1280
+   <skill>/scripts/shot.sh build/my-figure.html /tmp/sN.png dark 1280 'for(var i=0;i<5;i++)document.getElementById("next").click()'
+   ```
+   Fix everything `--check` reports. Then open the PNGs and fix what it cannot see, such as off-grid boxes, arrowheads that collide or crowded labels, and look again at width 420. Screenshots freeze packets near the start of their wires, so judge motion in a real browser.
+8. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it).
+
+## Rules
+
+- Do not use other libraries. GSAP 3 from cdnjs is optional: without it, every step shows its final state.
+- Every colour comes from a token, so components never contain literal colours.
+- Every node, box or link that has `info` is keyboard-focusable. The SVG has `role="img"` and an `aria-label` that states what the figure claims.
+- A figure wider than a phone scrolls inside its own `overflow-x: auto` container, never the page.
+- Keep internal names, customer names and addresses out of pages that will be shared.

@@ -1,0 +1,32 @@
+<!-- EdgeDiagram's layout check finds overlaps, overflowing text and links through nodes, and an ortho route goes around a node in its way. Run with scripts/test.sh. -->
+<svg id="ok" viewBox="0 0 600 220"></svg>
+<svg id="bad" viewBox="0 0 600 220"></svg>
+<pre id="out"></pre>
+<script src="../lib/edgediagram.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+// a clean figure with a node between the two ends of an ortho link, and a p3 link
+var d = EdgeDiagram.create(document.getElementById('ok'));
+d.node('a', {x: 20, y: 80, w: 100, h: 50, title: 'A'}).node('m', {x: 250, y: 70, w: 100, h: 70, title: 'M'})
+ .node('b', {x: 480, y: 80, w: 100, h: 50, title: 'B', tone: 'p3'})
+ .link('ab', {from: ['a', 'right'], to: ['b', 'left'], route: 'ortho'})
+ .link('mb', {from: ['m', 'bottom'], to: ['b', 'bottom'], route: 'ortho', tone: 'p3'});
+var issues = d.check();
+if (issues.length) bad.push('clean figure: ' + issues.join(' / '));
+if (!document.querySelector('#ok marker[id^="ed-arrow-p3"]')) bad.push('no p3 arrow marker');
+
+// a broken figure
+var e = EdgeDiagram.create(document.getElementById('bad'), {check: true});
+e.node('a', {x: 20, y: 20, w: 120, h: 50, title: 'A title much too long for its box'})
+ .node('b', {x: 100, y: 40, w: 120, h: 50, title: 'B'})
+ .node('c', {x: 260, y: 140, w: 100, h: 50, title: 'C'}).node('x', {x: 420, y: 140, w: 100, h: 50, title: 'X'})
+ .node('m', {x: 330, y: 150, w: 60, h: 30, title: 'M'})
+ .node('far', {x: 560, y: 10, w: 100, h: 40, title: 'F'})
+ .link('cx', {from: ['c', 'right'], to: ['x', 'left'], route: 'straight'});
+expect(e.check(), ['nodes a and b overlap', 'runs', 'link cx crosses node m', 'node far is outside the viewBox'], 'broken figure');
+if (!EdgeDiagram.version) bad.push('no EdgeDiagram.version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

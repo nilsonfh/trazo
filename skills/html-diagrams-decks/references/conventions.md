@@ -1,0 +1,64 @@
+# Conventions that made these pages work
+
+## Single-file pages
+
+- One HTML file is published. GSAP comes from cdnjs, and `scripts/inline.py` inlines the library, the sprite, the deck engine and the theme. Fonts come from Google Fonts. Nothing else is fetched. `inline.py` fails on a library file or theme it cannot find, and reports other local scripts and stylesheets, which a published page cannot load.
+- In a claude.ai artifact, scripts load only from a few CDNs (cdnjs, jsdelivr, unpkg) and stylesheets only from Google Fonts. `window.print()`, `alert()` and downloads do nothing there. A deep link must be a bare `#n`.
+- When the page is wrapped at publish time, as claude.ai artifacts are, start the file with `<title>` and `<style>`, with no `<html>`, `<head>` or `<body>`. When a standalone file is wanted, add them.
+- The `<title>` is the page's name, two to four words, not a sentence. Keep the side gutter at 16 px or more, written `padding-left: max(16px, env(safe-area-inset-left, 0px))` and the same on the right, and then put `<meta name="claude:viewport-fit-sides" content="cover">` beside the title; the templates do both.
+
+## Tokens and themes
+
+- A theme is one file in `themes/`, linked from the page and inlined by `inline.py`. It starts with an `@import` of its Google Fonts, then defines the contract below on bare `:root` (light) and again in both dark blocks. Pages style themselves through these tokens only, so any theme fits any page.
+  - Page: `--bg --card --ink --ink2 --muted --rule --accent --accent-soft`, status `--ok --warn --bad` each with `-soft`, faces `--display --sans --mono` (aliases `--f-display --f-body --f-mono`, and `--slide` for `--card`).
+  - Library: the `--ed-*` tokens below, with `--ed-display --ed-sans --ed-mono` pointing at the faces.
+- | Theme | Character | Faces |
+  | --- | --- | --- |
+  | `engineering` | Engineering blue on green-grey; sober, dense, technical | Archivo Narrow, IBM Plex Sans, IBM Plex Mono |
+  | `indigo` | Indigo on lavender-grey; product and delivery, a little brighter | Space Grotesk, Inter, JetBrains Mono |
+  | `drafting` | Deep teal on warm tracing paper, vermilion for what fails, olive for what is added; proposals and studies | Barlow Condensed, Source Sans 3, Red Hat Mono |
+- A theme can be made from a DESIGN.md file, the open format of Google Labs (YAML front matter with `colors` and `typography`, then prose) that collections such as awesome-design-md use for many brands: `scripts/theme_from_design.py DESIGN.md -o themes/<name>.css`. It finds the roles by name (surfaces, ink, rule, primary, success, warning, error, a violet or tertiary), reads files without front matter from their colour bullets, takes the file's own mode from its background and derives the other (from inverse-* colours where there are any), replaces a tone that has the accent's hue so the two never read as one, imports the faces Google Fonts has, and brings every pair to its ratio. Its header lists what it found, derived and adjusted; `--explain` prints it. Look at the result in light and dark before using it: a role found by name can be the wrong one.
+- A theme made from a brand's DESIGN.md takes that brand's look. Keep it for pages about or for that brand, and do not ship it as a theme of this library.
+- `scripts/check_theme.py` checks every theme in light and dark: text pairs at 4.5:1 (ink, ink2 and muted on the grounds, status on its soft fill, node text on every tone's soft fill, the tooltip), strokes at 3:1 (each tone on the surface, the layer and its soft fill). A new theme passes before it is used.
+
+- Define every colour as a token. Put the light values on bare `:root`. Redefine the dark values twice: under `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {…} }` and again under `:root[data-theme="dark"]`, both with `color-scheme: dark`. Give `body` an explicit background.
+- The library reads `--ed-ink --ed-ink2 --ed-muted --ed-surface --ed-layer --ed-rule --ed-accent --ed-accent-soft --ed-gap --ed-gap-soft --ed-add --ed-add-soft --ed-tip-bg --ed-tip-ink`, plus optional `--ed-sans --ed-display --ed-mono --ed-pad`. Map them onto the page's own tokens.
+- Each tone has one meaning, and it should keep that meaning for the whole page or deck:
+  - **accent (blue):** the subject, the data going up;
+  - **gap (amber):** a gap, a risk, decisions coming down;
+  - **add (green):** what the proposal adds;
+  - **p3 (violet, dashed):** a further phase or option, what is potential;
+  - **muted dashed:** today, legacy, outside.
+- `--p3` and `--p3-soft` (page) and `--ed-p3` and `--ed-p3-soft` (library) are in every theme; both libraries have the tone `p3`. A fourth phase gets its own token the same way, dashed.
+
+## Drawing
+
+- Draw the mechanism, not a box per noun. Label the wires (`POST`, `batch`, `every 30 s`).
+- Put a zone's label where no wire crosses the zone's edge: wires usually enter a zone from above, so a band crossed at its top-left takes `labelPos: 'bottom-left'`, or a shorter label.
+- A node whose chips are joined by wires is fine: those wires draw above it. A box whose chips have wires and whose own title would sit in their way puts its title under them with `textY`.
+- Keep to a grid. Give sibling boxes the same width and the same gaps. Choose the viewBox for the content (for example 1000×560 for a page figure and 900×420 inside a deck slide). Keep text at 11–13 px or more at the drawn scale.
+- Let the library place connectors: `'auto'` sides, or `t: 'auto'` on a fixed side, so links sharing a side spread themselves. Give a number only when a wire must hit an exact point. Use `ortho` for buses, trunks and anything that must go around boxes, and `curve` between levels. Give links that carry meaning an `info` too.
+- Wrap the SVG in a container with `overflow-x: auto` and `min-width` about 640 px, so a phone scrolls the figure and not the page. Give it `role="img"` and an `aria-label` that states the claim.
+- When a figure is a grid of boxes rather than a graph of links (a layered stack, a left-to-right platform view), draw it with `lib/edgesketch.js` (`templates/sketch.html`): zones, boxes that fit their text, columns, bars and two-headed arrows, on the same tokens. A figure with its own state (a phase toggle, a detail panel filled on click) draws its parts with the same helpers and adds its classes in its own `<script>`.
+- Every figure, drawn with a library or by hand, is checked the same way (below). In a hand-drawn figure, mark a box with `data-box` (or draw it with EdgeSketch) so the check knows which text belongs to it, and mark what overlaps on purpose with `data-check="false"`.
+
+## Steps and motion
+
+- Start a walked-through figure at its last step (`start: STEPS.length - 1`), so it reads whole at rest, with a "Walk through" button that goes to step 0.
+- To fade a part for one step and bring it back (a link cut, a node quarantined), `dim` it in that step and `show` it in the next. For a fade that several steps toggle, a class with `filter: opacity(.22)` set in `onStep` also works and never touches the timeline.
+
+- Step 0 must make sense on its own. Every later step adds one idea and has a caption of one or two sentences.
+- Go forward with animation and back without it. Honour `prefers-reduced-motion`, which the library already does.
+- In a deck, a slide whose motion is its own (boxes merging, a chip bouncing) builds its elements with the library, animates `d.items[id].el` on its own timeline, and adds `s0..sN` labels.
+
+## Checking before publishing
+
+- `scripts/shot.sh --check page.html` runs the layout check over every figure: EdgeDiagram's at every step and slide (overlaps, overflowing text, links through nodes, covered labels), and EdgeSketch's on every other `svg[role="img"]` in its resting state (text out of its box, text on text, icons on text). Fix everything it reports, or mark a deliberate case with `check: false` (EdgeDiagram) or `data-check="false"` (anything else).
+- `scripts/shot.sh page.html out.png [light|dark] [width] [js]` takes a screenshot. Pass JS that clicks Next N times to see step N. `--only '#fig-2'` crops to one element, at the page's width and the element's height; `--full` takes the whole page instead of the first 1600 px. The script switches off CSS transitions and GSAP lag smoothing; otherwise virtual time freezes both at their first frames.
+- Look at light and dark, step 0 and the last step, and a 400 px width. Labels must not collide, and no text may be clipped.
+- When a page is meant to be shared, keep internal names, customers and addresses out of it.
+
+## Keeping a copy in another project
+
+- A project that builds pages with this library can keep a copy of it: `scripts/vendor.sh DEST` copies the library, the themes, `inline.py` and `shot.sh` flat into DEST with a `VERSION` file, and `inline.py` and `shot.sh` find the library beside themselves there.
+- `scripts/vendor.sh --check DEST` lists what differs, so the project sees when it is behind. Fixes belong in the skill and come back with the next copy; a fix made only in the copy is lost then.

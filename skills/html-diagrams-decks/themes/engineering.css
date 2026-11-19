@@ -1,0 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+/* engineering -- engineering blue on green-grey neutrals; Archivo Narrow, IBM Plex Sans, IBM Plex Mono.
+   For dense technical material: architecture, operations, field equipment. Sober, dense, technical.
+   Tones: accent blue = the subject; gap amber = a gap, a risk, a failure; add green = what is added;
+   p3 violet = a further phase or option, drawn dashed. */
+:root{
+  --bg:#eef2f0; --card:#f7f9f8; --ink:#15201d; --ink2:#3f4f4a; --muted:#5f6e68; --rule:#d2dbd7;
+  --accent:#2456a4; --accent-soft:#e3ebf6;
+  --ok:#0b7a0b; --ok-soft:#e3f3e3; --warn:#8f5f00; --warn-soft:#fbf1d9; --bad:#b42318; --bad-soft:#fde7e4; --p3:#6b46c1; --p3-soft:#efe9fb;
+  --display:"Archivo Narrow","Arial Narrow",sans-serif; --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono);
+  --ed-ink:#15201d; --ed-ink2:#3f4f4a; --ed-muted:#5f6e68; --ed-surface:#ffffff; --ed-layer:#e9eeec; --ed-rule:#d2dbd7;
+  --ed-accent:#2456a4; --ed-accent-soft:#e3ebf6; --ed-gap:#ad7600; --ed-gap-soft:#fbf1d9; --ed-add:#0b8a0b; --ed-add-soft:#e3f3e3; --ed-p3:#6b46c1; --ed-p3-soft:#efe9fb;
+  --ed-tip-bg:#15201d; --ed-tip-ink:#f3f6f4;
+  --f-display:var(--display); --f-body:var(--sans); --f-mono:var(--mono); --slide:var(--card);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#070b0a; --card:#111916; --ink:#e6ece9; --ink2:#bac6c1; --muted:#8c9a95; --rule:#2f3b37; --accent:#7ea8ea; --accent-soft:#1b2940;
+  --ok:#5fcf5f; --ok-soft:#16301a; --warn:#f0b429; --warn-soft:#2e2510; --bad:#ff8a7a; --bad-soft:#3a1714; --p3:#b69cf2; --p3-soft:#241a3a;
+  --ed-ink:#e6ece9; --ed-ink2:#bac6c1; --ed-muted:#8c9a95; --ed-surface:#17211d; --ed-layer:#1b2421; --ed-rule:#2f3b37;
+  --ed-accent:#7ea8ea; --ed-accent-soft:#1b2940; --ed-gap:#f0b429; --ed-gap-soft:#2e2510; --ed-add:#5fcf5f; --ed-add-soft:#16301a; --ed-p3:#b69cf2; --ed-p3-soft:#241a3a;
+  --ed-tip-bg:#e6ece9; --ed-tip-ink:#111916; } }
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#070b0a; --card:#111916; --ink:#e6ece9; --ink2:#bac6c1; --muted:#8c9a95; --rule:#2f3b37; --accent:#7ea8ea; --accent-soft:#1b2940;
+  --ok:#5fcf5f; --ok-soft:#16301a; --warn:#f0b429; --warn-soft:#2e2510; --bad:#ff8a7a; --bad-soft:#3a1714; --p3:#b69cf2; --p3-soft:#241a3a;
+  --ed-ink:#e6ece9; --ed-ink2:#bac6c1; --ed-muted:#8c9a95; --ed-surface:#17211d; --ed-layer:#1b2421; --ed-rule:#2f3b37;
+  --ed-accent:#7ea8ea; --ed-accent-soft:#1b2940; --ed-gap:#f0b429; --ed-gap-soft:#2e2510; --ed-add:#5fcf5f; --ed-add-soft:#16301a; --ed-p3:#b69cf2; --ed-p3-soft:#241a3a;
+  --ed-tip-bg:#e6ece9; --ed-tip-ink:#111916; }
