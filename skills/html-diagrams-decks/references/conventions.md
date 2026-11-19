@@ -58,7 +58,15 @@
 - Look at light and dark, step 0 and the last step, and a 400 px width. Labels must not collide, and no text may be clipped.
 - When a page is meant to be shared, keep internal names, customers and addresses out of it.
 
+## Exporting to draw.io
+
+- `scripts/todrawio.sh page.html TARGET out.drawio [name]` writes one figure of a built page (after `inline.py`) to a draw.io file. TARGET is an svg's id, or a CSS selector when it starts with `.` or `#`.
+- What it keeps depends on the figure. An EdgeDiagram svg keeps zones, nodes, icons, labels and links attached to their nodes, with the route's corners as waypoints, so moving a node in draw.io drags its wires. Any other svg (EdgeSketch or hand-drawn) keeps rects, ellipses, text (rotated text too), sprite icons and wires with their arrowheads, in the page's order; its wires are not attached to anything. Any other element is read as an HTML figure: its boxes, sprite icons and lines of text.
+- It renders the page in its light theme. Icons become draw.io stencils coloured from the cell's style, so draw.io's dark mode recolours them with the text. Each text names its face and, unless it is a system face, its Google Fonts address.
+- It does not carry motion, steps, tooltips, or filled shapes other than rects and ellipses; it prints what it left out. A target that matches nothing, or a figure that comes out empty, is an error (exit 1).
+- An export is a copy to edit, not the source: the page stays the source, and an export made again overwrites any edits made in draw.io.
+
 ## Keeping a copy in another project
 
-- A project that builds pages with this library can keep a copy of it: `scripts/vendor.sh DEST` copies the library, the themes, `inline.py` and `shot.sh` flat into DEST with a `VERSION` file, and `inline.py` and `shot.sh` find the library beside themselves there.
+- A project that builds pages with this library can keep a copy of it: `scripts/vendor.sh DEST` copies the library, the themes, `inline.py`, `shot.sh` and the draw.io exporter flat into DEST with a `VERSION` file, and `inline.py` and `shot.sh` find the library beside themselves there.
 - `scripts/vendor.sh --check DEST` lists what differs, so the project sees when it is behind. Fixes belong in the skill and come back with the next copy; a fix made only in the copy is lost then.

@@ -71,6 +71,14 @@ python3 scripts/theme_from_design.py path/to/DESIGN.md -o themes/mybrand.css --e
 
 It maps the file's colours onto the token contract, derives the mode the file does not give, brings every pair to its contrast, and imports the faces Google Fonts has. `examples/design-md/DESIGN.md` is a sample to start from.
 
+To hand someone an editable copy of a figure, export it to draw.io:
+
+```bash
+scripts/todrawio.sh out.html my-figure figure.drawio "My figure"     # an svg's id, or a CSS selector
+```
+
+EdgeDiagram figures keep their links attached to their nodes; hand-drawn figures keep their boxes, text, icons and arrows; motion and steps stay in the page.
+
 To keep a copy of the library in another project, run `scripts/vendor.sh path/to/project/diagram`. Later, `scripts/vendor.sh --check path/to/project/diagram` shows whether that copy is behind.
 
 ## Contents
@@ -83,7 +91,7 @@ To keep a copy of the library in another project, run `scripts/vendor.sh path/to
 | `…/lib/` | `edgediagram.js` (graphs), `edgesketch.js` (hand-drawn figures and the general check), `edgedeck.js` (decks), `icons.js` (sprite) |
 | `…/themes/` | `engineering.css`, `indigo.css`, `drafting.css`: colours and faces, light and dark, on one token contract |
 | `…/templates/` | `diagram.html`, `sketch.html` and `deck.html`, ready to copy |
-| `…/scripts/` | `inline.py`, `shot.sh`, `check_theme.py`, `vendor.sh`, and `test.sh`, which runs the tests in `tests/` |
+| `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, and `test.sh`, which runs the tests in `tests/` |
 | `…/references/` | `api.md` (every option) and `conventions.md` (tokens, layout, publishing, checks) |
 | `…/examples/` | `ci-canary-deck.html`, a two-slide deck on a neutral workflow, and `isometric/`, an isometric layered-figure generator |
 

@@ -21,6 +21,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step |
 | `scripts/inline.py` | Inlines the library files and the theme into a page so it publishes as one file; fails on anything it cannot find |
 | `scripts/shot.sh` | Headless screenshots (light or dark, any width, after given clicks, `--only` one element, `--full` page) and `--check`, the layout check of every figure on a page |
+| `scripts/todrawio.sh` | Exports one figure of a built page to a draw.io file, to be edited there: EdgeDiagram figures with their links attached, hand-drawn SVG figures, HTML figures |
 | `scripts/check_theme.py` | Checks a theme's WCAG contrast in light and dark, and that its two dark blocks agree |
 | `scripts/theme_from_design.py` | Makes a theme from a DESIGN.md file (a brand's colours and faces), light and dark, every pair at its contrast |
 | `scripts/test.sh` | Runs the tests in `tests/`; run it after changing `lib/`, `scripts/` or `themes/` |
@@ -48,7 +49,8 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
    <skill>/scripts/shot.sh build/my-figure.html /tmp/sN.png dark 1280 'for(var i=0;i<5;i++)document.getElementById("next").click()'
    ```
    Fix everything `--check` reports. Then open the PNGs and fix what it cannot see, such as off-grid boxes, arrowheads that collide or crowded labels, and look again at width 420. Screenshots freeze packets near the start of their wires, so judge motion in a real browser.
-8. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it).
+8. **Hand over an editable copy when asked.** `<skill>/scripts/todrawio.sh build/my-figure.html <svg id or selector> out.drawio "Name"` writes a draw.io file of one figure, in the light theme and at its last step. Say what it does not carry: motion, steps, tooltips, and filled shapes other than rects and ellipses (it prints how many it left out).
+9. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it).
 
 ## Rules
 
