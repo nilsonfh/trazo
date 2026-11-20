@@ -187,9 +187,11 @@
         } else if (e.kind === 'self') {
           e.n = ++num;
           var at = o.at, d0 = depth(at);
-          e.x0 = edge(at, Infinity); e.y = y;
+          // the loop opens to the right, or to the left from the last column or with side: 'left'
+          e.dir = o.side === 'left' || (o.side !== 'right' && A[at].i === actors.length - 1 && actors.length > 1) ? -1 : 1;
+          e.x0 = edge(at, e.dir * Infinity); e.y = y;
           bars.push({a: at, y0: y + 16, y1: y + 34, d: d0});
-          e.x1 = A[at].x + 5 + d0 * 4; e.bottom = y + 34;
+          e.x1 = A[at].x + d0 * 4 + 5 * e.dir; e.bottom = y + 34;
           y += opt.row + 22;
         } else {
           var lines = wrap(o.text, o.wrap || 34);
@@ -248,23 +250,24 @@
         }
         var g2 = el('g', {'class': 'sq-item sq-msg t-' + tone + (o.reply ? ' reply' : ''), 'data-id': e.id}, L.msgs), d;
         if (e.kind === 'msg') d = 'M' + e.x0 + ' ' + e.y + ' H' + e.x1;
-        else { var r = 6, xo = e.x0 + 34; d = 'M' + e.x0 + ' ' + e.y + ' H' + (xo - r) + ' Q' + xo + ' ' + e.y + ' ' + xo + ' ' + (e.y + r) +
-          ' V' + (e.y + 22 - r) + ' Q' + xo + ' ' + (e.y + 22) + ' ' + (xo - r) + ' ' + (e.y + 22) + ' H' + e.x1; }
+        else { var r = 6 * e.dir, xo = e.x0 + 34 * e.dir; d = 'M' + e.x0 + ' ' + e.y + ' H' + (xo - r) + ' Q' + xo + ' ' + e.y + ' ' + xo + ' ' + (e.y + 6) +
+          ' V' + (e.y + 16) + ' Q' + xo + ' ' + (e.y + 22) + ' ' + (xo - r) + ' ' + (e.y + 22) + ' H' + e.x1; }
         var p = el('path', {d: d, 'class': 'sq-wire', pathLength: o.reply ? null : 1}, g2);   // a reply keeps its dashes
         p.setAttribute('marker-end', head(tone));
-        var lx = e.kind === 'msg' ? (e.x0 + e.x1) / 2 : e.x0 + 42, ly = e.kind === 'msg' ? e.y - 8 : e.y + 15;
+        var lx = e.kind === 'msg' ? (e.x0 + e.x1) / 2 : e.x0 + 42 * e.dir, ly = e.kind === 'msg' ? e.y - 8 : e.y + 15;
         var pl = el('rect', {'class': 'sq-plate', rx: 3}, g2);
-        var t = el('text', {x: lx, y: ly, 'text-anchor': e.kind === 'msg' ? 'middle' : 'start', 'class': 'sq-label'}, g2);
+        var t = el('text', {x: lx, y: ly, 'text-anchor': e.kind === 'msg' ? 'middle' : e.dir > 0 ? 'start' : 'end', 'class': 'sq-label'}, g2);
         if (opt.numbers) el('tspan', {'class': 'sq-n'}, t, e.n + '  ');
         el('tspan', {}, t, o.label || '');
         e.plate = pl; e.text = t; e.path = p; e.g = g2;
         if (o.info) tip(g2, o.label || e.id, o.info);
         items[e.id] = {el: g2, kind: 'msg', e: e};
       });
+      placeLabels();   // measured first, so that a frame spans its self messages' labels
       frames.forEach(function (f) {
         var F = f.o, lo = Infinity, hi = -Infinity, nest = 0;
         entries.slice(entries.indexOf(E[F.from]), entries.indexOf(E[F.to || F.from]) + 1).forEach(function (e) {
-          var xs = e.kind === 'note' ? e.o.over.map(function (a) { return A[a].x; }) : e.kind === 'self' ? [e.x0, e.x0 + 34 + 70] : [e.x0, e.x1];
+          var xs = e.kind === 'note' ? e.o.over.map(function (a) { return A[a].x; }) : e.kind === 'self' ? [e.x0, e.lbox ? (e.dir > 0 ? e.lbox.x + e.lbox.w : e.lbox.x) : e.x0 + 104 * e.dir] : [e.x0, e.x1];
           lo = Math.min.apply(null, [lo].concat(xs)); hi = Math.max.apply(null, [hi].concat(xs));
         });
         frames.forEach(function (o2) { if (o2 !== f && o2.y0 <= f.y0 && o2.y1 >= f.y1 && (o2.y0 < f.y0 || o2.y1 > f.y1)) nest++; });
@@ -399,7 +402,7 @@
         var b = e.lbox;
         if (vb && !contains(vb, b)) add('label of ' + e.id + ' is outside the viewBox', b);
         if (e.kind === 'msg' && b.w > Math.abs(e.x1 - e.x0) - 8) add('label of ' + e.id + ' is wider than the gap it spans: shorten it or widen the viewBox', b);
-        if (e.kind === 'self') actors.forEach(function (a) { if (a.x > e.x0 + 2 && a.x > b.x && a.x < b.x + b.w) add('label of ' + e.id + ' crosses the lifeline of ' + a.id, b); });
+        if (e.kind === 'self') actors.forEach(function (a) { if (a.id !== e.o.at && a.x > b.x && a.x < b.x + b.w) add('label of ' + e.id + ' crosses the lifeline of ' + a.id, b); });
         labelled.slice(i + 1).forEach(function (f) { if (inter(b, f.lbox, 1)) add('labels of ' + e.id + ' and ' + f.id + ' overlap', b); });
       });
       entries.forEach(function (e) {
