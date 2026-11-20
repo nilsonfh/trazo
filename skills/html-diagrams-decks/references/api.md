@@ -48,9 +48,9 @@ const d = EdgeDiagram.create(svgElement, {icons: window.EDGE_ICONS});
 
 | Option | Meaning |
 | --- | --- |
-| `from`, `to` | `[nodeId, side, t]`. `side` is `top`, `bottom`, `left`, `right` or `auto`, and `auto` picks the side that faces the other end. `t` (0–1) is the position along the side. A wire leaves and enters perpendicular to its side. When the side or `t` is `'auto'`, the end is spread along its side with the other auto ends there, ordered by where their other ends are, so they do not cross. An explicit side with no `t` is its middle, and links on a `ghost` node meet at one point |
-| `route` | `curve` (cubic Bézier, default), `ortho` (right angles, rounded corners), `straight` |
-| `stub`, `clearance`, `radius`, `avoid` | For `ortho`. `stub` is the straight run out of each side (default 16). `clearance` is the gap kept around nodes (default 8). `radius` rounds the corners (default 14). `avoid: false` stops the route going around nodes. By default the route goes around every node except its own ends, their parents and the chips inside them, keeps off other ortho wires, avoids crossing other wires when a slightly longer path does not, and prefers to stay out of zones that hold neither end: no turn inside one, and as short a run through one as the layout allows, so crossing a band is fine but running along inside one is not. It never leaves the viewBox |
+| `from`, `to` | `[nodeId, side, t]`. `side` is `top`, `bottom`, `left`, `right` or `auto`, and `auto` picks the side that faces the other end. `t` (0–1) is the position along the side. A wire leaves and enters perpendicular to its side. When the side or `t` is `'auto'`, the end is spread along its side with the other auto ends there, ordered by where their other ends are, so they do not cross. An explicit side with no `t` is its middle. Links on a `ghost` node meet at one point. An end with no number for `t` that is alone on its side moves along it to line up with the other end, when the two nodes face each other across a span they share, so the wire is one straight run |
+| `route` | `ortho` (default: right angles, rounded corners), `straight` (for ends already in line; the check reports one that is slanted), `curve` (a cubic Bézier, only when a curve is wanted) |
+| `stub`, `clearance`, `radius`, `avoid` | For `ortho`. Of the routes that avoid everything, it takes the one with the fewest bends, then the shortest, and avoids short jogs between two turns. `stub` is the straight run out of each side (default 16). `clearance` is the gap kept around nodes (default 8). `radius` rounds the corners (default 14). `avoid: false` stops the route going around nodes. By default the route goes around every node except its own ends, their parents and the chips inside them, keeps off other ortho wires, avoids crossing other wires when a slightly longer path does not, and prefers to stay out of zones that hold neither end: no turn inside one, and as short a run through one as the layout allows, so crossing a band is fine but running along inside one is not. It never leaves the viewBox |
 | `tension` | Curve tension (default 0.45) |
 | `tone` | `accent` (default), `muted`, `gap`, `add`, `ink2`, `p3` (dashed) |
 | `dashed` | Dashed wire |
@@ -59,6 +59,25 @@ const d = EdgeDiagram.create(svgElement, {icons: window.EDGE_ICONS});
 | `info`, `infoTitle` | Makes the link focusable and gives it a tooltip like a node's. The title is `infoTitle`, else `label`, else "From → To" |
 | `check` | `false` leaves the link out of the layout check |
 | `flow` | `{dir: 1|-1, count, period (s), phase, r, tone}`: packets that follow the drawn path while the flow is on. They fade with their link (a dimmed link has dimmed packets), wait until the wire has been drawn, and stop while the figure is off screen |
+
+### `d.fan(id, o)`: one point feeding several nodes, or several feeding one
+
+```js
+d.fan('jobs', {from: ['queue', 'bottom'], to: ['w1', 'w2', ['w3', 'top', null, {label: 'gpu'}]], arrow: 'end', label: 'jobs', flow: {dir: 1}});
+d.fan('logs', {from: [['w1', 'bottom'], ['w2', 'bottom'], 'w3'], to: ['store', 'top'], arrow: 'end'});   // several into one
+```
+
+A trunk leaves the shared end. A bus runs across at right angles, halfway to the nearest end, and a branch drops from it into each end. A dot marks every junction where three or four runs meet. The corners there are square, and every other corner is rounded.
+
+| Option | Meaning |
+| --- | --- |
+| `from` / `to` | The shared end `[nodeId, side, t]`, and the list of the other ends. Each of those is a node id or `[nodeId, side, t, {label, labelAt, info, flow, id}]`. When the list is in `from`, the fan gathers into `to`. A side left out faces the bus: an end below a bottom trunk enters at its top. An end on a side across the bus is reached along the bus and in through a stub. `t` left out is the middle, and the trunk's `t` left out puts the trunk in line with the end nearest its side's middle, when one is in reach |
+| `at` | Where the bus runs (y for a vertical trunk, x for a horizontal one) |
+| `label` | On the trunk, halfway. A branch's own `label` sits halfway along its last run |
+| `tone`, `dashed`, `arrow`, `flow`, `info`, `radius`, `stub`, `check` | As for `d.link`, applied to every branch. Packets run the whole way along each branch |
+| `dot`, `dotSize` | `false` leaves the junction dots out; their radius (default 3.6) |
+
+Each branch is a link named `id + '.' + nodeId` (or its own `id`), for hover, `flows` and steps. In a step, the fan's `id` stands for all its branches and its dots, as `id + '.dots'`.
 
 ### `d.bindFocus()`
 
@@ -94,6 +113,7 @@ Returns a list of problems, checked at every step with what is visible at that s
 - nodes that partly overlap (a chip fully inside a node is fine);
 - text that runs outside its node;
 - a link through a node that is not one of its ends;
+- a `straight` link that is slanted, and an ortho link with a jog under 10 units (two ends almost in line);
 - an ortho link turning inside a zone that holds neither of its ends;
 - a link label on a node or on another label;
 - a node or label outside the viewBox.
@@ -116,7 +136,9 @@ const s = EdgeSketch.create(svgElement, {icons: window.EDGE_ICONS});
 | --- | --- |
 | `s.zone(x, y, w, h, o)` | A background band. `o.tone` `layer` (default) or `accent`; `o.label` an uppercase mono label at the top-left; `o.r` the corner radius (default 12) |
 | `s.box(x, y, w, h, o)` | A box with an icon, a title and a sub. See below |
-| `s.arrow(x1, y1, x2, y2, o)` or `s.arrow([[x, y], ...], o)` | A straight or polyline arrow. `o.tone` (default `accent`), `o.heads` `end` (default), `both`, `start`, `none`; `o.dashed`; `o.label` with `o.labelAt` (0–1, default 0.5) |
+| `s.arrow(x1, y1, x2, y2, o)` or `s.arrow([[x, y], ...], o)` | An arrow at right angles. Two points that are not in line are joined by a Z that turns halfway (`o.bend: 'mid'`), or by an L (`'hv'` horizontal first, `'vh'` vertical first). In a polyline, each point not in line with the last is reached by going on in the same direction first. `o.radius` rounds the corners (default 6). `o.route: 'straight'` keeps a diagonal and marks it `data-route="free"`. `o.tone` (default `accent`), `o.heads` `end` (default), `both`, `start`, `none`; `o.dashed`; `o.label`, halfway along the longest run, or at `o.labelAt` (0–1) along the whole wire |
+| `s.connect(a, sideA, b, sideB, o)` | An arrow from a side of one box to a side of another. A box is what `s.box` returned, `{x, y, w, h}` or `[x, y, w, h]`. Facing sides on boxes that share a span give one straight run; otherwise it is an L, a Z, or a U around the back. `o.at`, `o.to` (0–1) fix the positions along each side, `o.gap` the room left at each end (2 and 3), `o.stub` the run out of a side (14); the rest as in `s.arrow` |
+| `s.fan(a, side, [b, [c, side, t], ...], o)` | One point on a side feeding several boxes: a trunk, a bus at right angles (`o.at` places it), a branch into each box and a dot at each junction. `o.into: true` gathers them into the one point instead; `o.t` fixes the trunk's position, else it lines up with the end nearest the middle; `o.label` goes beside the trunk; `o.dot: false` leaves the dots out. Returns the group |
 | `s.text(x, y, text, o)` | A free label. `o.cls` `head` (display face), `tag` (mono, ink2), `mono` (mono, muted, spaced), or your own; `o.anchor`, `o.size`, `o.rotate`, `o.parent` |
 | `s.icon(name, x, y, size, o)` | A sprite icon, without `i-` |
 | `s.el(tag, attrs, parent)` | Any SVG element, in the labels layer unless a parent is given |
@@ -144,7 +166,8 @@ Returns a list of problems in the figure's current state, whether it was drawn w
 - text outside the viewBox;
 - text running outside its box. A box is a `.sk-box` or a `[data-box]` element, and its frame is its `.sk-frame`, else its first rect. A text in no marked box takes the smallest painted rect beside it in the same group that holds its centre; rects that are transparent hit areas, and rects directly in an `<svg>`, where background bands live, are not boxes;
 - text on top of text, and an icon on top of text;
-- text partly on a box it does not belong to.
+- text partly on a box it does not belong to;
+- a wire that is slanted or curved. A wire is a `path`, `line` or `polyline` with an arrowhead marker, or with a class `wire`, `arrow`, `link` or `connector`, and no fill. A curve that turns one right angle within 40 units is a rounded corner and passes. A wire inside `[data-route="free"]`, or one with that attribute, is left alone. `EdgeSketch.wireShape(el)` returns `'slanted'`, `'curved'` or `null` for one element.
 
 Hidden elements are skipped, and so is anything inside `[data-check="false"]`. Each problem is outlined in red. With `window.ED_DEBUG` set, every EdgeSketch figure and every `svg[data-check]` is checked once the fonts have loaded, and with `window.ED_DEBUG_ALL` every `svg[role="img"]` that is not an EdgeDiagram figure; the problems go into the same `<pre id="ed-issues">` as EdgeDiagram's. `scripts/shot.sh --check` sets both. `EdgeSketch.checkAll(all)` runs that pass by hand, `EdgeSketch.report(key, list)` adds a list to the `<pre>`, and `EdgeSketch.version` is the version.
 

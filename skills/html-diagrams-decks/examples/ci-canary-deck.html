@@ -175,9 +175,7 @@ p{margin:0}
           info: {text: 'Compares the canary with the stable replicas for ten minutes before any decision.', facts: [['window', '10 min'], ['max error Δ', '+0.1 pt'], ['max p99 Δ', '+10 %']]}});
 
       d.link('req', {from: ['users', 'auto'], to: ['lb', 'auto'], route: 'straight', arrow: 'end', flow: {dir: 1, count: 3, period: 1.4}, info: 'HTTPS requests from all three regions.'});
-      ['a', 'b', 'c'].forEach(function (k, i) {
-        d.link('to' + k, {from: ['lb', 'right', 0.2 + i * 0.2], to: ['v1' + k, 'left'], route: 'curve', arrow: 'end', flow: {dir: 1, period: 1.5}});
-      });
+      d.fan('to', {from: ['lb', 'right'], to: ['v1a', 'v1b', 'v1c'], arrow: 'end', flow: {dir: 1, period: 1.5}});
       d.link('to2', {from: ['lb', 'bottom', 0.75], to: ['v2', 'left'], route: 'ortho', arrow: 'end', tone: 'add', label: '5 %', labelAt: 0.75,
           flow: {dir: 1, tone: 'add', period: 3.2}, info: {text: 'The canary weight; raised in steps only after each analysis passes.', facts: [['now', '5 %'], ['next', '25 %, then 100 %']]}})
        .link('toall', {from: ['lb', 'bottom', 0.75], to: ['v2', 'left'], route: 'ortho', arrow: 'end', tone: 'add', label: '100 %', labelAt: 0.75,
@@ -188,13 +186,13 @@ p{margin:0}
           flow: {dir: 1, tone: 'add', period: 2.4}, info: 'The analysis passed: the controller sets the canary weight to 100 % and drains version 1.'});
       d.bindFocus();
 
-      var v1 = ['v1z', 'v1z.label', 'v1a', 'v1b', 'v1c', 'toa', 'tob', 'toc'];
+      var v1 = ['v1z', 'v1z.label', 'v1a', 'v1b', 'v1c', 'to'];
       var ctl = d.steps([
-        {show: ['users', 'lb', 'req'].concat(v1), flows: ['req', 'toa', 'tob', 'toc']},
+        {show: ['users', 'lb', 'req'].concat(v1), flows: ['req', 'to']},
         {show: ['v2z', 'v2z.label', 'v2', 'to2'], flows: ['to2']},
         {show: ['met', 'obs', 'base'], flows: ['obs']},
         {show: ['promote'], flows: ['promote']},
-        {show: ['toall'], hide: ['to2'], dim: v1.concat(['base']), flows: ['toall'], stopFlows: ['toa', 'tob', 'toc', 'to2', 'obs', 'promote']}
+        {show: ['toall'], hide: ['to2'], dim: v1.concat(['base']), flows: ['toall'], stopFlows: ['to', 'to2', 'obs', 'promote']}
       ]);
       var tl = ctl.timeline; if (tl) tl.onStep = ctl.flowsAt;
       return tl;

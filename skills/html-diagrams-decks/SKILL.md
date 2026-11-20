@@ -11,8 +11,8 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 
 | Path | What it is |
 | --- | --- |
-| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (curve/ortho/straight, arrows, labels, packet flows), `bindFocus`, `steps`, and a layout check at every step |
-| `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (two heads, polylines), `text`; and `EdgeSketch.check`, a layout check for any SVG |
+| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, and a layout check at every step |
+| `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (right angles, two heads), `connect` (box to box), `fan`, `text`; and `EdgeSketch.check`, a layout check for any SVG, slanted and curved wires included |
 | `lib/icons.js` | `window.EDGE_ICONS`: 50 line icons on a 24-unit grid (grid equipment, compute, trust, operations) |
 | `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, swipe and `#n` links |
 | `themes/*.css` | Colour and type themes, light and dark, on one token contract: `engineering` (blue on green-grey, Archivo Narrow and IBM Plex), `indigo` (indigo on lavender-grey, Space Grotesk and Inter), `drafting` (teal on warm paper, Barlow Condensed and Source Sans 3) |
@@ -37,7 +37,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 1. **Decide what the figure must show.** Name the mechanism, the parts it depends on, and the sequence in which to reveal it. A sentence that says it faster beats a figure.
 2. **Pick the library.** A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with either library on its slides.
 3. **Copy the template** into the working directory, for example `cp <skill>/templates/sketch.html ./my-figure.html`. Fix the `<script src>` and theme paths so they point at `<skill>/lib/` and `<skill>/themes/`, or run `inline.py` with `--lib` and `--themes` at the end.
-4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires. In EdgeDiagram prefer `'auto'` sides, `route: 'ortho'` where wires must go around boxes, and `info` on links that carry meaning. Read `references/api.md` for the options.
+4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires (see **Connectors** below). Put boxes that talk to each other in the same row or column, so their wire is one straight run. Give links that carry meaning an `info`. Read `references/api.md` for the options.
 5. **Write the steps** (EdgeDiagram). Step 0 is the resting state. Each later step adds one idea and has a short caption. Use `flows` for the data that moves, and `dim` or `hide` for what the step moves past.
 6. **Theme.** Pages link one theme, `<link rel="stylesheet" href="../themes/engineering.css">`; swap the name to change it. `engineering` for dense technical material, `indigo` for product and software delivery, `drafting` for proposals and studies read like documents. Keep each tone's meaning (`references/conventions.md`). For a brand's look, make a theme from its DESIGN.md: `python3 <skill>/scripts/theme_from_design.py DESIGN.md -o themes/<name>.css` (`examples/design-md/DESIGN.md` is a sample). By hand, copy a theme, keep every token name, change the values, and run `scripts/check_theme.py themes/<name>.css` until it passes.
 7. **Build, check and look:**
@@ -51,6 +51,16 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
    Fix everything `--check` reports. Then open the PNGs and fix what it cannot see, such as off-grid boxes, arrowheads that collide or crowded labels, and look again at width 420. Screenshots freeze packets near the start of their wires, so judge motion in a real browser.
 8. **Hand over an editable copy when asked.** `<skill>/scripts/todrawio.sh build/my-figure.html <svg id or selector> out.drawio "Name"` writes a draw.io file of one figure, in the light theme and at its last step. Say what it does not carry: motion, steps, tooltips, and filled shapes other than rects and ellipses (it prints how many it left out).
 9. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it).
+
+## Connectors
+
+Wires are what a reader follows, so they must look deliberate:
+
+- **Horizontal and vertical only.** Never a diagonal and never a curve. EdgeDiagram links are `ortho` by default: leave `route` out. `'straight'` is only for two ends already in line, and `'curve'` only when the user asks for one. In EdgeSketch use `s.arrow`, `s.connect` and `s.fan`, which turn at right angles. In SVG written by hand, draw wires with `H` and `V` path commands and round only the corners.
+- **One straight run when the boxes face each other.** Leave out the position (`t`) and EdgeDiagram, or `s.connect`, puts both ends in line when the two boxes share a span. If the check reports a jog of a few pixels, move a box so the ends line up; don't nudge `t`.
+- **One source feeding several boxes is a fan, not a bundle of separate wires.** `d.fan(id, {from: [src, 'bottom'], to: ['a', 'b', 'c']})`, or `s.fan(src, 'bottom', [a, b, c])`, draws a trunk, a bus at right angles and a branch into each box, with a dot at every junction. Several boxes feeding one is the same fan with the lists swapped (`{from: [[...], ...], to: [...]}` or `{into: true}`).
+- **Few bends, no crossings.** Choose the sides so that each wire turns at most twice. Spread the wires that share a side (`'auto'`). Route around boxes, never through them.
+- `shot.sh --check` reports slanted, curved and jogging wires. Fix them like any other issue. Mark a deliberate exception, such as an isometric figure, with `data-route="free"`.
 
 ## Rules
 

@@ -1,11 +1,16 @@
-/* EdgeSketch v1.1.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
+/* EdgeSketch v1.2.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
  *
  *   var s = EdgeSketch.create(svg, {icons: window.EDGE_ICONS});
  *   s.zone(0, 0, 400, 300, {label: 'SERVICE'});
  *   s.box(20, 40, 180, 52, {icon: 'server', title: 'API', sub: 'validates · enqueues', tone: 'accent', info: '...'});
  *   s.box(220, 40, 52, 220, {icon: 'broker', title: 'Event stream', sub: 'one profile', vertical: true});
  *   s.arrow(200, 66, 218, 66, {tone: 'accent', heads: 'both', dashed: true});
+ *   s.connect(api, 'right', queue, 'left', {label: 'enqueue'});      // boxes by side, in line when they can be
+ *   s.fan(api, 'bottom', [[w1, 'top'], [w2, 'top'], [w3, 'top']]);   // one point feeding several boxes
  *   s.text(20, 290, 'every arrow is used both ways', {cls: 'tag'});
+ *
+ * Wires run horizontally and vertically: an arrow between two points not in line turns at right
+ * angles (route 'straight' keeps a deliberate diagonal), and its corners are rounded.
  *
  * For figures EdgeDiagram does not fit: layered stacks, left-to-right platform views, anything laid
  * out on a grid by hand, often with its own state and classes. Boxes fit their text to their width:
@@ -21,7 +26,9 @@
  *     same group (not an svg element itself, where background bands live) that holds the text's centre, the
  *     last one drawn when two are the same size;
  *   - text on top of other text, an icon on top of text;
- *   - text partly on a box it does not belong to.
+ *   - text partly on a box it does not belong to;
+ *   - a wire that is slanted or curved: a path, line or polyline with an arrowhead or a class
+ *     wire/arrow/link/connector, unless it or a parent has data-route="free".
  * Hidden elements are skipped, and so is anything inside [data-check="false"]. Each issue is
  * outlined in red and returned as a string. With window.ED_DEBUG set, every figure made with
  * create() and every svg[data-check] is checked once the fonts have loaded, and with
@@ -33,7 +40,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.1.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.2.0', UID = 0;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink'];
 
   var CSS = [
@@ -61,6 +68,8 @@
     '.sk-box[tabindex]{cursor:help;outline:none}.sk-box[tabindex]:focus-visible .sk-frame{stroke-width:3}',
     '.sk-wire{fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}',
     '.sk-wire.dashed{stroke-dasharray:4 3}',
+    '.sk-dot{stroke:none}.sk-dot.t-neutral,.sk-dot.t-ink{fill:var(--_ink2)}.sk-dot.t-accent{fill:var(--_accent)}.sk-dot.t-add{fill:var(--_add)}',
+    '.sk-dot.t-gap{fill:var(--_gap)}.sk-dot.t-p3{fill:var(--_p3)}.sk-dot.t-muted{fill:var(--_muted)}',
     '.sk-wire.t-neutral,.sk-wire.t-ink{stroke:var(--_ink2)}.sk-wire.t-accent{stroke:var(--_accent)}.sk-wire.t-add{stroke:var(--_add)}',
     '.sk-wire.t-gap{stroke:var(--_gap)}.sk-wire.t-p3{stroke:var(--_p3)}.sk-wire.t-muted{stroke:var(--_muted)}',
     '.sk-head.t-neutral,.sk-head.t-ink{fill:var(--_ink2)}.sk-head.t-accent{fill:var(--_accent)}.sk-head.t-add{fill:var(--_add)}',
@@ -89,6 +98,61 @@
     t.style.fontSize = max + 'px';
     var len = 0; try { len = t.getComputedTextLength(); } catch (e) { return; }
     if (len > room && len > 0) t.style.fontSize = Math.max(min, max * room / len).toFixed(2) + 'px';
+  }
+
+  function same(a, b) { return Math.abs(a - b) < 0.01; }
+  /* points joined at right angles: a pair not in line turns once halfway (bend 'mid', a Z), or once at
+     a corner (bend 'hv': horizontal first, 'vh': vertical first), continuing the run it is on */
+  function orthogonal(pts, bend) {
+    var out = [pts[0]];
+    for (var i = 1; i < pts.length; i++) {
+      var p = out[out.length - 1], q = pts[i];
+      if (!same(p[0], q[0]) && !same(p[1], q[1])) {
+        var prev = out.length > 1 ? out[out.length - 2] : null;
+        var horiz = bend === 'hv' ? true : bend === 'vh' ? false
+          : prev ? same(prev[1], p[1]) : Math.abs(q[0] - p[0]) >= Math.abs(q[1] - p[1]);
+        if (bend === 'hv' || bend === 'vh' || prev) out.push(horiz ? [q[0], p[1]] : [p[0], q[1]]);
+        else if (horiz) { var mx = (p[0] + q[0]) / 2; out.push([mx, p[1]], [mx, q[1]]); }
+        else { var my = (p[1] + q[1]) / 2; out.push([p[0], my], [q[0], my]); }
+      }
+      out.push(q);
+    }
+    return out.filter(function (p, i) { var l = out[i - 1]; return !l || !same(l[0], p[0]) || !same(l[1], p[1]); });
+  }
+  /* from p0 leaving along n0 to p1 entering against n1: one run, an L or a Z, or around the back (a U) */
+  function route(p0, n0, p1, n1, stub) {
+    var a = [p0[0] + n0[0] * stub, p0[1] + n0[1] * stub], b = [p1[0] + n1[0] * stub, p1[1] + n1[1] * stub];
+    if (n0[0] === -n1[0] && n0[1] === -n1[1]) {   // facing sides
+      var h = n0[1] === 0;
+      if (h ? same(p0[1], p1[1]) : same(p0[0], p1[0])) return [p0, p1];
+      var ahead = h ? (p1[0] - p0[0]) * n0[0] > 2 * stub : (p1[1] - p0[1]) * n0[1] > 2 * stub;
+      if (ahead) { var m = h ? (p0[0] + p1[0]) / 2 : (p0[1] + p1[1]) / 2; return h ? [p0, [m, p0[1]], [m, p1[1]], p1] : [p0, [p0[0], m], [p1[0], m], p1]; }
+      var mid = h ? (p0[1] + p1[1]) / 2 : (p0[0] + p1[0]) / 2;
+      return h ? [p0, a, [a[0], mid], [b[0], mid], b, p1] : [p0, a, [mid, a[1]], [mid, b[1]], b, p1];
+    }
+    if (n0[0] === n1[0] && n0[1] === n1[1]) {   // the same side: out past both, across, and back
+      var far = n0[0] ? (n0[0] > 0 ? Math.max(a[0], b[0]) : Math.min(a[0], b[0])) : (n0[1] > 0 ? Math.max(a[1], b[1]) : Math.min(a[1], b[1]));
+      return n0[0] ? [p0, [far, p0[1]], [far, p1[1]], p1] : [p0, [p0[0], far], [p1[0], far], p1];
+    }
+    // across: an L when the corner lies ahead of both ends, else out through a stub first
+    var c = n0[0] ? [p1[0], p0[1]] : [p0[0], p1[1]];
+    var okA = (c[0] - p0[0]) * n0[0] + (c[1] - p0[1]) * n0[1] > 0, okB = (c[0] - p1[0]) * n1[0] + (c[1] - p1[1]) * n1[1] > 0;
+    if (okA && okB) return [p0, c, p1];
+    return orthogonal([p0, a, b, p1], n0[0] ? 'vh' : 'hv');
+  }
+  function rounded(pts, r, sharp) {   // corners rounded, except at the points in sharp (a junction)
+    var d = 'M' + pts[0][0] + ' ' + pts[0][1];
+    for (var i = 1; i < pts.length - 1; i++) {
+      var p = pts[i - 1], c = pts[i], n = pts[i + 1];
+      var l1 = Math.hypot(c[0] - p[0], c[1] - p[1]), l2 = Math.hypot(n[0] - c[0], n[1] - c[1]);
+      var rr = Math.min(r, l1 / 2, l2 / 2);
+      if ((sharp || []).some(function (s) { return same(s[0], c[0]) && same(s[1], c[1]); })) rr = 0;
+      if (!(rr > 0.01) || !l1 || !l2) { d += ' L' + c[0] + ' ' + c[1]; continue; }
+      d += ' L' + (c[0] - (c[0] - p[0]) / l1 * rr) + ' ' + (c[1] - (c[1] - p[1]) / l1 * rr) +
+           ' Q' + c[0] + ' ' + c[1] + ' ' + (c[0] + (n[0] - c[0]) / l2 * rr) + ' ' + (c[1] + (n[1] - c[1]) / l2 * rr);
+    }
+    var last = pts[pts.length - 1];
+    return d + ' L' + last[0] + ' ' + last[1];
   }
 
   /* ---------- figures ---------- */
@@ -151,6 +215,7 @@
       var tone = o.tone || 'neutral';
       if (TONES.indexOf(tone) < 0) throw new Error('EdgeSketch: unknown tone ' + tone);
       var g = el('g', {'class': 'sk-box t-' + tone + (o.dashed ? ' dashed' : '') + (o.cls ? ' ' + o.cls : '')}, layers.boxes);
+      g.skRect = {x: x, y: y, w: w, h: h};
       tip(g, o);
       var r = o.r != null ? o.r : 8, ts = o.titleSize || 12.5, ss = o.subSize || 9, min = o.minSize || 8;
       if (o.shadow) el('rect', {x: x + 4, y: y + 4, width: w, height: h, rx: r, 'class': 'sk-shadow'}, g);
@@ -195,21 +260,114 @@
       return g;
     }
     /* an arrow from (x1, y1) to (x2, y2), or along points [[x, y], ...] when the first argument is an array.
-       o: tone (default accent), heads ('end' default, 'both', 'start', 'none'), dashed, label, labelAt (0-1) */
+       o: tone (default accent), heads ('end' default, 'both', 'start', 'none'), dashed, label, labelAt (0-1),
+       route ('ortho' default: two points not in line are joined at right angles; 'straight' keeps the
+       diagonal), bend ('mid' default: a Z turning halfway; 'hv' or 'vh': an L, horizontal or vertical
+       first), radius (corners, default 6) */
     api.arrow = function (x1, y1, x2, y2, o) {
       var pts;
       if (Array.isArray(x1)) { pts = x1; o = y1; } else pts = [[x1, y1], [x2, y2]];
       o = o || {};
+      if (o.route !== 'straight') pts = orthogonal(pts, o.bend);
       var tone = o.tone || 'accent', heads = o.heads || 'end';
-      var d = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0] + ' ' + p[1]; }).join(' ');
-      var p = el('path', {d: d, 'class': 'sk-wire t-' + tone + (o.dashed ? ' dashed' : '')}, layers.wires);
+      var d = o.route === 'straight' ? pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0] + ' ' + p[1]; }).join(' ')
+        : rounded(pts, o.radius != null ? o.radius : 6, o.sharp);
+      var p = el('path', {d: d, 'class': 'sk-wire t-' + tone + (o.dashed ? ' dashed' : '')}, o.parent || layers.wires);
+      if (o.route === 'straight') p.setAttribute('data-route', 'free');   // a diagonal asked for
       if (heads === 'end' || heads === 'both') p.setAttribute('marker-end', marker(tone));
       if (heads === 'start' || heads === 'both') p.setAttribute('marker-start', marker(tone));
-      if (o.label) {
-        var a = pts[0], b = pts[pts.length - 1], k = o.labelAt != null ? o.labelAt : 0.5;
-        api.text(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k - 6, o.label, {cls: 'tag', anchor: 'middle', size: o.labelSize || 9.5});
+      if (o.label) {   // at labelAt along the wire, else halfway along its longest run; above a horizontal run, beside a vertical one
+        var segs = [], total = 0, at = null;
+        for (var i = 0; i < pts.length - 1; i++) { var l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); segs.push(l); total += l; }
+        if (o.labelAt != null) {
+          var want = total * o.labelAt;
+          for (var j = 0; j < segs.length && at == null; j++) { if (want <= segs[j] || j === segs.length - 1) at = {i: j, f: segs[j] ? Math.min(1, want / segs[j]) : 0}; else want -= segs[j]; }
+        } else { var lj = 0; segs.forEach(function (l, j) { if (l > segs[lj]) lj = j; }); at = {i: lj, f: 0.5}; }
+        var A = pts[at.i], B = pts[at.i + 1], mx = A[0] + (B[0] - A[0]) * at.f, my = A[1] + (B[1] - A[1]) * at.f;
+        var vert = same(A[0], B[0]) && !same(A[1], B[1]);
+        api.text(vert ? mx + 6 : mx, vert ? my + 3 : my - 6, o.label, {cls: 'tag', anchor: vert ? 'start' : 'middle', size: o.labelSize || 9.5});
       }
       return p;
+    };
+    function rectOf(b) {
+      if (b && b.skRect) return b.skRect;
+      if (b && b.x != null && b.w != null) return b;
+      if (Array.isArray(b)) return {x: b[0], y: b[1], w: b[2], h: b[3]};
+      throw new Error('EdgeSketch: a box is what s.box() returned, {x, y, w, h} or [x, y, w, h]');
+    }
+    function side(r, sd, t) {
+      t = t == null ? 0.5 : t;
+      return sd === 'top' ? [r.x + r.w * t, r.y] : sd === 'bottom' ? [r.x + r.w * t, r.y + r.h]
+        : sd === 'left' ? [r.x, r.y + r.h * t] : [r.x + r.w, r.y + r.h * t];
+    }
+    var NORMAL = {top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0]};
+    /* s.connect(a, sideA, b, sideB, o): an arrow from a side of one box to a side of another, at right
+       angles. With no position given (o.at, o.to: 0-1 along each side) and the boxes facing each other
+       across a shared span, both ends move to make it one straight run. o.gap leaves room at each end
+       (default 2 at the start, 3 at the arrowhead); the rest as in s.arrow. */
+    api.connect = function (a, sa, b, sb, o) {
+      o = o || {};
+      var A = rectOf(a), B = rectOf(b), n0 = NORMAL[sa], n1 = NORMAL[sb], ta = o.at, tb = o.to;
+      if (ta == null && tb == null && n0[0] === -n1[0] && n0[1] === -n1[1]) {
+        var h = n0[1] === 0, lo = Math.max(h ? A.y : A.x, h ? B.y : B.x) + 6, hi = Math.min(h ? A.y + A.h : A.x + A.w, h ? B.y + B.h : B.x + B.w) - 6;
+        if (lo <= hi) {
+          var v = Math.max(lo, Math.min(hi, ((h ? A.y + A.h / 2 : A.x + A.w / 2) + (h ? B.y + B.h / 2 : B.x + B.w / 2)) / 2));
+          ta = h ? (v - A.y) / A.h : (v - A.x) / A.w; tb = h ? (v - B.y) / B.h : (v - B.x) / B.w;
+        }
+      }
+      var g0 = o.gap != null ? o.gap : 2, g1 = o.gap != null ? o.gap : 3;
+      var p0 = side(A, sa, ta), p1 = side(B, sb, tb);
+      p0 = [p0[0] + n0[0] * g0, p0[1] + n0[1] * g0]; p1 = [p1[0] + n1[0] * g1, p1[1] + n1[1] * g1];
+      return api.arrow(route(p0, n0, p1, n1, o.stub != null ? o.stub : 14), o);
+    };
+    /* s.fan(a, sideA, [[b, sideB, t], ...], o): one point on a side feeding several boxes: a trunk, a bus
+       at right angles (o.at sets where it runs) and a branch into each, with a dot where three runs
+       meet. o.into: true gathers the boxes into the one point instead. Returns the group. */
+    api.fan = function (a, sa, ends, o) {
+      o = o || {};
+      var A = rectOf(a), n = NORMAL[sa], v = n[0] === 0, tone = o.tone || 'accent', gap = o.gap != null ? o.gap : 2;
+      function P(u, w) { return v ? [u, w] : [w, u]; }
+      ends = ends.map(function (e) {
+        e = Array.isArray(e) && e.length && !(typeof e[0] === 'number') ? e : [e];
+        return {B: rectOf(e[0]), side: e[1] || {top: 'bottom', bottom: 'top', left: 'right', right: 'left'}[sa], t: e[2]};
+      });
+      var t = o.t;
+      if (t == null) {   // the trunk in line with the end nearest the side's middle, when one is in reach
+        var lo = v ? A.x : A.y, len = v ? A.w : A.h, m = Math.min(12, len / 4), best = null;
+        ends.forEach(function (e) {
+          var u = side(e.B, e.side, e.t)[v ? 0 : 1];
+          if (u >= lo + m && u <= lo + len - m && (best == null || Math.abs(u - lo - len / 2) < Math.abs(best - lo - len / 2))) best = u;
+        });
+        t = best == null ? 0.5 : (best - lo) / len;
+      }
+      var pS = side(A, sa, t);
+      pS = [pS[0] + n[0] * gap, pS[1] + n[1] * gap];
+      var uS = v ? pS[0] : pS[1], wS = v ? pS[1] : pS[0], dir = v ? n[1] : n[0], near = Infinity;
+      ends.forEach(function (e) { near = Math.min(near, dir > 0 ? (v ? e.B.y : e.B.x) - wS : wS - (v ? e.B.y + e.B.h : e.B.x + e.B.w)); });
+      var bus = o.at != null ? o.at : wS + dir * Math.max(10, near / 2), g = el('g', {'class': 'sk-fan'}, layers.wires);
+      var drops = [], paths = ends.map(function (e) {
+        var p1 = side(e.B, e.side, e.t), n1 = NORMAL[e.side], g1 = o.gap != null ? o.gap : 3;
+        p1 = [p1[0] + n1[0] * g1, p1[1] + n1[1] * g1];
+        var u1 = v ? p1[0] : p1[1], w1 = v ? p1[1] : p1[0];
+        if ((v ? n1[0] : n1[1]) !== 0) { var su = u1 + (v ? n1[0] : n1[1]) * 14; drops.push(su); return [pS, P(uS, bus), P(su, bus), P(su, w1), p1]; }
+        drops.push(u1); return [pS, P(uS, bus), P(u1, bus), p1];
+      });
+      var us = drops.concat([uS]), min = Math.min.apply(null, us), max = Math.max.apply(null, us), dots = [], done = [];
+      us.forEach(function (u) {
+        if (done.some(function (x) { return Math.abs(x - u) < 1; })) return; done.push(u);
+        var k = (u > min + 1 ? 1 : 0) + (u < max - 1 ? 1 : 0) + (Math.abs(u - uS) < 1 ? 1 : 0) + (drops.some(function (x) { return Math.abs(x - u) < 1; }) ? 1 : 0);
+        if (k >= 3) dots.push(P(u, bus));
+      });
+      paths.forEach(function (pts) {
+        if (o.into) pts = pts.slice().reverse();
+        api.arrow(pts, Object.assign({}, o, {label: null, parent: g, sharp: dots}));
+      });
+      if (o.dot !== false) dots.forEach(function (p) { el('circle', {cx: p[0], cy: p[1], r: o.dotSize || 3, 'class': 'sk-dot t-' + tone}, g); });
+      if (o.label) {   // beside the trunk
+        var m = P(uS, (wS + bus) / 2);
+        api.text(v ? m[0] + 6 : m[0], v ? m[1] + 3 : m[1] - 6, o.label, {cls: 'tag', anchor: v ? 'start' : 'middle', size: o.labelSize || 9.5});
+      }
+      return g;
     };
     function applyFit(f) { if (f[0]) fit(f[0], f[1], f[2], f[3]); else f[1](); }
     api.layout = function () { fits.forEach(applyFit); };
@@ -304,6 +462,18 @@
       });
     });
 
+    // wires: at right angles, with no curve but a rounded corner
+    [].forEach.call(svg.querySelectorAll('path, line, polyline'), function (w) {
+      if (w.closest('defs, marker, symbol, .sk-debug, .ed-root, [data-route="free"]') || !visible(w, svg)) return;
+      var cs = getComputedStyle(w), cls = w.getAttribute('class') || '';
+      if (!clear(cs.fill) && w.tagName !== 'line') return;   // a filled shape (an arrowhead), not a wire
+      var marked = (cs.markerEnd && cs.markerEnd !== 'none') || (cs.markerStart && cs.markerStart !== 'none') || w.hasAttribute('marker-end') || w.hasAttribute('marker-start');
+      if (!marked && !/(^|[\s_-])(wire|arrow|link|connector)s?($|[\s_-])/i.test(cls)) return;
+      var bad = wireShape(w); if (!bad) return;
+      var what = w.id ? '#' + w.id : w.tagName + (cls ? '.' + cls.trim().split(/\s+/)[0] : '');
+      add('wire ' + what + ' is ' + bad + ': draw it at right angles (s.arrow, s.connect, s.fan) or mark it data-route="free"', boxOf(w));
+    });
+
     var old = svg.querySelector('.sk-debug'); if (old) old.remove();
     if (out.length) {
       var g = el('g', {'class': 'sk-debug', 'aria-hidden': 'true'}, svg);
@@ -311,6 +481,49 @@
       if (!document.getElementById('sk-css')) injectCSS();
     }
     return out.map(function (i) { return i.msg; });
+  }
+
+  /* 'slanted' or 'curved' for a wire that is either, else null. A curve that turns a right angle within
+     40 units is a rounded corner. */
+  function wireShape(w) {
+    var segs = [], curved = false, num = function (a) { return parseFloat(w.getAttribute(a)) || 0; };
+    if (w.tagName === 'line') segs.push([[num('x1'), num('y1')], [num('x2'), num('y2')]]);
+    else if (w.tagName === 'polyline') {
+      var v = (w.getAttribute('points') || '').trim().split(/[\s,]+/).map(Number);
+      for (var i = 2; i + 1 < v.length; i += 2) segs.push([[v[i - 2], v[i - 1]], [v[i], v[i + 1]]]);
+    } else {
+      var toks = (w.getAttribute('d') || '').match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g) || [];
+      var k = 0, cmd = '', p = [0, 0], start = [0, 0];
+      function n() { return parseFloat(toks[k++]); }
+      function corner(a, c1, c2, b) {   // a right-angle turn: out along one axis, in along the other, small
+        function ax(u, q) { return Math.abs(u[0] - q[0]) < 0.5 ? 'v' : Math.abs(u[1] - q[1]) < 0.5 ? 'h' : null; }
+        var d1 = same2(a, c1) ? ax(a, c2) : ax(a, c1), d2 = same2(c2, b) ? ax(c1, b) : ax(c2, b);
+        return d1 && d2 && d1 !== d2 && Math.abs(b[0] - a[0]) <= 40 && Math.abs(b[1] - a[1]) <= 40;
+      }
+      function same2(u, q) { return Math.abs(u[0] - q[0]) < 0.5 && Math.abs(u[1] - q[1]) < 0.5; }
+      while (k < toks.length) {
+        if (/[a-zA-Z]/.test(toks[k])) cmd = toks[k++];
+        var rel = cmd === cmd.toLowerCase(), C = cmd.toUpperCase(), o = rel ? p : [0, 0], q;
+        if (C === 'Z') { segs.push([p, start]); p = start; continue; }
+        if (C === 'M') { p = start = [o[0] + n(), o[1] + n()]; cmd = rel ? 'l' : 'L'; continue; }
+        if (C === 'L' || C === 'T') { q = [o[0] + n(), o[1] + n()]; if (C === 'T') curved = true; else segs.push([p, q]); }
+        else if (C === 'H') q = [(rel ? p[0] : 0) + n(), p[1]];
+        else if (C === 'V') q = [p[0], (rel ? p[1] : 0) + n()];
+        else if (C === 'C') { var c1 = [o[0] + n(), o[1] + n()], c2 = [o[0] + n(), o[1] + n()]; q = [o[0] + n(), o[1] + n()]; if (!corner(p, c1, c2, q)) curved = true; }
+        else if (C === 'Q') { var c = [o[0] + n(), o[1] + n()]; q = [o[0] + n(), o[1] + n()]; if (!corner(p, c, c, q)) curved = true; }
+        else if (C === 'S') { n(); n(); q = [o[0] + n(), o[1] + n()]; curved = true; }
+        else if (C === 'A') { var rx = n(), ry = n(); n(); n(); n(); q = [o[0] + n(), o[1] + n()]; if (Math.max(rx, ry) > 40 || Math.abs(Math.abs(q[0] - p[0]) - Math.abs(q[1] - p[1])) > 1) curved = true; }
+        else { k++; continue; }
+        if (isNaN(q[0]) || isNaN(q[1])) break;
+        p = q;
+      }
+    }
+    if (curved) return 'curved';
+    for (var j = 0; j < segs.length; j++) {
+      var dx = Math.abs(segs[j][1][0] - segs[j][0][0]), dy = Math.abs(segs[j][1][1] - segs[j][0][1]);
+      if (dx > 1.5 && dy > 1.5) return 'slanted';
+    }
+    return null;
   }
 
   // the issues of every checked figure, in one hidden <pre> that scripts/shot.sh --check reads
@@ -338,5 +551,5 @@
     });
   }
 
-  global.EdgeSketch = {create: create, check: check, checkAll: checkAll, report: report, version: VERSION};
+  global.EdgeSketch = {create: create, check: check, wireShape: wireShape, checkAll: checkAll, report: report, version: VERSION};
 })(window);

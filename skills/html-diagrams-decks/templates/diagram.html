@@ -68,10 +68,10 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
    .node('lock', {x: 300, y: 470, w: 190, h: 34, shape: 'pill', tone: 'gap', icon: 'lock', title: 'Idempotency key', titleSize: 12,
       info: 'A retried write carries the same key, so the worker applies it once.'});
 
-  d.link('req', {from: ['browser', 'top', 0.5], to: ['api', 'left'], route: 'curve', arrow: 'end', label: 'POST', flow: {dir: 1}})
-   .link('enq', {from: ['api', 'right'], to: ['queue', 'top'], route: 'curve', arrow: 'end', label: 'enqueue', flow: {dir: 1, period: 1.8}})
-   .link('ack', {from: ['api', 'bottom', 0.2], to: ['browser', 'right', 0.8], route: 'curve', arrow: 'end', tone: 'gap', label: '202', flow: {dir: 1, tone: 'gap'}})
-   .link('take', {from: ['queue', 'bottom'], to: ['worker', 'right'], route: 'curve', arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add', period: 2}})
+  d.link('req', {from: ['browser', 'top', 0.5], to: ['api', 'left'], arrow: 'end', label: 'POST', flow: {dir: 1}})
+   .link('enq', {from: ['api', 'right'], to: ['queue', 'top'], arrow: 'end', label: 'enqueue', flow: {dir: 1, period: 1.8}})
+   .link('ack', {from: ['api', 'bottom', 0.2], to: ['browser', 'right', 0.8], arrow: 'end', tone: 'gap', label: '202', flow: {dir: 1, tone: 'gap'}})
+   .link('take', {from: ['queue', 'bottom'], to: ['worker', 'right'], arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add', period: 2}})
    .link('write', {from: ['worker', 'right', 0.8], to: ['db', 'bottom'], route: 'ortho', arrow: 'end', tone: 'add', label: 'batch', labelAt: 0.3, flow: {dir: 1, tone: 'add', period: 2.4},
       info: {text: 'The worker writes in batches, so the database sees few large transactions.', facts: [['batch', 'up to 500 rows'], ['every', '200 ms']]}});
 

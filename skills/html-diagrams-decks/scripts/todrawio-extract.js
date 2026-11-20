@@ -51,6 +51,9 @@
       var r = g.querySelector('rect'), t = g.querySelector('text');
       out.labels.push({id: g.dataset.id, x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height'), bg: cs(r), s: t.textContent, tst: cs(t), fs: parseFloat(getComputedStyle(t).fontSize)});
     });
+    out.dots = Array.from(svg.querySelectorAll('circle.ed-dot')).map(function (c) {   // a fan's junctions
+      return {x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), r: +c.getAttribute('r'), fill: getComputedStyle(c).fill};
+    });
     svg.querySelectorAll('text.ed-text').forEach(function (t) {
       out.free.push({x: +t.getAttribute('x'), y: +t.getAttribute('y'), fs: +t.getAttribute('font-size') || parseFloat(getComputedStyle(t).fontSize), anchor: t.getAttribute('text-anchor'), s: t.textContent, st: cs(t)});
     });

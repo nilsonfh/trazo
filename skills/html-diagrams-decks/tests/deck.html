@@ -40,6 +40,6 @@ key('b'); if (!deck.state().blank) bad.push('b does not blank the screen');
 key('ArrowRight'); if (deck.state().blank) bad.push('a key does not bring the screen back'); at(1, 0, 'the key that unblanks does not also turn the page');
 var inp = document.createElement('input'); document.body.appendChild(inp); inp.focus();
 key('ArrowRight', {}, inp); at(1, 0, 'keys typed in a field are left to it');
-if (EdgeDeck.version !== '1.1.0') bad.push('version');
+if (EdgeDeck.version !== '1.2.0') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

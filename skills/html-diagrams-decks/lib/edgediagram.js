@@ -1,4 +1,4 @@
-/* EdgeDiagram v1.1.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
+/* EdgeDiagram v1.2.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('svc', {x, y, w, h, label: 'SERVICE'});
@@ -14,9 +14,12 @@
  *
  * Connectors leave and enter perpendicular to their side. A side may be 'auto' (chosen from where
  * the other end is). Ends whose side or position is 'auto' are spread along their side, ordered
- * so they do not cross; an explicit side with no position is its middle. 'curve' is a cubic Bézier, 'ortho' an orthogonal route that
- * leaves a short stub, goes around the nodes in its way, and keeps its turns out of zones that
- * hold neither end, 'straight' a line. Link labels move
+ * so they do not cross; an explicit side with no position is its middle, or, when the two nodes
+ * face each other and the end is alone on its side, the point that makes the wire straight.
+ * 'ortho' (the default) is an orthogonal route that leaves a short stub, goes around the nodes in
+ * its way, avoids short jogs, and keeps its turns out of zones that hold neither end; 'straight' a
+ * line; 'curve' a cubic Bézier. d.fan() feeds several nodes from one point (or gathers several
+ * into one): a trunk, a bus at right angles and a branch to each, with a dot at every junction. Link labels move
  * along their wire until they clear the nodes and the other labels, on a plate the colour of
  * the zone beneath. Packets follow the drawn path, fade with their link, wait until the wire is
  * drawn, and stop when nothing flows or the figure is off screen.
@@ -27,7 +30,7 @@
  *
  * {debug: true} or window.ED_DEBUG = 1 checks the figure at every step once fonts are loaded:
  * overlapping nodes, text outside its node, links through nodes, ortho links turning inside a
- * zone that holds neither end, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view). Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
+ * zone that holds neither end, slanted straight links, ortho links with a jog of a few pixels, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view). Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
  * <pre id="ed-issues"> (scripts/shot.sh --check reads it). d.check() returns the list. An item
  * with {check: false} is left out; create(svg, {check: false}) leaves out a whole figure whose own
  * timeline swaps overlapping items.
@@ -42,7 +45,7 @@
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.1.0';
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.2.0';
 
   var CSS = [
     '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',
@@ -78,6 +81,7 @@
     '.ed-link .ed-hit{fill:none;stroke:transparent;stroke-width:14}',
     '.ed-llabel{font-size:11.5px;fill:var(--_ink2)}',
     '.ed-llabel-bg{fill:var(--ed-plate,var(--_surface))}.ed-llabel-bg.on-layer{fill:var(--_layer)}.ed-llabel-bg.on-gap{fill:var(--_gap-soft)}',
+    '.ed-dot{stroke:none}',
     '.ed-pkt.t-accent{fill:var(--_accent)}.ed-pkt.t-gap{fill:var(--_gap)}.ed-pkt.t-add{fill:var(--_add)}.ed-pkt.t-muted{fill:var(--_muted)}.ed-pkt.t-ink2{fill:var(--_ink2)}.ed-pkt.t-p3{fill:var(--_p3)}',
     '.ed-arrow.t-accent{fill:var(--_accent)}.ed-arrow.t-muted{fill:var(--_muted)}.ed-arrow.t-gap{fill:var(--_gap)}.ed-arrow.t-add{fill:var(--_add)}.ed-arrow.t-ink2{fill:var(--_ink2)}.ed-arrow.t-p3{fill:var(--_p3)}',
     '.ed-root.ed-focusing .ed-item:not(.ed-hot)>*{opacity:.18;transition:opacity .15s}',
@@ -140,12 +144,13 @@
   function inter(a, b, pad) { pad = pad || 0; return a.x < b.x + b.w - pad && b.x < a.x + a.w - pad && a.y < b.y + b.h - pad && b.y < a.y + a.h - pad; }
   function contains(a, b) { return b.x >= a.x - 0.5 && b.y >= a.y - 0.5 && b.x + b.w <= a.x + a.w + 0.5 && b.y + b.h <= a.y + a.h + 0.5; }
   function rectOf(n) { return {x: n.x, y: n.y, w: n.w, h: n.h}; }
-  function roundedPolyline(pts, r) {
+  function roundedPolyline(pts, r) {   // r: a radius, or a function of the corner's point
     var d = 'M' + pts[0][0] + ' ' + pts[0][1];
     for (var i = 1; i < pts.length - 1; i++) {
       var p = pts[i - 1], c = pts[i], n = pts[i + 1];
       var l1 = Math.hypot(c[0] - p[0], c[1] - p[1]), l2 = Math.hypot(n[0] - c[0], n[1] - c[1]);
-      var rr = Math.min(r, l1 / 2, l2 / 2);
+      var rr = Math.min(typeof r === 'function' ? r(c) : r, l1 / 2, l2 / 2);
+      if (!(rr > 0.01)) { d += ' L' + c[0] + ' ' + c[1]; continue; }
       var a = [c[0] - (c[0] - p[0]) / l1 * rr, c[1] - (c[1] - p[1]) / l1 * rr];
       var b = [c[0] + (n[0] - c[0]) / l2 * rr, c[1] + (n[1] - c[1]) / l2 * rr];
       d += ' L' + a[0] + ' ' + a[1] + ' Q' + c[0] + ' ' + c[1] + ' ' + b[0] + ' ' + b[1];
@@ -234,7 +239,12 @@
       if (bounds) s.forEach(function (q) {   // never outside the figure
         if (q[0] < bounds.x || q[0] > bounds.x + bounds.w || q[1] < bounds.y || q[1] > bounds.y + bounds.h) out++;
       });
-      var cost = hits * 10000 + out * 5000 + rev * 600 + stray * 400 + through * 0.8 + shared + (s.length - 2) * 40 + len;
+      var jog = 0;   // a short run between two turns reads as a mistake, not a route
+      for (var g = 1; g < s.length - 2; g++) {
+        var jl = Math.abs(s[g + 1][0] - s[g][0]) + Math.abs(s[g + 1][1] - s[g][1]);
+        if (jl < 2 * (opts.radius || 14)) jog += 2 * (opts.radius || 14) - jl;
+      }
+      var cost = hits * 10000 + out * 5000 + rev * 600 + stray * 400 + through * 0.8 + shared + jog * 3 + (s.length - 2) * 40 + len;
       if (!best || cost < best.cost - 0.01) best = {pts: s, cost: cost};
     }
     var xs = [(a[0] + b[0]) / 2, a[0], b[0]], ys = [(a[1] + b[1]) / 2, a[1], b[1]];
@@ -260,8 +270,9 @@
   function route(p0, s0, p1, s1, kind, opts, obstacles) {
     opts = opts || {};
     var n0 = NORMAL[s0], n1 = NORMAL[s1];
+    kind = kind || 'ortho';
     if (kind === 'straight') return 'M' + p0[0] + ' ' + p0[1] + ' L' + p1[0] + ' ' + p1[1];
-    if (kind === 'ortho') return roundedPolyline(orthoPoints(p0, s0, p1, s1, opts, obstacles), opts.radius || 14);
+    if (kind !== 'straight' && kind !== 'curve') return roundedPolyline(orthoPoints(p0, s0, p1, s1, opts, obstacles), opts.radius || 14);
     var dist = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
     var k = Math.max(28, dist * (opts.tension || 0.45));
     return 'M' + p0[0] + ' ' + p0[1] + ' C' + (p0[0] + n0[0] * k) + ' ' + (p0[1] + n0[1] * k) + ' ' +
@@ -423,11 +434,44 @@
       L.plate.setAttribute('class', 'ed-llabel-bg' + plateClass(best.mid.x, best.mid.y));
       L.lbox = b;
     }
+    /* An end with no position given that is alone on its side moves along it so that the wire runs
+       straight, when the two nodes face each other across a shared span. */
+    function aligned(L, a, b) {
+      var t0 = L.t0, t1 = L.t1, n0 = NORMAL[L.s0], n1 = NORMAL[L.s1];
+      if (L.fan || n0[0] !== -n1[0] || n0[1] !== -n1[1]) return [t0, t1];
+      var h = n0[1] === 0, ax = h ? 1 : 0;   // the coordinate the wire must share
+      var gap = h ? (n0[0] > 0 ? b.x - (a.x + a.w) : a.x - (b.x + b.w)) : (n0[1] > 0 ? b.y - (a.y + a.h) : a.y - (b.y + b.h));
+      if (gap < 0) return [t0, t1];
+      function free(n, side, fixed) { return !fixed && !n.o.ghost && (n.ports[side] || []).length === 1; }
+      var f0 = free(a, L.s0, L.fix0), f1 = free(b, L.s1, L.fix1);
+      if (!f0 && !f1) return [t0, t1];
+      var lo0 = h ? a.y : a.x, len0 = h ? a.h : a.w, lo1 = h ? b.y : b.x, len1 = h ? b.h : b.w;
+      var m0 = Math.min(12, len0 / 4), m1 = Math.min(12, len1 / 4), v;
+      if (f0 && f1) {
+        var lo = Math.max(lo0 + m0, lo1 + m1), hi = Math.min(lo0 + len0 - m0, lo1 + len1 - m1);
+        if (lo > hi) return [t0, t1];
+        v = Math.max(lo, Math.min(hi, ((lo0 + len0 / 2) + (lo1 + len1 / 2)) / 2));
+      } else if (f1) {
+        v = anchor(a, L.s0, t0)[ax];
+        if (v < lo1 + m1 || v > lo1 + len1 - m1) return [t0, t1];
+      } else {
+        v = anchor(b, L.s1, t1)[ax];
+        if (v < lo0 + m0 || v > lo0 + len0 - m0) return [t0, t1];
+      }
+      return [f0 ? (v - lo0) / len0 : t0, f1 ? (v - lo1) / len1 : t1];
+    }
     function drawLink(L) {
       var a = nodes[L.from], b = nodes[L.to];
-      var kind = L.o.route || 'curve', p0 = anchor(a, L.s0, L.t0), p1 = anchor(b, L.s1, L.t1), d;
+      var kind = L.o.route || 'ortho', tt = aligned(L, a, b), p0 = anchor(a, L.s0, tt[0]), p1 = anchor(b, L.s1, tt[1]), d;
       L.segs = null;
-      if (kind === 'ortho') {
+      if (L.fan) {
+        var fg = fanGeom(L.fan), fp = fg.pts[L.fanIndex].slice();
+        if (L.fan.into) fp.reverse();
+        L.segs = fp.slice(1).map(function (q, i) { return [fp[i], q]; });
+        d = roundedPolyline(fp, function (c) {
+          return fg.dots.some(function (o) { return same(o[0], c[0]) && same(o[1], c[1]); }) ? 0 : (L.fan.o.radius || 14);
+        });
+      } else if (kind === 'ortho') {
         var others = [];
         Object.keys(links).forEach(function (k) {
           var M = links[k];   // a link with the same ends is an alternative shown instead, not a neighbour
@@ -439,8 +483,13 @@
         L.segs = pts.slice(1).map(function (q, i) { return [pts[i], q]; });
         d = roundedPolyline(pts, L.o.radius || 14);
       } else d = route(p0, L.s0, p1, L.s1, kind, L.o);
+      L.p0 = p0; L.p1 = p1;
       L.hit.setAttribute('d', d); L.path.setAttribute('d', d);
       L.len = L.path.getTotalLength(); L.samples = null;
+      if ((L.o._trunkLabel || L.o._branchLabel) && L.len) {   // halfway along the trunk, or along the branch's last run
+        var atEnd = !!L.o._branchLabel !== !!L.fan.into, ts = L.segs[atEnd ? L.segs.length - 1 : 0], tl = Math.abs(ts[1][0] - ts[0][0]) + Math.abs(ts[1][1] - ts[0][1]);
+        L.o.labelAt = atEnd ? 1 - tl / 2 / L.len : tl / 2 / L.len;
+      }
       if (L.segs) L.poly = L.segs;
       else {   // a curve or a line, as short segments, so ortho routes can see it
         L.poly = []; var n = Math.max(1, Math.ceil(L.len / 12)), prev = null;
@@ -461,6 +510,7 @@
     function relayout() {
       if (!dirty) return; dirty = false;
       Object.keys(links).forEach(function (k) { drawLink(links[k]); });
+      fans.forEach(drawDots);
     }
 
     api.link = function (id, o) {
@@ -477,7 +527,8 @@
       if (o.arrow === 'start' || o.arrow === 'both') path.setAttribute('marker-start', mk);
       var t0 = o.from[2], t1 = o.to[2];
       var L = {id: id, el: g, path: path, hit: hit, from: o.from[0], to: o.to[0], s0: s0, s1: s1,
-               t0: t0 === 'auto' ? null : t0, t1: t1 === 'auto' ? null : t1, o: o};
+               t0: t0 === 'auto' ? null : t0, t1: t1 === 'auto' ? null : t1, o: o,
+               fix0: typeof t0 === 'number', fix1: typeof t1 === 'number', fan: o._fan || null, fanIndex: o._fanIndex};
       if (o.label) {
         // on their own layer, so that no wire drawn later crosses a label; d.items[id + '.label']
         L.lb = el('g', {'class': 'ed-item ed-lgroup', 'data-id': id + '.label'}, layers.labels);
@@ -522,6 +573,104 @@
     };
     api.layout = function () { dirty = true; relayout(); return api; };
 
+    /* ---------- fans: one point feeding several nodes, or several feeding one ---------- */
+    var fans = [];
+    function opposite(side) { return {top: 'bottom', bottom: 'top', left: 'right', right: 'left'}[side]; }
+    // the trunk leaves the shared end, the bus runs across at right angles, a branch drops to each end
+    function fanGeom(G) {
+      var S = nodes[G.shared[0]], sS = G.shared[1], n = NORMAL[sS], v = n[0] === 0, stub = G.o.stub != null ? G.o.stub : 16;
+      var tS = G.shared[2];
+      if (tS == null) {   // the trunk in line with the end nearest the side's middle, when one is in reach: no jog there
+        var lo = v ? S.x : S.y, len = v ? S.w : S.h, m = Math.min(12, len / 4), best = null;
+        G.ends.forEach(function (e) {
+          var u = anchor(nodes[e[0]], e[1], e[2])[v ? 0 : 1];
+          if (u >= lo + m && u <= lo + len - m && (best == null || Math.abs(u - lo - len / 2) < Math.abs(best - lo - len / 2))) best = u;
+        });
+        tS = best == null ? 0.5 : (best - lo) / len;
+      }
+      var pS = anchor(S, sS, tS);
+      function P(u, w) { return v ? [u, w] : [w, u]; }   // u along the bus, w across it
+      var uS = v ? pS[0] : pS[1], wS = v ? pS[1] : pS[0], dir = v ? n[1] : n[0];
+      var near = Infinity;
+      G.ends.forEach(function (e) {
+        var E = nodes[e[0]], lo = v ? E.y : E.x, hi = v ? E.y + E.h : E.x + E.w;
+        near = Math.min(near, dir > 0 ? lo - wS : wS - hi);
+      });
+      var bus = G.o.at != null ? G.o.at : wS + dir * Math.max(stub, near / 2);
+      var drops = [], pts = G.ends.map(function (e) {
+        var E = nodes[e[0]], pE = anchor(E, e[1], e[2]), nE = NORMAL[e[1]];
+        var uE = v ? pE[0] : pE[1], wE = v ? pE[1] : pE[0];
+        if ((v ? nE[0] : nE[1]) !== 0) {   // an end on a side across the bus: along the bus, then in through a stub
+          var su = uE + (v ? nE[0] : nE[1]) * stub;
+          drops.push(su);
+          return simplify([pS, P(uS, bus), P(su, bus), P(su, wE), pE]);
+        }
+        drops.push(uE);
+        return simplify([pS, P(uS, bus), P(uE, bus), pE]);
+      });
+      // a dot where three or four runs meet
+      var us = drops.concat([uS]), min = Math.min.apply(null, us), max = Math.max.apply(null, us), dots = [], done = [];
+      us.forEach(function (u) {
+        if (done.some(function (x) { return Math.abs(x - u) < 1; })) return; done.push(u);
+        var k = (u > min + 1 ? 1 : 0) + (u < max - 1 ? 1 : 0) + (Math.abs(u - uS) < 1 ? 1 : 0) + (drops.some(function (x) { return Math.abs(x - u) < 1; }) ? 1 : 0);
+        if (k >= 3) dots.push(P(u, bus));
+      });
+      return {pts: pts, dots: G.o.dot === false ? [] : dots};
+    }
+    function drawDots(G) {
+      while (G.dg.firstChild) G.dg.removeChild(G.dg.firstChild);
+      fanGeom(G).dots.forEach(function (p) {
+        el('circle', {cx: p[0], cy: p[1], r: G.o.dotSize || 3.6, 'class': 'ed-arrow ed-dot t-' + (G.o.tone || 'accent')}, G.dg);
+      });
+    }
+    /* d.fan(id, {from: [node, side, t], to: [[node, side, t, opts], ...]}) feeds several nodes from one
+       point; d.fan(id, {from: [[node, side, t, opts], ...], to: [node, side, t]}) gathers several into
+       one. Each branch is a link, id + '.' + its node's id; the fan's id in a step stands for all of
+       them and their dots. */
+    api.fan = function (id, o) {
+      var into = Array.isArray(o.from[0]), shared = (into ? o.to : o.from).slice(), many = into ? o.from : o.to;
+      if (!nodes[shared[0]]) throw new Error('EdgeDiagram: fan ' + id + ' needs existing nodes');
+      var ends = many.map(function (e) {
+        e = typeof e === 'string' ? [e] : e.slice();
+        var E = nodes[e[0]]; if (!E) throw new Error('EdgeDiagram: fan ' + id + ' needs existing nodes');
+        return e;
+      });
+      if (!shared[1] || shared[1] === 'auto') {   // the side that faces the ends
+        var cx = 0, cy = 0;
+        ends.forEach(function (e) { var E = nodes[e[0]]; cx += E.x + E.w / 2; cy += E.y + E.h / 2; });
+        shared[1] = autoSide(nodes[shared[0]], {x: cx / ends.length, y: cy / ends.length, w: 0, h: 0});
+      }
+      if (shared[2] === 'auto') shared[2] = null;
+      ends.forEach(function (e) {
+        if (!e[1] || e[1] === 'auto') e[1] = opposite(shared[1]);
+        if (e[2] == null || e[2] === 'auto') e[2] = 0.5;
+      });
+      var G = {id: id, o: o, into: into, shared: shared, ends: ends, members: []};
+      G.dg = el('g', {'class': 'ed-item ed-dots', 'data-id': id + '.dots'}, layers.labels);
+      items[id + '.dots'] = {el: G.dg, kind: 'label'};
+      fans.push(G);
+      ends.forEach(function (e, i) {
+        var eo = e[3] || {}, bid = eo.id || id + '.' + e[0];
+        var lo = {from: into ? e.slice(0, 3) : shared, to: into ? shared : e.slice(0, 3), tone: o.tone, dashed: o.dashed,
+          arrow: o.arrow, flow: eo.flow || o.flow, info: eo.info || o.info, infoTitle: eo.infoTitle || o.infoTitle,
+          label: eo.label, labelAt: eo.labelAt, labelFixed: eo.labelAt == null, _branchLabel: !!eo.label && eo.labelAt == null, check: o.check, _fan: G, _fanIndex: i};
+        if (i === 0 && o.label) { lo.label = o.label; lo.labelFixed = true; lo._trunkLabel = true; lo._branchLabel = false; }   // the fan's label, on the trunk
+        api.link(bid, lo);
+        G.members.push(bid);
+      });
+      drawDots(G);
+      items[id] = {el: G.dg, kind: 'fan', o: o, members: G.members.concat([id + '.dots'])};
+      return api;
+    };
+    function expand(ids, linksOnly) {   // a fan's id stands for its branches (and its dots)
+      var out = [];
+      (ids || []).forEach(function (k) {
+        if (items[k] && items[k].kind === 'fan') items[k].members.forEach(function (m) { if (!linksOnly || links[m]) out.push(m); });
+        else out.push(k);
+      });
+      return out;
+    }
+
     /* ---------- packets ---------- */
     var running = false, onScreen = true, t0 = null;
     function anyOn() { for (var i = 0; i < flows.length; i++) if (flows[i].on) return true; return false; }
@@ -550,6 +699,7 @@
       new IntersectionObserver(function (es) { onScreen = es[es.length - 1].isIntersecting; ensureLoop(); }).observe(svg);
     }
     api.setFlows = function (ids, on) {
+      if (ids !== '*') ids = expand(ids, true);
       flows.forEach(function (f) {
         if (ids === '*' || ids.indexOf(f.link) >= 0) { f.on = on && !reduce; if (!f.on) f.c.setAttribute('opacity', 0); }
       });
@@ -657,6 +807,12 @@
     api.steps = function (list, opt) {
       opt = opt || {};
       relayout();
+      list = list.map(function (s) {
+        var c = Object.assign({}, s);
+        ['show', 'hide', 'dim'].forEach(function (k) { if (s[k]) c[k] = expand(s[k]); });
+        ['flows', 'stopFlows'].forEach(function (k) { if (s[k]) c[k] = expand(s[k], true); });
+        return c;
+      });
       var G = global.gsap, all = {};
       // s.view: an optional viewBox for that step; the view holds until a later step changes it
       function viewAt(k) { var v = null; for (var j = 0; j <= k && j < list.length; j++) if (list[j].view) v = list[j].view; return v; }
@@ -818,6 +974,13 @@
               if (p[0] > n.x + 2 && p[0] < n.x + n.w - 2 && p[1] > n.y + 2 && p[1] < n.y + n.h - 2) { add('link ' + lid + ' crosses node ' + nid, rectOf(n), step); break; }
             }
           });
+          if (!L.segs && L.p0 && (L.o.route || 'ortho') === 'straight' && Math.abs(L.p1[0] - L.p0[0]) > 1 && Math.abs(L.p1[1] - L.p0[1]) > 1)
+            add('link ' + lid + ' is slanted: give it facing sides on nodes that share a span, or route it ortho', bboxOf(L.path), step);
+          if (L.segs && !L.fan) for (var q = 1; q < L.segs.length - 1; q++) {   // a Z whose middle run is a few pixels: ends almost in line
+            var g0 = L.segs[q - 1], g1 = L.segs[q], g2 = L.segs[q + 1], jl = Math.abs(g1[1][0] - g1[0][0]) + Math.abs(g1[1][1] - g1[0][1]);
+            var par = (same(g0[0][0], g0[1][0]) && same(g2[0][0], g2[1][0])) || (same(g0[0][1], g0[1][1]) && same(g2[0][1], g2[1][1]));
+            if (par && jl < 10) { add('link ' + lid + ' jogs ' + Math.round(jl) + ' px: put its ends in line', bboxOf(L.path), step); break; }
+          }
           if (L.segs) foreignZones(L).forEach(function (z) {   // an ortho wire turning inside a zone it does not belong to
             if (!V[z.id]) return;
             for (var q = 1; q < L.segs.length; q++) if (inside(L.segs[q][0], z)) { add('link ' + lid + ' turns inside zone ' + z.id, z, step); break; }

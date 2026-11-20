@@ -17,3 +17,12 @@ jobs:
         run: npx -y playwright@1.49.1 install --with-deps chromium-headless-shell
       - name: Run the tests
         run: skills/html-diagrams-decks/scripts/test.sh
+      - uses: astral-sh/setup-uv@v6
+      - name: Install with uv and run the trazo command
+        run: |
+          uv tool install .
+          trazo version
+          trazo install --project "$RUNNER_TEMP" claude copilot
+          test -f "$RUNNER_TEMP/.github/skills/html-diagrams-decks/SKILL.md"
+          trazo inline skills/html-diagrams-decks/templates/sketch.html > "$RUNNER_TEMP/sketch.html"
+          trazo check "$RUNNER_TEMP/sketch.html"

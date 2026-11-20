@@ -47,6 +47,14 @@ class ToDrawio(unittest.TestCase):
         self.assertTrue(any("stencil(" in (c.get("style") or "") for c in cells))
         self.assertTrue(any((c.get("value") or "") == "Queue" for c in cells))
 
+    def test_a_fan_keeps_its_branches_attached_and_its_junction_dot(self):
+        r, out = self.export(os.path.join(ROOT, "tests", "connectors.html"), "d1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cells = self.cells(out)
+        branches = [c for c in cells if c.get("edge") == "1" and c.get("source") and c.get("target")]
+        self.assertEqual(len(branches), 4, "three branches and one link")
+        self.assertEqual(len([c for c in cells if (c.get("style") or "").startswith("ellipse;")]), 1, "the junction dot")
+
     def test_a_hand_drawn_figure_keeps_boxes_text_icons_and_both_arrowheads(self):
         r, out = self.export(os.path.join(self.dir, "sketch.html"), "mp")
         self.assertEqual(r.returncode, 0, r.stderr)

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.2.0 (2026-11-20)
+
+- **Connectors at right angles.**
+  - EdgeDiagram links are `ortho` by default (they were curves); `'curve'` stays for when one is asked for.
+  - An end with no position, alone on its side, lines up with the other end when the two nodes face each other across a shared span, so the wire is one straight run instead of a Z with a jog.
+  - The router avoids short jogs between two turns.
+  - EdgeSketch's `s.arrow` joins points that are not in line with a Z or an L (`bend`), with rounded corners; `route: 'straight'` keeps a diagonal on purpose.
+- **Fans.** `d.fan()` and `s.fan()` feed several nodes from one point, or gather several into one: a trunk, a bus at right angles, a branch into each, and a dot at each junction. The trunk lines up with a branch when one is in reach. In EdgeDiagram each branch is a link (`id.node`) with its own packets, and the fan's id in a step stands for all of them. The draw.io export keeps the branches attached and the dots.
+- **`s.connect()`** joins two EdgeSketch boxes by their sides: straight when they face each other across a shared span, else an L, a Z or a U.
+- **The checks see bad wires.**
+  - EdgeDiagram reports a slanted `straight` link and an ortho link with a jog under 10 units.
+  - `EdgeSketch.check` reports slanted and curved wires in any SVG: paths, lines and polylines with an arrowhead or a `wire`/`arrow`/`link`/`connector` class. A rounded corner passes, and `data-route="free"` marks a deliberate exception. `EdgeSketch.wireShape(el)` gives the verdict for one element.
+- **The skill's rules for connectors** (SKILL.md, conventions): horizontal and vertical only, boxes that talk share a row or a column, a fan for one-to-many, few bends.
+- **Install with uv.** `uv tool install git+https://github.com/nilsonfh/trazo` gives a `trazo` command:
+  - `trazo install` copies (or `--link`s) the skill into Claude Code's, Copilot's or the open standard's folders, for the user or a repository, and `trazo uninstall` removes it;
+  - `trazo inline`, `check`, `shot`, `todrawio`, `theme`, `check-theme`, `vendor` and `test` run the scripts.
+- The example deck feeds its stable replicas with a fan, and the diagram template uses the default route.
+
 ## 1.1.0 (2026-11-19)
 
 - **EdgeSketch** (`lib/edgesketch.js`), for figures drawn by hand on a grid: zones, boxes that fit their text to their width (vertical columns and centred bars too), straight and polyline arrows with one or two heads, free text and icons. `templates/sketch.html` is a complete example.

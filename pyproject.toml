@@ -1,0 +1,38 @@
+[project]
+name = "trazo"
+version = "1.2.0"
+description = "Architecture figures and slide decks as single HTML files, for people and their coding agents: an agent skill and its tools."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Nilson Henao" }]
+requires-python = ">=3.9"
+keywords = ["diagrams", "svg", "slides", "agent-skills", "claude-code", "github-copilot"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: JavaScript",
+  "Topic :: Multimedia :: Graphics :: Presentation",
+  "Topic :: Documentation",
+]
+
+[project.urls]
+Homepage = "https://github.com/nilsonfh/trazo"
+
+[project.scripts]
+trazo = "trazo.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = ["**/__pycache__", "**/*.pyc", "build/"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trazo"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"skills/html-diagrams-decks" = "trazo/skill"
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "skills/", "README.md", "LICENSE", "CHANGELOG.md", "install.sh", "pyproject.toml"]

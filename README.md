@@ -4,7 +4,7 @@
 
 Trazo is an agent skill for Claude Code and GitHub Copilot, installed as `html-diagrams-decks`, and a small JavaScript library for architecture figures and slide decks as single HTML files. Figures have stepped builds with captions, packets that flow along routed connectors, hover details, light and dark themes and a 50-icon sprite, and every figure on a page can be checked for overlapping and overflowing text before it is published.
 
-- **EdgeDiagram** draws graphs: zones, nodes and routed links, revealed step by step.
+- **EdgeDiagram** draws graphs: zones, nodes and orthogonal links that line up, go around boxes and fan out from one point, revealed step by step.
 - **EdgeSketch** draws figures laid out by hand on a grid, such as layered stacks and left-to-right platform views. Its boxes fit their text, and its check works on any SVG.
 - **EdgeDeck** runs 1600×900 slide decks with per-slide steps.
 - **Three themes** share one token contract, each in light and dark, with a contrast checker, and **any DESIGN.md** (a brand's colours and faces) becomes a fourth with one command.
@@ -18,6 +18,19 @@ No build step and no dependencies beyond Python 3 for the tools, a headless Chro
 ## Install
 
 The skill follows the open [Agent Skills](https://agentskills.io) format, so Claude Code, GitHub Copilot (CLI, VS Code and the cloud agent) and other agents read the same `skills/html-diagrams-decks/SKILL.md`.
+
+**With [uv](https://docs.astral.sh/uv/)**, which also puts the tools on your PATH as one `trazo` command:
+
+```bash
+uv tool install git+https://github.com/nilsonfh/trazo
+trazo install                    # every agent installed here: ~/.claude/skills, ~/.copilot/skills
+trazo install copilot            # or name them: claude, copilot, agents (~/.agents/skills)
+trazo install --project . copilot   # into a repository's .github/skills
+```
+
+To update: `uv tool upgrade trazo && trazo install`. With `--link`, the skill is linked to the installed package instead of copied, so `uv tool upgrade` alone updates it. `trazo uninstall` removes only what trazo installed. For a one-off install with nothing left on the PATH, use `uvx --from git+https://github.com/nilsonfh/trazo trazo install`.
+
+The same command runs the tools: `trazo inline`, `trazo check`, `trazo shot`, `trazo todrawio`, `trazo theme`, `trazo check-theme`, `trazo vendor` and `trazo test` take the arguments of the scripts below, and `trazo path` prints where the skill is.
 
 **With GitHub CLI** (2.90 or later):
 
@@ -46,7 +59,7 @@ The scripts are bash and Python 3, so on Windows use WSL or Git Bash.
 From `skills/html-diagrams-decks`:
 
 ```bash
-python3 scripts/inline.py templates/sketch.html > /tmp/sketch.html          # open it in a browser
+python3 scripts/inline.py templates/sketch.html > /tmp/sketch.html          # open it in a browser (or: trazo inline ...)
 python3 scripts/inline.py examples/ci-canary-deck.html > /tmp/ci-canary.html
 scripts/shot.sh --check /tmp/sketch.html                                     # the layout check
 scripts/shot.sh --only '.pane' /tmp/sketch.html /tmp/sketch.png dark 1280    # a screenshot of the figure
@@ -78,6 +91,20 @@ scripts/todrawio.sh out.html my-figure figure.drawio "My figure"     # an svg's 
 ```
 
 EdgeDiagram figures keep their links attached to their nodes; hand-drawn figures keep their boxes, text, icons and arrows; motion and steps stay in the page.
+
+## Connectors
+
+Wires run horizontally and vertically, with rounded corners: a diagonal or a sagging curve reads as a mistake.
+
+- EdgeDiagram routes links at right angles by default. It goes around boxes and avoids short jogs, and it lines up the two ends of a link when its boxes face each other, so the wire is one straight run.
+- `d.fan()` and `s.fan()` feed several boxes from one point, or gather several into one: a trunk, a bus at right angles, a branch into each box, and a dot at each junction.
+
+  ```js
+  d.fan('jobs', {from: ['queue', 'bottom'], to: ['w1', 'w2', 'w3'], arrow: 'end', label: 'jobs'});
+  ```
+
+- `s.arrow()` and `s.connect()` turn at right angles in hand-drawn figures.
+- The layout check reports slanted, curved and jogging wires, in any SVG on the page.
 
 To keep a copy of the library in another project, run `scripts/vendor.sh path/to/project/diagram`. Later, `scripts/vendor.sh --check path/to/project/diagram` shows whether that copy is behind.
 

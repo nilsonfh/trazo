@@ -225,6 +225,10 @@ def edge_figure(d, doc):
                     hx(lb['bg']['fill']), font_style(lb['tst']['ff'], lb['tst']['fw']), lb['fs'], hx(lb['tst']['fill']))),
                 eid, r(frac * 2 - 1)))
 
+    for o in d.get('dots', []):   # a fan's junctions, above its wires
+        doc.cell({'value': '', 'style': 'ellipse;html=1;fillColor=%s;strokeColor=none;' % hx(o['fill']), 'vertex': '1'},
+                 {'x': r(o['x'] - o['r']), 'y': r(o['y'] - o['r']), 'width': r(2 * o['r']), 'height': r(2 * o['r'])})
+
 
 # ---------- any other svg ----------
 def svg_figure(d, doc):

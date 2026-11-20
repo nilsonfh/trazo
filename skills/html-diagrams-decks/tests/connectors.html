@@ -1,0 +1,101 @@
+<!-- Connectors run at right angles: EdgeDiagram's default route, ends that line up, fans with junction dots; EdgeSketch's arrows, connect and fan; and the checks that find slanted, curved and jogging wires. Run with scripts/test.sh. -->
+<svg id="d1" viewBox="0 0 700 420"></svg>
+<svg id="d2" viewBox="0 0 700 300"></svg>
+<svg id="s1" viewBox="0 0 700 360" role="img" aria-label="sketch"></svg>
+<svg id="raw" viewBox="0 0 400 200" role="img" aria-label="hand-drawn wires">
+  <defs><marker id="m" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L8 4 L0 8z"/></marker></defs>
+  <path id="w-slant" d="M10 10 L120 60" fill="none" stroke="#333" marker-end="url(#m)"/>
+  <path id="w-sag" class="wire" d="M10 100 Q 60 130 120 100" fill="none" stroke="#333"/>
+  <line id="w-line" x1="200" y1="10" x2="260" y2="70" stroke="#333" marker-end="url(#m)"/>
+  <path id="w-ok" class="wire" d="M200 100 H250 Q260 100 260 110 V150" fill="none" stroke="#333" marker-end="url(#m)"/>
+  <path id="w-arc" class="wire" d="M300 100 H330 A8 8 0 0 1 338 108 V150" fill="none" stroke="#333"/>
+  <path id="w-head" class="arrow" d="M300 20 L312 26 L300 32 Z" fill="#333"/>
+  <path id="w-brace" d="M300 170 C 300 160 320 165 330 150" fill="none" stroke="#333"/>
+  <g data-route="free"><path id="w-free" d="M10 180 L120 140" fill="none" stroke="#333" marker-end="url(#m)"/></g>
+</svg>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgesketch.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function none(list, what) { if (list.length) bad.push(what + ': ' + list.join(' / ')); }
+function d(sel) { return document.querySelector(sel).getAttribute('d'); }
+function shape(sel, want, what) {
+  var got = EdgeSketch.wireShape(document.querySelector(sel));
+  if (got !== want) bad.push(what + ': ' + sel + ' is ' + got + ', want ' + want + ' (' + d(sel) + ')');
+}
+
+/* EdgeDiagram: the default route is ortho, facing nodes that share a span get a straight wire */
+var a = EdgeDiagram.create(document.getElementById('d1'));
+a.node('src', {x: 250, y: 20, w: 120, h: 50, title: 'Source'})
+ .node('w1', {x: 40, y: 200, w: 120, h: 50, title: 'One'})
+ .node('w2', {x: 210, y: 200, w: 120, h: 50, title: 'Two'})
+ .node('w3', {x: 480, y: 200, w: 120, h: 50, title: 'Three'})
+ .node('p', {x: 20, y: 320, w: 120, h: 60, title: 'P'})
+ .node('q', {x: 300, y: 335, w: 120, h: 70, title: 'Q'})
+ .node('db', {x: 560, y: 330, w: 120, h: 60, title: 'DB'});
+a.link('pq', {from: ['p', 'right'], to: ['q', 'left'], arrow: 'end'});
+a.fan('f', {from: ['src', 'bottom'], to: ['w1', 'w2', ['w3', 'top', null, {label: 'third'}]], arrow: 'end', label: 'events'});
+var pq = d('#d1 [data-id="pq"] path.ed-wire');
+if (/[CQ]/.test(pq)) bad.push('pq is not one straight run: ' + pq);
+var ys = pq.match(/-?[\d.]+/g).map(Number);
+if (Math.abs(ys[1] - ys[3]) > 0.01) bad.push('pq is not level: ' + pq);
+['f.w1', 'f.w2', 'f.w3'].forEach(function (id) {
+  shape('#d1 [data-id="' + id + '"] path.ed-wire', null, 'fan branch');
+  if (!a.items[id] || a.items[id].kind !== 'link') bad.push('no branch ' + id);
+});
+var dots = document.querySelectorAll('#d1 .ed-dot');
+if (dots.length !== 1) bad.push('fan: want 1 junction dot (the trunk in line with Two), got ' + dots.length);
+if (/[QC]/.test(d('#d1 [data-id="f.w2"] path.ed-wire'))) bad.push('the branch in line with the trunk is not straight: ' + d('#d1 [data-id="f.w2"] path.ed-wire'));
+if (!document.querySelector('#d1 [data-id="f.w1.label"] text') || document.querySelector('#d1 [data-id="f.w1.label"] text').textContent !== 'events') bad.push('the fan label is not on its trunk');
+none(a.check(), 'clean figure with a fan');
+// a fan in a step stands for its branches and its dots
+var ctl = a.steps([{show: ['src', 'w1', 'w2', 'w3', 'p', 'q', 'db', 'pq']}, {show: ['f'], flows: ['f']}]);
+ctl.go(1);
+if (ctl.count !== 2) bad.push('steps with a fan');
+
+/* gathering several into one, and the checks for slanted and jogging links */
+var b = EdgeDiagram.create(document.getElementById('d2'));
+b.node('a1', {x: 20, y: 20, w: 100, h: 40, title: 'A1'}).node('a2', {x: 160, y: 20, w: 100, h: 40, title: 'A2'})
+ .node('hub', {x: 70, y: 150, w: 140, h: 50, title: 'Hub'})
+ .node('x', {x: 360, y: 20, w: 100, h: 40, title: 'X'}).node('y', {x: 560, y: 120, w: 100, h: 40, title: 'Y'})
+ .node('j1', {x: 360, y: 220, w: 100, h: 40, title: 'J1'}).node('j2', {x: 560, y: 228, w: 100, h: 40, title: 'J2'});
+b.fan('in', {from: [['a1', 'bottom'], ['a2', 'bottom']], to: ['hub', 'top'], arrow: 'end'})
+ .link('xy', {from: ['x', 'right'], to: ['y', 'left'], route: 'straight'})
+ .link('jj', {from: ['j1', 'right', 0.5], to: ['j2', 'left', 0.4]});
+shape('#d2 [data-id="in.a1"] path.ed-wire', null, 'fan into one');
+if (!/M\s*140 150/.test(d('#d2 [data-id="in.a2"] path.ed-wire').replace(/[^ML\d .QZ-]/g, '')) && !/140 150$/.test(d('#d2 [data-id="in.a2"] path.ed-wire'))) bad.push('fan into one does not end at the hub: ' + d('#d2 [data-id="in.a2"] path.ed-wire'));
+expect(b.check(), ['link xy is slanted', 'link jj jogs'], 'slanted and jogging links');
+
+/* EdgeSketch: arrows turn at right angles, connect lines boxes up, fan has its dots */
+var s = EdgeSketch.create(document.getElementById('s1'), {icons: window.EDGE_ICONS});
+var api = s.box(20, 20, 140, 50, {title: 'API'}), queue = s.box(260, 30, 140, 60, {title: 'Queue'});
+var c1 = s.connect(api, 'right', queue, 'left', {label: 'enqueue'});
+if (/Q/.test(c1.getAttribute('d'))) bad.push('connect between facing boxes is not one straight run: ' + c1.getAttribute('d'));
+var low = s.box(500, 160, 140, 50, {title: 'Low'});
+var c2 = s.connect(queue, 'right', low, 'top');
+if (EdgeSketch.wireShape(c2) || !/Q/.test(c2.getAttribute('d'))) bad.push('connect across sides is not an L: ' + c2.getAttribute('d'));
+var z = s.arrow(170, 120, 300, 160);
+if (EdgeSketch.wireShape(z)) bad.push('an arrow between points not in line is ' + EdgeSketch.wireShape(z) + ': ' + z.getAttribute('d'));
+var free = s.arrow(20, 300, 120, 340, {route: 'straight'});
+if (free.getAttribute('data-route') !== 'free') bad.push('a straight arrow is not marked free');
+var k1 = s.box(20, 260, 100, 40, {title: 'K1'}), k2 = s.box(180, 260, 100, 40, {title: 'K2'}), k3 = s.box(340, 260, 100, 40, {title: 'K3'});
+var hub = s.box(150, 170, 160, 40, {title: 'Hub'});
+var fg = s.fan(hub, 'bottom', [k1, k2, [k3, 'top']], {label: 'jobs'});
+if (fg.querySelectorAll('.sk-dot').length !== 1) bad.push('sketch fan: want 1 dot (the feed straight over K2), got ' + fg.querySelectorAll('.sk-dot').length);
+[].forEach.call(fg.querySelectorAll('path'), function (p) { if (EdgeSketch.wireShape(p)) bad.push('sketch fan branch is ' + EdgeSketch.wireShape(p)); });
+none(s.check().filter(function (m) { return /wire/.test(m); }), 'sketch wires');
+
+/* the check on wires drawn by hand */
+var r = EdgeSketch.check(document.getElementById('raw'));
+expect(r, ['wire #w-slant is slanted', 'wire #w-sag is curved', 'wire #w-line is slanted'], 'hand-drawn wires');
+['w-ok', 'w-arc', 'w-head', 'w-brace', 'w-free'].forEach(function (id) {
+  if (r.some(function (m) { return m.indexOf('#' + id + ' ') >= 0; })) bad.push('flagged ' + id + ': ' + r.join(' / '));
+});
+if (EdgeDiagram.version !== '1.2.0' || EdgeSketch.version !== '1.2.0') bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>
