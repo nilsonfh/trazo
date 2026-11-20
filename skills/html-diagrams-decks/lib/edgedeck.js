@@ -1,4 +1,4 @@
-/* EdgeDeck v1.2.0 — a 1600x900 slide engine for single-file HTML decks.
+/* EdgeDeck v1.3.0 — a 1600x900 slide engine for single-file HTML decks.
  *
  *   EdgeDeck.run({builds: BUILDS, lib: {name: 1, ...}, icons: window.EDGE_ICONS});
  *
@@ -151,5 +151,5 @@
     return {next: next, prev: prev, show: show, go: go, nextSlide: nextSlide, prevSlide: prevSlide,
       state: function () { return {slide: cur, step: step, blank: stage.style.visibility === 'hidden'}; }};
   }
-  global.EdgeDeck = {run: run, version: '1.2.0'};
+  global.EdgeDeck = {run: run, version: '1.3.0'};
 })(window);

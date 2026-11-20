@@ -1,4 +1,4 @@
-/* EdgeSketch v1.2.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
+/* EdgeSketch v1.3.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
  *
  *   var s = EdgeSketch.create(svg, {icons: window.EDGE_ICONS});
  *   s.zone(0, 0, 400, 300, {label: 'SERVICE'});
@@ -40,7 +40,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.2.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.0', UID = 0;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink'];
 
   var CSS = [
@@ -540,7 +540,7 @@
   function checkAll(all) {
     var sel = 'svg.sk-root, svg[data-check]:not([data-check="false"])' + (all ? ', svg[role="img"]' : '');
     [].forEach.call(document.querySelectorAll(sel), function (svg, i) {
-      if (svg.classList.contains('ed-root') || svg.getAttribute('data-check') === 'false') return;
+      if (svg.classList.contains('ed-root') || svg.classList.contains('sq-root') || svg.getAttribute('data-check') === 'false') return;   // those check themselves
       report('sketch:' + (svg.id || i), check(svg));
     });
   }

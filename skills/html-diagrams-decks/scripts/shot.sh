@@ -9,8 +9,8 @@
 #   shot.sh --full build/page.html /tmp/page.png                         # the whole page, not the first 1600 px
 #
 # --only hides everything but the element and its ancestors, takes the ancestors' vertical margins and
-# padding away, and sizes the window to the element's height; the width stays the page width, so the
-# layout is the one the reader sees. --full sizes the window to the page's height. Both measure the page
+# padding away, and sizes the window to the element's height. The element keeps the width it has on the
+# page (in a grid, it spans the row its hidden neighbours leave), so the layout is the one the reader sees. --full sizes the window to the page's height. Both measure the page
 # in a first headless run, after the js has run.
 #
 # --check runs the layout check of every figure, at every step for EdgeDiagram figures and in their
@@ -71,7 +71,9 @@ now = js     # the page's own js runs on load, as before; isolating and measurin
 after = ''
 if only:
     after += r''';(function(sel){var e=document.querySelector(sel);if(!e){window.__shotMissing=1;return;}
+      e.style.setProperty('width',e.getBoundingClientRect().width+'px','important');e.style.setProperty('max-width','none','important');
       for(var n=e;n.parentElement;n=n.parentElement){var p=n.parentElement;
+        if(/grid/.test(getComputedStyle(p).display))n.style.setProperty('grid-column','1 / -1','important');
         [].forEach.call(p.children,function(c){if(c!==n&&!/^(SCRIPT|STYLE|LINK|HEAD)$/.test(c.tagName))c.style.setProperty('display','none','important');});
         ['margin-top','margin-bottom','padding-top','padding-bottom'].forEach(function(k){p.style.setProperty(k,'0','important');});}
       e.style.setProperty('margin-top','0','important');e.style.setProperty('margin-bottom','0','important');window.scrollTo(0,0);

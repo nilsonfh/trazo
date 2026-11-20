@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 (2026-11-20)
+
+- **EdgeSequence** (`lib/edgesequence.js`), sequence diagrams:
+  - actors in equal columns, optionally grouped in bands, with lifelines;
+  - numbered messages with their labels above, dashed replies, self calls and notes;
+  - activation bars that a message starts and its reply ends, nested for self calls;
+  - `alt`, `opt`, `loop` and `par` frames (or any word), with `else` dividers, nesting;
+  - the viewBox's height follows the content.
+
+  Steps come by default one per message: the current one is drawn thicker, with a packet travelling along it. Forward steps draw the wire, then its arrowhead; back steps jump. With GSAP on the page, `ctl.timeline` drives it from an EdgeDeck slide. Its own layout check reports into `shot.sh --check`, and draw.io exports it as a hand-drawn figure. `templates/sequence.html` is a complete example; `inline.py` and `vendor.sh` know the file. Tested in `tests/sequence.html`.
+- `shot.sh --only` keeps the element at the width it has on the page: in a grid whose other columns it hides, it no longer falls into the first column.
+
 ## 1.2.0 (2026-11-20)
 
 - **Connectors at right angles.**

@@ -1,0 +1,50 @@
+<!-- EdgeSequence: rows and activations, frames, steps forward and back, and its layout check. Run with scripts/test.sh. -->
+<svg id="ok" viewBox="0 0 800 400" role="img" aria-label="clean"></svg>
+<svg id="bad" viewBox="0 0 400 300" role="img" aria-label="broken"></svg>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function shown(q, id) { return !q.items[id].el.classList.contains('off'); }
+function y(q, id) { return +q.items[id].el.querySelector('.sq-wire').getAttribute('d').split(/[ MH]+/)[2]; }
+
+var q = EdgeSequence.create(document.getElementById('ok'), {icons: window.EDGE_ICONS});
+q.group('SERVICE', ['api', 'db']);
+q.actor('web', {icon: 'desktop', title: 'Browser'}).actor('api', {icon: 'server', title: 'API', tone: 'accent', info: 'checks'}).actor('db', {icon: 'database', title: 'Database'});
+q.msg('a', {from: 'web', to: 'api', label: 'POST', caption: 'one'})
+ .self('b', {at: 'api', label: 'validate'})
+ .msg('c', {from: 'api', to: 'db', label: 'INSERT'})
+ .msg('d', {from: 'db', to: 'api', label: 'ok', reply: true, with: true})
+ .msg('e', {from: 'api', to: 'web', label: '201', reply: true})
+ .note('n', {over: ['web', 'api'], text: 'a note'});
+q.frame('f', {kind: 'alt', label: 'valid', from: 'c', to: 'd', else: [{at: 'd', label: 'no'}]});
+var ctl = q.steps();
+if (ctl.count !== 6) bad.push('steps: want 6 (actors, a, b, c+d, e, n), got ' + ctl.count);
+if (shown(q, 'a') || !shown(q, 'web')) bad.push('step 0 shows only the actors');
+ctl.next(); ctl.next(); ctl.next();
+if (!shown(q, 'c') || !shown(q, 'd') || !shown(q, 'f') || shown(q, 'e')) bad.push('step 3 shows c, d and their frame, not e');
+if (!q.items.c.el.classList.contains('now') || q.items.a.el.classList.contains('now')) bad.push('the current messages are marked now');
+ctl.prev();
+if (shown(q, 'c') || shown(q, 'f') || !shown(q, 'b')) bad.push('back to step 2 hides c and the frame');
+ctl.end();
+if (!shown(q, 'n')) bad.push('end shows the note');
+if (!(y(q, 'a') < y(q, 'c') && y(q, 'c') < y(q, 'd') && y(q, 'd') < y(q, 'e'))) bad.push('rows run top to bottom');
+if (document.querySelectorAll('#ok .sq-act').length < 3) bad.push('activation bars: want one on api, one on db and the self call, got ' + document.querySelectorAll('#ok .sq-act').length);
+var vb = document.getElementById('ok').viewBox.baseVal;
+if (vb.width !== 800 || vb.height === 400) bad.push('the viewBox keeps its width and takes the content\'s height: ' + vb.width + ' x ' + vb.height);
+if (!document.querySelector('#ok .sq-actor[tabindex] title')) bad.push('an actor with info is focusable with a title');
+var c = q.check();
+if (c.length) bad.push('clean figure: ' + c.join(' / '));
+
+var r = EdgeSequence.create(document.getElementById('bad'));
+r.actor('a', {title: 'A title far too long for any actor box'}).actor('b', {title: 'B'});
+r.msg('x', {from: 'a', to: 'b', label: 'a label much wider than the gap between the two'});
+r.render();
+expect(r.check(), ['runs outside actor a', 'label of x is wider than the gap'], 'broken figure');
+if (EdgeSequence.version !== '1.3.0') bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

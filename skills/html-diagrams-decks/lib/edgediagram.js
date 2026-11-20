@@ -1,4 +1,4 @@
-/* EdgeDiagram v1.2.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
+/* EdgeDiagram v1.3.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('svc', {x, y, w, h, label: 'SERVICE'});
@@ -45,7 +45,7 @@
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.2.0';
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.3.0';
 
   var CSS = [
     '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',

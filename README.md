@@ -5,6 +5,7 @@
 Trazo is an agent skill for Claude Code and GitHub Copilot, installed as `html-diagrams-decks`, and a small JavaScript library for architecture figures and slide decks as single HTML files. Figures have stepped builds with captions, packets that flow along routed connectors, hover details, light and dark themes and a 50-icon sprite, and every figure on a page can be checked for overlapping and overflowing text before it is published.
 
 - **EdgeDiagram** draws graphs: zones, nodes and orthogonal links that line up, go around boxes and fan out from one point, revealed step by step.
+- **EdgeSequence** draws sequence diagrams: actors, numbered messages and replies, activation bars, notes and `alt`/`loop` frames, one message per step with a packet travelling along it.
 - **EdgeSketch** draws figures laid out by hand on a grid, such as layered stacks and left-to-right platform views. Its boxes fit their text, and its check works on any SVG.
 - **EdgeDeck** runs 1600×900 slide decks with per-slide steps.
 - **Three themes** share one token contract, each in light and dark, with a contrast checker, and **any DESIGN.md** (a brand's colours and faces) becomes a fourth with one command.

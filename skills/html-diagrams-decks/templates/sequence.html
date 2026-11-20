@@ -1,0 +1,91 @@
+<title>Write Path Sequence</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.body{display:grid;gap:22px}
+@media (min-width:980px){.body{grid-template-columns:280px 1fr;align-items:start}}
+.body>*{min-width:0}
+.cap{font-size:19px;line-height:1.5;min-height:6.2em;margin:0}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · sequence diagram</p>
+  <h1>Who talks to whom when a write arrives</h1>
+  <div class="body">
+    <div>
+      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="hint">Each step adds one message. Hover a message or an actor for details. Arrow keys step.</p>
+    </div>
+    <div class="stage"><svg id="sq" viewBox="0 0 860 600" role="img" aria-label="The browser posts a write; the API validates it, puts it on the queue and answers 202 at once; a worker takes batches from the queue and writes them to the database."></svg></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Restart</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="../lib/edgesequence.js"></script>
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  /* Actors left to right in the order they first act; one message per row; replies dashed.
+     Leave the height to the library: it sets the viewBox's height from the content. */
+  var q = EdgeSequence.create(document.getElementById('sq'), {icons: window.EDGE_ICONS});
+  q.group('CLIENT', ['web']).group('SERVICE', ['api', 'queue', 'worker']).group('DATA', ['db']);
+  q.actor('web', {icon: 'desktop', title: 'Browser', info: 'Sends the write and waits only for the API to accept it.'})
+   .actor('api', {icon: 'server', title: 'API', tone: 'accent', info: 'Checks the request, queues it and answers 202 Accepted.'})
+   .actor('queue', {icon: 'broker', title: 'Queue', info: 'Holds accepted writes in arrival order until a worker takes them.'})
+   .actor('worker', {icon: 'container', title: 'Worker', tone: 'add', info: 'Takes writes in batches and applies them to the database.'})
+   .actor('db', {icon: 'database', title: 'Database', info: 'Receives batched writes from the worker, never from the API.'});
+
+  q.msg('post', {from: 'web', to: 'api', label: 'POST /orders', caption: 'The browser sends a write, with an idempotency key.'})
+   .self('check', {at: 'api', label: 'validate', caption: 'The API checks the request.'})
+   .msg('enq', {from: 'api', to: 'queue', label: 'enqueue', caption: 'It puts the write on the queue…'})
+   .msg('ack', {from: 'queue', to: 'api', label: 'stored', reply: true, with: true})
+   .msg('202', {from: 'api', to: 'web', label: '202 Accepted', reply: true, tone: 'gap', caption: '…and answers at once.',
+      info: 'The browser does not wait for the database.'})
+   .note('why', {over: ['web', 'api'], text: 'the browser never waits for the database', caption: 'That is the point of the queue.'})
+   .msg('take', {from: 'worker', to: 'queue', label: 'take up to 500', tone: 'add', caption: 'Every 200 ms a worker takes a batch…'})
+   .msg('batch', {from: 'queue', to: 'worker', label: 'batch', reply: true, with: true})
+   .msg('ins', {from: 'worker', to: 'db', label: 'INSERT batch', tone: 'add', caption: '…and writes it in one transaction; a retried write with the same key is applied once.'})
+   .msg('ok', {from: 'db', to: 'worker', label: 'commit', reply: true, with: true});
+  q.frame('every', {kind: 'loop', label: 'every 200 ms', from: 'take', to: 'ok'});
+
+  var cap = document.getElementById('cap'), dots = document.getElementById('dots'), ctl;
+  ctl = q.steps(null, {caption0: 'Five parts take part in a write. Step through it.', onStep: function (k, s) {
+    cap.innerHTML = '<b>' + (k + 1) + ' / ' + ctl.count + '</b>';
+    cap.appendChild(document.createTextNode(s.caption || ''));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }, start: 'end'});
+  ctl.steps.forEach(function () { dots.appendChild(document.createElement('i')); });
+  ctl.go(ctl.count - 1);
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>
