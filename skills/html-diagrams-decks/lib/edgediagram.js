@@ -229,6 +229,11 @@
         if (ov > 4) shared += 300 + ov;
         else if (crosses(s[k], s[k + 1], others[o][0], others[o][1])) shared += 250;   // crossing another wire
       }
+      for (var w0 = 1; w0 < s.length - 1; w0++) for (var o2 = 0; o2 < (others || []).length; o2++) {   // a turn on another wire hides a crossing
+        var u0 = others[o2][0], u1 = others[o2][1];
+        if (Math.abs((u1[0] - u0[0]) * (s[w0][1] - u0[1]) - (u1[1] - u0[1]) * (s[w0][0] - u0[0])) < 1 * Math.hypot(u1[0] - u0[0], u1[1] - u0[1]) &&
+            s[w0][0] >= Math.min(u0[0], u1[0]) - 1 && s[w0][0] <= Math.max(u0[0], u1[0]) + 1 && s[w0][1] >= Math.min(u0[1], u1[1]) - 1 && s[w0][1] <= Math.max(u0[1], u1[1]) + 1) shared += 250;
+      }
       // a turn inside a zone that holds neither end reads as belonging to it; crossing one is fine
       // and running through one costs by the length run inside it
       var stray = 0, through = 0, out = 0;
