@@ -1,4 +1,4 @@
-/* EdgeSequence v1.3.0 — sequence diagrams for single-file HTML pages and decks.
+/* EdgeSequence v1.3.1 — sequence diagrams for single-file HTML pages and decks.
  *
  *   var q = EdgeSequence.create(svg, {icons: window.EDGE_ICONS});
  *   q.group('CENTRE', ['api', 'db']);                                   // a band over some actors' columns
@@ -30,7 +30,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.1', UID = 0;
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink', 'ink2'];
 

@@ -1,4 +1,4 @@
-/* EdgeSketch v1.3.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
+/* EdgeSketch v1.3.1 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
  *
  *   var s = EdgeSketch.create(svg, {icons: window.EDGE_ICONS});
  *   s.zone(0, 0, 400, 300, {label: 'SERVICE'});
@@ -40,7 +40,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.1', UID = 0;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink'];
 
   var CSS = [
@@ -93,11 +93,17 @@
     h.innerHTML = '<defs>' + icons + '</defs>';
     document.body.insertBefore(h, document.body.firstChild);
   }
-  // set a text's size so it fits `room`, between max and min
+  // set a text's size so it fits `room`, between max and min; measured again after each step, since
+  // a face at small sizes (mono above all) does not narrow in proportion to its size
   function fit(t, room, max, min) {
-    t.style.fontSize = max + 'px';
-    var len = 0; try { len = t.getComputedTextLength(); } catch (e) { return; }
-    if (len > room && len > 0) t.style.fontSize = Math.max(min, max * room / len).toFixed(2) + 'px';
+    var size = max, len;
+    t.style.fontSize = size + 'px';
+    for (var i = 0; i < 6 && size > min; i++) {
+      try { len = t.getComputedTextLength(); } catch (e) { return; }
+      if (!(len > room)) return;
+      size = Math.max(min, Math.min(size - 0.1, size * room / len));
+      t.style.fontSize = size.toFixed(2) + 'px';
+    }
   }
 
   function same(a, b) { return Math.abs(a - b) < 0.01; }

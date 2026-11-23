@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 (2026-11-23)
+
+- EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.
+
 ## 1.3.0 (2026-11-20)
 
 - **EdgeSequence** (`lib/edgesequence.js`), sequence diagrams:

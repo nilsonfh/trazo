@@ -1,7 +1,7 @@
 """trazo: the html-diagrams-decks agent skill and its tools, installable with uv or pip."""
 from pathlib import Path
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 
 def skill_dir() -> Path:

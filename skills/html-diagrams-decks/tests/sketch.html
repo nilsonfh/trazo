@@ -1,6 +1,7 @@
 <!-- EdgeSketch draws boxes that fit their text, and its check finds what does not fit, in its own figures and in any SVG. Run with scripts/test.sh. -->
 <svg id="ok" viewBox="0 0 600 300" role="img" aria-label="clean"></svg>
 <svg id="bad" viewBox="0 0 600 240" role="img" aria-label="broken"></svg>
+<svg id="many" viewBox="0 0 600 900" role="img" aria-label="widths"></svg>
 <svg id="raw" viewBox="0 0 400 120" role="img" aria-label="hand-written">
   <g><rect x="10" y="10" width="120" height="40" fill="#eee" stroke="#333"/><text x="20" y="35" font-size="13">a title far too long for this box</text></g>
   <g><rect x="200" y="10" width="120" height="40" fill="transparent" stroke="none"/><text x="210" y="35" font-size="13">a hit area, not a box at all</text></g>
@@ -33,6 +34,13 @@ none(a.check(), 'clean figure');
 var g = document.querySelector('#ok .sk-box[tabindex]');
 if (!g || !g.querySelector('title')) bad.push('a box with info is not focusable with a title');
 if (document.querySelectorAll('#ok marker').length !== 2) bad.push('markers: want one per tone, got ' + document.querySelectorAll('#ok marker').length);
+
+// fitting is measured until the text fits: at small sizes a face does not narrow in proportion,
+// so one proportional step left texts a few pixels out of boxes of some widths
+var m = EdgeSketch.create(document.getElementById('many'), {icons: window.EDGE_ICONS});
+for (var i = 0; i < 16; i++) m.box(20 + (i % 2) * 290, 10 + Math.floor(i / 2) * 110, 230 + i * 3, 90,
+  {icon: i % 3 ? 'server' : null, title: 'Hardware in the loop', sub: ['real controllers · physical nodes', 'link · power · clock · gone']});
+none(m.check(), 'boxes of many widths');
 
 // a broken figure: a floor too high to fit, overlapping texts, an icon on text, text off the viewBox and on another box
 var b = EdgeSketch.create(document.getElementById('bad'), {icons: window.EDGE_ICONS});
