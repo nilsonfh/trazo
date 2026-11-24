@@ -6,10 +6,11 @@
 - An EdgeDiagram figure: zones and nodes become rounded rectangles with the page's computed fill, stroke
   and dash; links become edges attached to their nodes at the rendered anchors, with the route's corners
   as waypoints and each label at its rendered place along the wire.
-- Any other svg (drawn by hand or with EdgeSketch): rects and ellipses keep their fill, stroke, dash and
-  corner radius, text keeps its place, size, weight and rotation, and lines and paths become edges with
-  their arrowheads, not attached to anything. Everything keeps the page's order, so what was on top stays
-  on top. Filled shapes other than rects and ellipses are not exported; the count is printed.
+- Any other svg (drawn by hand or with EdgeSketch, EdgeSequence or EdgeTimeline): rects, ellipses and
+  diamonds (a timeline's milestones) keep their fill, stroke, dash and corner radius, text keeps its place,
+  size, weight and rotation, and lines and paths become edges with their arrowheads, not attached to
+  anything. Everything keeps the page's order, so what was on top stays on top. Other filled shapes are
+  not exported; the count is printed.
 - An HTML figure: its boxes, its sprite icons and one text cell per rendered line.
 
 Icons become draw.io stencils coloured from the cell's style, so draw.io's dark mode recolours them with
@@ -238,7 +239,7 @@ def svg_figure(d, doc):
             fill = hx(it['fill'], op * it.get('fo', 1)); stroke = hx(it['stroke'], op * it.get('so', 1))
             if fill == 'none' and stroke == 'none':
                 continue
-            shape = 'ellipse;' if it['t'] == 'ellipse' else ('rounded=1;absoluteArcSize=1;arcSize=%s;' % r(it.get('rx', 0) * 2) if it.get('rx') else 'rounded=0;')
+            shape = 'ellipse;' if it['t'] == 'ellipse' else 'rhombus;' if it.get('shape') == 'rhombus' else ('rounded=1;absoluteArcSize=1;arcSize=%s;' % r(it.get('rx', 0) * 2) if it.get('rx') else 'rounded=0;')
             doc.cell({'value': '', 'style': '%shtml=1;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % (shape, fill, stroke, r(it['sw'] or 1), dash_of(it['dash'])), 'vertex': '1'},
                      {'x': r(it['x']), 'y': r(it['y']), 'width': r(max(it['w'], 0.5)), 'height': r(max(it['h'], 0.5))})
         elif it['t'] == 'icon':
@@ -269,7 +270,7 @@ def svg_figure(d, doc):
             doc.cell({'value': val, 'style': style, 'vertex': '1'}, {'x': r(x0), 'y': r(it['cy'] - h / 2), 'width': r(W), 'height': r(h)})
     if d.get('skipped'):
         print('todrawio.py: not exported: ' + ', '.join('%d %s' % (v, k) for k, v in sorted(d['skipped'].items())) +
-              ' (filled shapes other than rects and ellipses, and <use> of anything but a sprite symbol)', file=sys.stderr)
+              ' (filled shapes other than rects, ellipses and diamonds, and <use> of anything but a sprite symbol)', file=sys.stderr)
 
 
 # ---------- an HTML figure ----------

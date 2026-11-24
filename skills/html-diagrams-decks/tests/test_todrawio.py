@@ -15,7 +15,7 @@ class ToDrawio(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp(dir=os.path.join(ROOT, "tests"))   # beside the tests, so file:// pages load
-        for name in ("diagram", "sketch"):
+        for name in ("diagram", "sketch", "timeline"):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "inline.py"), os.path.join(ROOT, "templates", name + ".html")],
                                  capture_output=True, text=True, check=True).stdout
             with open(os.path.join(cls.dir, name + ".html"), "w", encoding="utf-8") as f:
@@ -67,6 +67,20 @@ class ToDrawio(unittest.TestCase):
         self.assertTrue(any("endArrow=block" in s and "startArrow=block" in s for s in styles), "two-headed arrows")
         self.assertTrue(any("stencil(" in s for s in styles), "icons")
         self.assertTrue(any("dashed=1" in s and "fillColor=" in s for s in styles), "the dashed planned box")
+
+    def test_a_timeline_keeps_its_bars_milestones_and_arrows(self):
+        r, out = self.export(os.path.join(self.dir, "timeline.html"), "rm")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("kind svg", r.stdout)
+        cells = self.cells(out)
+        styles = [c.get("style") or "" for c in cells]
+        values = [c.get("value") or "" for c in cells]
+        self.assertIn("Screens and flows", values)
+        self.assertIn("General availability", values)
+        self.assertEqual(len([s for s in styles if s.startswith("rhombus;")]), 2, "the two milestones")
+        self.assertGreaterEqual(len([s for s in styles if "endArrow=block" in s]), 6, "the dependencies")
+        self.assertTrue(any("dashed=1" in s and s.startswith("rounded=1") for s in styles), "the planned bar")
+        self.assertNotIn("not exported", r.stderr)
 
     def test_an_html_figure(self):
         r, out = self.export(os.path.join(self.dir, "sketch.html"), ".legend")

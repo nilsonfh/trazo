@@ -147,6 +147,7 @@
     function show(i, k, dir) {
       var from = slides[cur], to = slides[i];
       if (global.EdgeDiagram && global.EdgeDiagram.clearAll) global.EdgeDiagram.clearAll();
+      if (global.EdgeTimeline) global.EdgeTimeline.clearAll();
       if (from !== to) {
         var ftl = tls[cur]; if (ftl && ftl.onStep) ftl.onStep(-1);
         from.classList.remove('on'); to.classList.add('on');
