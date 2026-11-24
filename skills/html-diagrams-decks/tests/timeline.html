@@ -1,0 +1,99 @@
+<!-- EdgeTimeline: the axis, lanes and bands, labels inside or beside, dependencies at right angles around bars, steps, and its layout check. Run with scripts/test.sh. -->
+<svg id="ok" viewBox="0 0 900 300" role="img" aria-label="clean"></svg>
+<svg id="units" viewBox="0 0 700 200" role="img" aria-label="abstract units"></svg>
+<svg id="around" viewBox="0 0 700 200" role="img" aria-label="a dependency goes around a bar"></svg>
+<svg id="q" viewBox="0 0 700 100" role="img" aria-label="quarters"></svg>
+<svg id="bad" viewBox="0 0 600 200" role="img" aria-label="broken"></svg>
+<pre id="out"></pre>
+<script src="../lib/edgetimeline.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function shown(t, id) { return !t.items[id].els[0].classList.contains('off'); }
+function rightAngles(pts) { for (var i = 1; i < pts.length; i++) if (pts[i][0] !== pts[i - 1][0] && pts[i][1] !== pts[i - 1][1]) return false; return true; }
+function labels(svg) { return [].map.call(document.querySelectorAll('#' + svg + ' .tl-axis text:not(.thin)'), function (t) { return t.textContent; }); }
+
+// a clean roadmap: dates by month, two bands, phases, a planned bar, milestones, dependencies, today
+var t = EdgeTimeline.create(document.getElementById('ok'), {start: '2027-01-01', end: '2027-06-30', unit: 'month', today: '2027-02-15'});
+t.band('a', {title: 'BUILD'}).band('b', {title: 'RUN'});
+t.lane('x', {title: 'Service', band: 'a', info: 'the core'}).lane('y', {title: 'Client', band: 'a'}).lane('z', {title: 'Operations', band: 'b'});
+t.phase('p1', {start: '2027-01-01', end: '2027-03-31', label: 'One', tone: 'accent', caption: 'first'})
+ .phase('p2', {start: '2027-04-01', end: '2027-06-30', label: 'Two', tone: 'add', caption: 'second'});
+t.bar('a1', {lane: 'x', start: '2027-01-04', end: '2027-02-26', label: 'Design', tone: 'accent', progress: 0.5, info: 'the schema'})
+ .bar('a2', {lane: 'x', start: '2027-03-08', end: '2027-03-12', label: 'A label too long for its bar'})
+ .bar('b1', {lane: 'y', start: '2027-04-05', end: '2027-05-28', label: 'Screens', planned: true})
+ .milestone('m1', {lane: 'z', at: '2027-06-07', label: 'Go', tone: 'gap', line: true, info: 'open'});
+t.dep('d1', {from: 'a1', to: 'a2'}).dep('d2', {from: 'a1', to: 'b1'}).dep('d3', {from: 'b1', to: 'm1'});
+var c = t.check();
+if (c.length) bad.push('clean figure: ' + c.join(' / '));
+var vb = document.getElementById('ok').viewBox.baseVal;
+if (vb.width !== 900 || vb.height === 300) bad.push('the viewBox keeps its width and takes the content\'s height: ' + vb.width + ' x ' + vb.height);
+if (labels('ok').join(',') !== '2027,Jan,Feb,Mar,Apr,May,Jun') bad.push('axis labels: ' + labels('ok'));
+if (t.items.a1.side !== 'in' || t.items.a2.side === 'in') bad.push('a label goes inside when it fits, beside when not: ' + t.items.a1.side + ', ' + t.items.a2.side);
+['d1', 'd2', 'd3'].forEach(function (id) { if (!rightAngles(t.items[id].pts)) bad.push(id + ' is not at right angles: ' + JSON.stringify(t.items[id].pts)); });
+if (t.items.d1.pts.length !== 2) bad.push('a dependency within a lane is one straight run');
+var d2 = t.items.d2.pts;
+if (d2[0][0] !== t.items.a1.x1 || d2[d2.length - 1][0] !== t.items.b1.x0) bad.push('a dependency runs from the end of one bar to the start of the next');
+if (!document.querySelector('#ok .tl-prog') || !document.querySelector('#ok .tl-bar.planned')) bad.push('progress and planned bars');
+if (!document.querySelector('#ok .tl-today') || !document.querySelector('#ok .tl-guide')) bad.push('today and a milestone line');
+if (!document.querySelector('#ok .tl-bar[tabindex]') || !document.querySelector('#ok .tl-lane[tabindex]')) bad.push('items with info are focusable');
+var ctl = t.steps();
+if (ctl.count !== 3) bad.push('steps: want 3 (frame, two phases), got ' + ctl.count);
+if (ctl.step !== 0 || shown(t, 'a1') || shown(t, 'p1')) bad.push('step 0 shows only the frame');
+ctl.next();
+if (!shown(t, 'p1') || !shown(t, 'a1') || !shown(t, 'a2') || !shown(t, 'd1') || shown(t, 'b1') || shown(t, 'd2')) bad.push('step 1 shows phase one and what starts in it');
+if (!t.items.a1.els[0].classList.contains('now')) bad.push('the current items are marked now');
+ctl.next();
+if (!shown(t, 'b1') || !shown(t, 'd2') || !shown(t, 'm1') || !t.items.m1.els[1].classList.contains('now')) bad.push('step 2 shows the rest, a milestone with its line');
+ctl.prev();
+if (shown(t, 'b1') || shown(t, 'm1')) bad.push('back hides them again');
+t.items.a1.g.dispatchEvent(new Event('focus'));
+var tip = document.querySelector('.tl-tip');
+if (tip.hidden || tip.textContent.indexOf('the schema') < 0 || tip.textContent.indexOf('4 Jan 2027 – 26 Feb 2027') < 0) bad.push('focus shows a tooltip with the dates: ' + tip.textContent);
+if (!t.items.d1.els[0].classList.contains('tl-hot') || t.items.p1.els[0].classList.contains('tl-hot')) bad.push('focus lights the item and its dependencies');
+t.items.a1.g.dispatchEvent(new Event('blur'));
+if (!tip.hidden) bad.push('blur hides the tooltip');
+var q = EdgeTimeline.create(document.getElementById('q'), {start: '2027-01-01', end: '2028-06-30', unit: 'quarter'});
+q.lane('l', {title: 'L'}).render();
+if (labels('q').join(',') !== '2027,2028,Q1,Q2,Q3,Q4,Q1,Q2') bad.push('quarter labels: ' + labels('q'));
+
+// abstract units: weeks, labelled W1..; item steps
+var u = EdgeTimeline.create(document.getElementById('units'), {start: 0, end: 8, unit: 'week'});
+u.lane('l', {title: 'Team'}).bar('s', {lane: 'l', start: 0, end: 3, label: 'Sprint one'}).bar('s2', {lane: 'l', start: 3, end: 6, label: 'two', with: true}).milestone('r', {lane: 'l', at: 7, label: 'Release'});
+if (u.check().length) bad.push('units: ' + u.check().join(' / '));
+if (labels('units').join(',') !== 'W1,W2,W3,W4,W5,W6,W7,W8') bad.push('week labels: ' + labels('units'));
+if (u.steps().count !== 3) bad.push('item steps: with joins the previous step');
+
+// a dependency whose shortest route crosses a bar in the lane between goes around it
+var r = EdgeTimeline.create(document.getElementById('around'), {start: 0, end: 20, unit: 'week'});
+r.lane('a', {title: 'A'}).lane('b', {title: 'B'}).lane('c', {title: 'C'});
+r.bar('x', {lane: 'a', start: 0, end: 4, label: 'x'}).bar('wall', {lane: 'b', start: 3, end: 9, label: 'wall'}).bar('y', {lane: 'c', start: 12, end: 16, label: 'y'})
+ .bar('z', {lane: 'b', start: 2, end: 5, label: 'z'}).dep('d', {from: 'wall', to: 'y'});
+r.render();
+var rc = r.check();
+expect(rc, ['bars z and wall overlap in lane b'], 'overlap');
+var p = r.items.d.pts;
+if (!rightAngles(p) || p[1][0] <= r.items.wall.x1) bad.push('the route leaves the bar to the right: ' + JSON.stringify(p));
+r = EdgeTimeline.create(document.getElementById('around'), {start: 0, end: 20, unit: 'week'});
+r.lane('a', {title: 'A'}).lane('b', {title: 'B'}).lane('c', {title: 'C'});
+r.bar('x', {lane: 'a', start: 0, end: 4, label: 'x'}).bar('wall', {lane: 'b', start: 4, end: 9, label: 'wall'}).bar('y', {lane: 'c', start: 12, end: 16, label: 'y'})
+ .dep('d', {from: 'x', to: 'y'});
+var ac = r.check();
+if (ac.length) bad.push('around: ' + ac.join(' / '));
+if (!rightAngles(r.items.d.pts)) bad.push('around: right angles');
+
+// a broken figure
+var e = EdgeTimeline.create(document.getElementById('bad'), {start: '2027-01', end: '2027-03', unit: 'month', labelW: 60});
+e.lane('l', {title: 'A lane title far too long'}).lane('m', {title: 'M'});
+e.bar('a', {lane: 'l', start: '2027-01-05', end: '2027-01-20', label: 'a label forced inside', labelPos: 'inside'})
+ .bar('b', {lane: 'm', start: '2027-02-01', end: '2027-02-20', label: 'B'})
+ .bar('c', {lane: 'm', start: '2027-01-02', end: '2027-01-25', label: 'C'})
+ .bar('late', {lane: 'l', start: '2027-03-10', end: '2027-04-10', label: 'L'})
+ .dep('back', {from: 'b', to: 'c'});
+e.render();
+expect(e.check(), ['title of lane l runs into the chart', 'label of a overflows its bar', 'dependency back points backward in time', 'bar late runs outside the time axis'], 'broken figure');
+if (EdgeTimeline.version !== '1.3.1') bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

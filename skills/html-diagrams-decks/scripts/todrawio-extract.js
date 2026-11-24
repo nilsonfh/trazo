@@ -1,8 +1,9 @@
 /* Injected by todrawio.sh: finds the figure window.TODRAWIO_TARGET names, once the page has loaded and its
    fonts are ready, and dumps it as JSON in a pre element with id dump, for todrawio.py.
    - an EdgeDiagram svg (.ed-root), at its last step: zones, nodes, links with their ends, link labels;
-   - any other svg, drawn by hand or with EdgeSketch: rects, circles, text, sprite icons, and lines and
-     paths drawn as wires, with their arrowheads, in the svg's own units and in document order;
+   - any other svg, drawn by hand or with EdgeSketch, EdgeSequence or EdgeTimeline: rects, circles, diamonds,
+     text, sprite icons, and lines and paths drawn as wires, with their arrowheads, in the svg's own units
+     and in document order;
    - an HTML element: every box with a background or a border, every line of text, every sprite icon.
    The target is an id, or a CSS selector when it starts with "." or "#". If nothing matches, the dump
    says so. */
@@ -111,7 +112,19 @@
       } else if (tag === 'line' || tag === 'polyline' || tag === 'path' || tag === 'polygon') {
         var stroked = c.stroke && c.stroke !== 'none' && parseFloat(c.strokeWidth) > 0;
         var filled = (tag === 'path' || tag === 'polygon') && c.fill && c.fill !== 'none' && !/rgba\([^)]*,\s*0\)/.test(c.fill) && +c.fillOpacity > 0;
-        if (filled || !stroked) return skip(tag);   // a filled shape other than a rect or an ellipse is not exported
+        if (filled && tag === 'path') {   // a diamond (a timeline's milestone) is a rhombus
+          var dp = corners(e.getAttribute('d')), db = e.getBBox();
+          if (/^[\sMmLlZz\d.,-]*$/.test(e.getAttribute('d') || '') && dp.length >= 4 && dp.slice(0, 4).every(function (q) {
+            return (Math.abs(q[0] - db.x - db.width / 2) < 0.5 && (Math.abs(q[1] - db.y) < 0.5 || Math.abs(q[1] - db.y - db.height) < 0.5)) ||
+                   (Math.abs(q[1] - db.y - db.height / 2) < 0.5 && (Math.abs(q[0] - db.x) < 0.5 || Math.abs(q[0] - db.x - db.width) < 0.5));
+          })) {
+            var a4 = P(m, db.x, db.y), z4 = P(m, db.x + db.width, db.y + db.height);
+            out.items.push({t: 'rect', shape: 'rhombus', x: Math.min(a4[0], z4[0]), y: Math.min(a4[1], z4[1]), w: Math.abs(z4[0] - a4[0]), h: Math.abs(z4[1] - a4[1]),
+              rx: 0, fill: c.fill, fo: +c.fillOpacity, stroke: c.stroke, so: +c.strokeOpacity, sw: parseFloat(c.strokeWidth) * Math.abs(m.a || 1), dash: c.strokeDasharray, op: op});
+            return;
+          }
+        }
+        if (filled || !stroked) return skip(tag);   // any other filled shape than a rect, an ellipse or a diamond is not exported
         var pts = [], len = 0;
         try { len = e.getTotalLength(); } catch (x) {}
         var straight = tag !== 'path' || !/[CcSsQqTtAa]/.test(e.getAttribute('d') || '');

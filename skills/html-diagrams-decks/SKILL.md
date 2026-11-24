@@ -1,25 +1,27 @@
 ---
 name: html-diagrams-decks
-description: Build animated, interactive SVG diagrams, hand-drawn architecture figures and 16:9 slide decks as single self-contained HTML files (light and dark themes, stepped builds with captions, packets flowing along connectors, hover details, a layout check, a 50-icon sprite including grid/energy symbols). Use when asked for an architecture or flow diagram, a layered or platform view, an explainer figure, a stepped walkthrough, or a presentation/deck as an HTML page or claude.ai artifact.
+description: Build animated, interactive SVG diagrams, hand-drawn architecture figures, timelines and roadmaps, and 16:9 slide decks as single self-contained HTML files (light and dark themes, stepped builds with captions, packets flowing along connectors, hover details, a layout check, a 50-icon sprite including grid/energy symbols). Use when asked for an architecture or flow diagram, a layered or platform view, an explainer figure, a roadmap, Gantt chart or timeline, a stepped walkthrough, or a presentation/deck as an HTML page or claude.ai artifact.
 license: MIT
 compatibility: The libraries run in any browser. The tools need Python 3, bash, and a headless Chromium for screenshots and checks (npx playwright install chromium-headless-shell, or set CHROME).
 ---
 
 # HTML diagrams and decks
 
-This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilot and other agents read it) provides two small figure libraries, a deck engine, three themes and three templates. Each result is one HTML file that works offline once GSAP is cached, follows the viewer's light or dark theme, and can be published as a claude.ai artifact.
+This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilot and other agents read it) provides four small figure libraries, a deck engine, three themes and five templates. Each result is one HTML file that works offline once GSAP is cached, follows the viewer's light or dark theme, and can be published as a claude.ai artifact.
 
 | Path | What it is |
 | --- | --- |
 | `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, and a layout check at every step |
 | `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (right angles, two heads), `connect` (box to box), `fan`, `text`; and `EdgeSketch.check`, a layout check for any SVG, slanted and curved wires included |
 | `lib/edgesequence.js` | Sequence diagrams: actors in columns, numbered messages, replies, self calls, notes, `alt`/`opt`/`loop`/`par` frames, activation bars, a step per message with a packet on it, and its own layout check |
+| `lib/edgetimeline.js` | Timelines and Gantt-style roadmaps: a time axis (dates or abstract units, two tiers, a today line), lanes in titled bands, bars (label inside or beside, tone, progress, dashed when planned), milestones, phases across lanes, finish-to-start dependencies at right angles around bars, a step per phase, hover details, and its own layout check |
 | `lib/icons.js` | `window.EDGE_ICONS`: 50 line icons on a 24-unit grid (grid equipment, compute, trust, operations) |
 | `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, swipe and `#n` links |
 | `themes/*.css` | Colour and type themes, light and dark, on one token contract: `engineering` (blue on green-grey, Archivo Narrow and IBM Plex), `indigo` (indigo on lavender-grey, Space Grotesk and Inter), `drafting` (teal on warm paper, Barlow Condensed and Source Sans 3) |
 | `templates/diagram.html` | A stepped EdgeDiagram figure with captions, Previous/Next and dots |
 | `templates/sketch.html` | A hand-drawn EdgeSketch figure: zones left to right, columns, services, two-headed arrows, a legend |
 | `templates/sequence.html` | A stepped EdgeSequence figure: who talks to whom, one message per step |
+| `templates/timeline.html` | A stepped EdgeTimeline roadmap: two bands of lanes, three phases, progress, a planned bar, milestones and dependencies |
 | `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step |
 | `scripts/inline.py` | Inlines the library files and the theme into a page so it publishes as one file; fails on anything it cannot find |
 | `scripts/shot.sh` | Headless screenshots (light or dark, any width, after given clicks, `--only` one element, `--full` page) and `--check`, the layout check of every figure on a page |
@@ -28,7 +30,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `scripts/theme_from_design.py` | Makes a theme from a DESIGN.md file (a brand's colours and faces), light and dark, every pair at its contrast |
 | `scripts/test.sh` | Runs the tests in `tests/`; run it after changing `lib/`, `scripts/` or `themes/` |
 | `scripts/vendor.sh` | Copies the library into another project, and `--check` shows whether that copy is behind |
-| `references/api.md` | Every option of both libraries and the deck engine |
+| `references/api.md` | Every option of the libraries and the deck engine |
 | `references/conventions.md` | Tokens, the meaning of each tone, layout rules, publishing, and the checks to run |
 | `examples/ci-canary-deck.html` | A complete two-slide deck on a neutral workflow (CI/CD, then a canary rollout) |
 | `examples/isometric/` | An isometric layered-figure generator (the SGAM cube), with lessons learned |
@@ -37,7 +39,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 ## Workflow
 
 1. **Decide what the figure must show.** Name the mechanism, the parts it depends on, and the sequence in which to reveal it. A sentence that says it faster beats a figure.
-2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence build returns `q.steps().timeline`).
+2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). What happens when, by whom, and what waits for what (a roadmap, a plan in phases, a release schedule, a migration window): EdgeTimeline (`templates/timeline.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence or EdgeTimeline build returns `steps().timeline`).
 3. **Copy the template** into the working directory, for example `cp <skill>/templates/sketch.html ./my-figure.html`. Fix the `<script src>` and theme paths so they point at `<skill>/lib/` and `<skill>/themes/`, or run `inline.py` with `--lib` and `--themes` at the end.
 4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires (see **Connectors** below). Put boxes that talk to each other in the same row or column, so their wire is one straight run. Give links that carry meaning an `info`. Read `references/api.md` for the options.
 5. **Write the steps** (EdgeDiagram). Step 0 is the resting state. Each later step adds one idea and has a short caption. Use `flows` for the data that moves, and `dim` or `hide` for what the step moves past.

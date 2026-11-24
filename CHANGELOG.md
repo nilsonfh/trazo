@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **EdgeTimeline** (`lib/edgetimeline.js`), timelines and Gantt-style roadmaps:
+  - a time axis in dates (by day, week, month, quarter or year, with a second tier above) or in abstract units (`W1`, `S1` ... or any prefix), labels thinned when they do not fit, and a today line;
+  - lanes, gathered in titled bands;
+  - bars with their label inside, or beside when it does not fit, on the side clear of other items and arrows; the theme's tones, a progress fill, dashed when planned;
+  - milestones (diamonds, with a line across every lane for a gate) and phases (a strip above the lanes and a column behind them);
+  - finish-to-start dependencies at right angles, which go around bars;
+  - the viewBox's height follows the content.
+
+  Steps come by default one per phase, with what starts in it (or one per item): forward steps grow the bars and draw the arrows, back steps jump. Hovering or focusing an item with `info` dims the rest but its dependencies and shows a tooltip with its dates and progress. With GSAP on the page, `ctl.timeline` drives it from an EdgeDeck slide, and EdgeDeck releases its tooltips on a slide change. Its own layout check (labels out of their bar or the chart, bars overlapping in a lane, dependencies pointing backward in time or crossing a bar, items outside the axis, text on text) reports into `shot.sh --check`. `templates/timeline.html` is a complete example; `inline.py` and `vendor.sh` know the file. Tested in `tests/timeline.html`.
+- The draw.io export keeps diamonds (a timeline's milestones) as rhombi; it used to leave every filled path out. Tested on the timeline template in `tests/test_todrawio.py`.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.

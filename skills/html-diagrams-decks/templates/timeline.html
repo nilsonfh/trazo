@@ -1,0 +1,108 @@
+<title>Portal Release Roadmap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.cap{font-size:19px;line-height:1.5;min-height:3.2em;margin:0;max-width:62ch}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:720px;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--ink2);margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:26px;height:12px;border-radius:3px;border:1.3px solid var(--ink2);background:var(--card)}
+.legend i.done{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 35%,var(--accent-soft)) 60%,var(--accent-soft) 60%);border-color:var(--accent)}
+.legend i.plan{border-style:dashed}
+.legend i.ms{width:12px;height:12px;border:0;border-radius:1px;background:var(--ed-gap);transform:rotate(45deg) scale(.85)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · roadmap</p>
+  <h1>A customer portal, from design to general availability</h1>
+  <p class="cap" id="cap" aria-live="polite"></p>
+  <div class="stage"><svg id="rm" viewBox="0 0 1100 500" role="img" aria-label="A 2027 roadmap in three phases. Design runs from January to March, build from April to July with a beta in June, launch from August to October with general availability in September. The API's schema comes first; the web and mobile apps start when it is done; the data migration and a security review must finish before general availability."></svg></div>
+  <ul class="legend" aria-hidden="true">
+    <li><i class="done"></i>done so far</li>
+    <li><i class="plan"></i>planned, not committed</li>
+    <li><i class="ms"></i>milestone</li>
+  </ul>
+  <p class="hint">Each step adds one phase. Hover a bar, a milestone or a phase for details. Arrow keys step.</p>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Walk through</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="../lib/edgetimeline.js"></script>
+<script>
+(function () {
+  /* One lane per team or workstream, grouped in bands; bars that do not fit their label put it beside.
+     Leave the height to the library: it sets the viewBox's height from the content. */
+  var t = EdgeTimeline.create(document.getElementById('rm'), {start: '2027-01-01', end: '2027-12-31', unit: 'month', today: '2027-04-19'});
+  t.band('build', {title: 'PRODUCT'}).band('ready', {title: 'READINESS'});
+  t.lane('api', {title: 'API', sub: 'platform team', band: 'build'})
+   .lane('web', {title: 'Web app', band: 'build'})
+   .lane('mob', {title: 'Mobile app', band: 'build'})
+   .lane('data', {title: 'Data migration', band: 'ready'})
+   .lane('sec', {title: 'Security', band: 'ready'})
+   .lane('ops', {title: 'Support', band: 'ready', info: 'Support learns the portal before customers do.'});
+
+  t.phase('design', {start: '2027-01-01', end: '2027-03-31', label: 'Design', tone: 'accent',
+      caption: 'Design: the API comes first, so that both apps are built on a settled schema.', info: 'Research, the API schema and the first screens.'})
+   .phase('build', {start: '2027-04-01', end: '2027-07-31', label: 'Build', tone: 'add',
+      caption: 'Build: both apps start when the schema is done; a beta in June opens the web app to twenty customers.', info: 'Both apps against the settled API, a beta in June.'})
+   .phase('launch', {start: '2027-08-01', end: '2027-10-31', label: 'Launch', tone: 'p3',
+      caption: 'Launch: general availability waits for the migration and the security review, not for the mobile app.', info: 'Migration, review and general availability; the mobile app follows.'});
+
+  t.bar('schema', {lane: 'api', start: '2027-01-11', end: '2027-03-05', label: 'Schema', tone: 'accent', progress: 1, info: 'The resources, their fields and the error model.'})
+   .bar('endpoints', {lane: 'api', start: '2027-03-15', end: '2027-06-25', label: 'Endpoints', tone: 'accent', progress: 0.3, info: 'Every endpoint the two apps need, behind one gateway.'})
+   .bar('webui', {lane: 'web', start: '2027-03-15', end: '2027-07-16', label: 'Screens and flows', tone: 'add', progress: 0.2, info: 'Sign-in, account, orders and billing.'})
+   .milestone('beta', {lane: 'web', at: '2027-07-30', label: 'Beta', tone: 'gap', info: 'Twenty customers use the web app for a month.'})
+   .bar('mobile', {lane: 'mob', start: '2027-05-03', end: '2027-10-29', label: 'iOS and Android', planned: true, info: 'Planned, not committed: follows the web app by about two months.'})
+   .bar('extract', {lane: 'data', start: '2027-04-05', end: '2027-06-11', label: 'Extract', tone: 'neutral', progress: 0.1, info: 'Accounts and five years of orders from the old system.'})
+   .bar('load', {lane: 'data', start: '2027-06-21', end: '2027-08-27', label: 'Load and verify', tone: 'neutral', info: 'Loaded twice: a rehearsal in July, the real run in August.'})
+   .bar('review', {lane: 'sec', start: '2027-07-05', end: '2027-08-20', label: 'Review', tone: 'gap', info: 'An outside review of the API and the web app.'})
+   .milestone('ga', {lane: 'sec', at: '2027-09-13', label: 'General availability', tone: 'gap', line: true, info: 'Open to every customer.'})
+   .bar('train', {lane: 'ops', start: '2027-08-02', end: '2027-09-10', label: 'Training', tone: 'p3', info: 'Support works through the beta\'s tickets.'});
+
+  t.dep('d1', {from: 'schema', to: 'endpoints'})
+   .dep('d2', {from: 'schema', to: 'webui'})
+   .dep('d3', {from: 'webui', to: 'beta'})
+   .dep('d4', {from: 'extract', to: 'load'})
+   .dep('d5', {from: 'review', to: 'ga'})
+   .dep('d6', {from: 'load', to: 'ga'});
+
+  var cap = document.getElementById('cap'), dots = document.getElementById('dots'), ctl;
+  ctl = t.steps(null, {caption0: 'Six workstreams in two groups over 2027. Step through the three phases.', onStep: function (k, s) {
+    if (!ctl) return;   // the first call comes before steps() returns; ctl.go below repeats it
+    cap.innerHTML = '<b>' + (k + 1) + ' / ' + ctl.count + '</b>';
+    cap.appendChild(document.createTextNode(s.caption || ''));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }, start: 'end'});
+  ctl.steps.forEach(function () { dots.appendChild(document.createElement('i')); });
+  ctl.go(ctl.count - 1);
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>

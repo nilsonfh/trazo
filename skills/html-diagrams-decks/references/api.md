@@ -206,6 +206,43 @@ The actors stand in equal columns across the viewBox's width, in the order they 
 
 The check finds text running out of an actor or a note, labels on top of each other, a message label wider than the gap between its lifelines, a self message's label across another lifeline, a frame's head under a label, and anything outside the viewBox. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers sequence figures; EdgeSketch's check leaves them alone. `EdgeSequence.version` is the version.
 
+## EdgeTimeline (`lib/edgetimeline.js`)
+
+Timelines and Gantt-style roadmaps: what happens when, in which workstream, and what waits for what. `templates/timeline.html` is a complete example.
+
+```js
+var t = EdgeTimeline.create(svgElement, {start: '2027-01-01', end: '2027-12-31', unit: 'month', today: '2027-04-19'});
+t.band('product', {title: 'PRODUCT'});
+t.lane('api', {title: 'API', sub: 'platform team', band: 'product'}).lane('web', {title: 'Web app', band: 'product'});
+t.phase('design', {start: '2027-01-01', end: '2027-03-31', label: 'Design', tone: 'accent', caption: 'The API comes first.'});
+t.bar('schema', {lane: 'api', start: '2027-01-11', end: '2027-03-05', label: 'Schema', tone: 'accent', progress: 1, info: 'Resources and errors.'})
+ .bar('ui', {lane: 'web', start: '2027-03-15', end: '2027-07-16', label: 'Screens', planned: true})
+ .milestone('beta', {lane: 'web', at: '2027-07-30', label: 'Beta', tone: 'gap', line: true});
+t.dep('d1', {from: 'schema', to: 'ui'}).dep('d2', {from: 'ui', to: 'beta'});
+var ctl = t.steps();
+```
+
+The lane titles take a column on the left (`labelW`) and the time axis the rest of the viewBox's width. Lanes run top to bottom in the order they are defined, gathered under their band, and the library sets the viewBox's height to fit them. Everything is drawn when `steps`, `render` or `check` is first called.
+
+**Time.** With dates (`'YYYY-MM-DD'`, `'YYYY-MM'`, `'YYYY'` or a `Date`), an `end` is inclusive: `end: '2027-03-31'` runs to the end of that day, `'2027-03'` to the end of March. A milestone sits in the middle of its day. `unit` is `day`, `week` (ISO weeks, `W14`), `month` (default), `quarter` or `year`, and a second tier above names the months (for days and weeks) or the years (for months and quarters). With numbers, the axis is in abstract units from `start`: `{start: 0, end: 12, unit: 'week'}` labels its cells `W1` to `W12`, a bar `{start: 0, end: 4}` covers W1 to W4, and a milestone `at: 4` sits between W4 and W5. Labels that do not fit their cells are thinned to every second, third ... cell.
+
+| Call | What it draws |
+| --- | --- |
+| `t.band(id, {title})` | A layer behind a group of lanes, its title in small capitals above them. A lane's `band` that is not defined yet is created with its id as the title |
+| `t.lane(id, o)` | A row. `title`, `sub` (a second, smaller line), `icon`, `band`, `h` (its height, else `row`), `info` (hovering it lights its items) |
+| `t.bar(id, o)` | A bar on `lane` from `start` to `end`. `label` goes inside when it fits and beside it when not, on the side clear of other bars, labels and arrows (`labelPos: 'inside'`, `'right'`, `'left'` choose). `tone` (`neutral`, `accent`, `add`, `gap`, `p3`, `muted`; `p3` and `muted` are dashed), `progress` (0 to 1, a fill from the left), `planned: true` (dashed, on the surface), `info`, `caption` and `with` (item steps) |
+| `t.milestone(id, o)` | A diamond on `lane` `at` a time, its `label` beside it. `tone` (default `neutral`), `line: true` (a dashed line across every lane, for a gate), `size` (8), `info`, `caption`, `with` |
+| `t.phase(id, o)` | A strip above the lanes from `start` to `end`, and a soft column behind the lanes in `lanes` (all by default). `label`, `tone`, `caption`, `info`. Overlapping phases take separate rows |
+| `t.dep(id, {from, to, info})` | Finish to start: an arrow from the end of a bar or milestone to the start of another. It runs straight in a lane; between lanes it goes out, down at the first column that crosses no bar, and in; when the target starts too soon for that, it runs along the boundary between lanes and comes back. Corners are rounded |
+| `t.steps(list, o)` returns `ctl` | With no list and some phases, step 0 shows the axis and the lanes and each later step one phase with the bars and milestones that start in it; with `o.by: 'item'` or no phases, one step per bar or milestone in time order (`with: true` joins the step before). A list is `[{show: [ids], caption}, ...]`. A dependency shows with the later of its ends. The items of the current step are drawn thicker; forward steps grow the bars from their start and draw the arrows, back steps jump. `o.onStep(k, step)`, `o.start` (a number or `'end'`), `o.caption0`. `ctl` has `next`, `prev`, `go(k)`, `end`, `step`, `count`, `steps` and `timeline` (with GSAP: a paused timeline with labels `s0..sN` and `onStep`, for an EdgeDeck build) |
+| `t.render()`, `t.check()` | Draw now; the layout check, returning the problems |
+
+`create` options: `start`, `end` (required), `unit`, `today` (a line down the lanes, labelled at its foot; `todayLabel`), `labelW` (170), `row` (lane height, 40), `barH` (22), `margin` (16), `right` (room right of the axis, 8), `tiers: 1` (no upper tier), `tickFormat(date or number)` and `upperFormat(date)` (the tiers' labels), `format(t0, t1)` (the span in tooltips, given in the axis's numbers: days since 1970 for dates, `t1` left out for a milestone), and, for abstract units, `prefix` (else `W`, `S`, `M`, `Q` ... from `unit`), `first` (the first cell's number, 1), `every` (units per cell, 1) and `upper: {every, prefix | label(i)}` (an upper tier), `debug`.
+
+Items with `info` are focusable. Hovering or focusing one dims the rest but its dependencies and their other ends (a phase keeps what it spans, a lane its items) and shows a tooltip with the info, the dates, the progress and what it waits for; `info` can be `{text, facts: [[key, value]]}`. A click, Enter or space pins it; Escape or a click elsewhere releases it. `EdgeTimeline.clearAll()` releases every tooltip; EdgeDeck calls it on every slide change.
+
+The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or crossing a bar, an item outside the time axis, a phase label wider than its phase, and text on text or outside the viewBox. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
+
 ## EdgeDeck (`lib/edgedeck.js`)
 
 `EdgeDeck.version` is the version.
