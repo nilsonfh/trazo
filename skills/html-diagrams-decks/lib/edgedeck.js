@@ -24,6 +24,9 @@
  * Print: the browser's print, and scripts/topdf.sh, give one 16:9 page per slide at its last step, in
  * the light theme (run({printTheme: 'dark' | 'page'}) to change it); with window.ED_PRINT = {steps: 1}
  * one page per step.
+ *
+ * Accessibility: slides are named groups, and a live region reads each new slide and step caption
+ * (run({live: false}) leaves it out).
  */
 (function (global) {
   'use strict';
@@ -81,6 +84,29 @@
     document.getElementById('b-next').parentNode.classList.add('ed-bar');   // hidden in print
 
     var cur = 0, step = 0, tls = [], blanked = false, presenting = false, pv = null;
+    /* a screen reader hears each change of slide and step: slides are named groups, and a live region
+       reads the slide's name and the step's caption (run({live: false}) leaves it out) */
+    var live = null, told = -1;
+    if (opt.live !== false) {
+      live = document.createElement('div'); live.className = 'ed-live'; live.setAttribute('aria-live', 'polite');
+      live.style.cssText = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap';
+      document.body.appendChild(live);
+    }
+    slides.forEach(function (s, i) {
+      if (!s.getAttribute('role')) s.setAttribute('role', 'group');
+      if (s.getAttribute('role') === 'group') s.setAttribute('aria-roledescription', 'slide');
+      if (!s.getAttribute('aria-label') && !s.getAttribute('aria-labelledby')) {
+        var hd = s.querySelector('h1, h2, h3'); s.setAttribute('aria-label', hd ? hd.textContent.replace(/\s+/g, ' ').trim() : 'Slide ' + (i + 1));
+      }
+    });
+    function tell() {
+      if (!live) return;
+      if (quiet) { told = cur; return; }   // not the first slide shown, nor a move made in another window
+      var s = slides[cur], li = s.querySelectorAll('.caps li')[step], cap = li ? li.textContent.replace(/\s+/g, ' ').trim() : '';
+      var head = told !== cur ? 'Slide ' + (cur + 1) + ' of ' + slides.length + ': ' + (s.getAttribute('aria-label') || '') + '.'
+        : cap ? '' : 'Step ' + (step + 1) + ' of ' + (steps(cur) + 1) + '.';
+      live.textContent = (head + ' ' + cap).trim(); told = cur;
+    }
     /* fit the 1600x900 stage into the viewport, and the next slide into its frame */
     function fit() {
       var s = Math.min((vp.clientWidth - 24) / 1600, (vp.clientHeight - 24) / 900);
@@ -142,7 +168,7 @@
       document.getElementById('prog').style.width = (100 * done / total) + '%';
       try { history.replaceState(null, '', where()); } catch (e) {}
       if (presenting) paintPresenter();
-      post();
+      tell(); post();
     }
     function show(i, k, dir) {
       var from = slides[cur], to = slides[i];

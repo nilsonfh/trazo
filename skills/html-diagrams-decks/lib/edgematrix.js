@@ -32,6 +32,9 @@
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-add, ...), as in EdgeDiagram; the tone bad
  * reads --ed-bad, else the page's --bad.
+ *
+ * m.describe() returns a text description (cells per state, then the rows and columns with gaps); the
+ * svg points aria-describedby at it, a hidden <table> holds every cell, and a live region reads each step.
  */
 (function (global) {
   'use strict';
@@ -118,6 +121,104 @@
   }
   function bbox(e) { try { var b = e.getBBox(); return {x: b.x, y: b.y, w: b.width, h: b.height}; } catch (x) { return null; } }
   function r1(v) { return Math.round(v * 10) / 10; }
+
+  /* ---------- accessibility: a figure's text description, made from its model, the ARIA that points
+     to it, and a live region that reads each step. The same block is in every figure library; the
+     first one loaded defines window.TrazoA11y and the others use it. ---------- */
+  var A11Y = global.TrazoA11y || (global.TrazoA11y = (function () {
+    var HIDE = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap';
+    function uid(base) { var id = base, k = 1; while (document.getElementById(id)) id = base + '-' + (++k); return id; }
+    function plain(s) {   // a caption or a title may hold markup; a middle dot reads as a comma
+      if (s == null) return '';
+      if (Array.isArray(s)) s = s.join(', ');
+      var d = document.createElement('div'); d.innerHTML = String(s);
+      return d.textContent.replace(/\s*·\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    }
+    function and(a) { a = a.filter(Boolean); return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+    function stop(s) { s = plain(s); return s && !/[.!?:…]$/.test(s) ? s + '.' : s; }
+    // blocks: a string is a paragraph, {head, items} a lead-in and its list
+    function text(blocks) {
+      return blocks.map(function (b) {
+        return typeof b === 'string' ? b : [b.head].concat(b.items.map(function (i) { return '- ' + i; })).join('\n');
+      }).join('\n');
+    }
+    function fill(box, blocks) {
+      box.textContent = '';
+      blocks.forEach(function (b) {
+        var p = document.createElement('p'); p.textContent = typeof b === 'string' ? b : b.head; box.appendChild(p);
+        if (typeof b === 'string' || !b.items.length) return;
+        var ul = document.createElement('ul');
+        b.items.forEach(function (i) { var li = document.createElement('li'); li.textContent = i; ul.appendChild(li); });
+        box.appendChild(ul);
+      });
+    }
+    function after(e, ref) { if (ref.parentNode && e.parentNode !== ref.parentNode) ref.parentNode.insertBefore(e, ref.nextSibling); }
+    /* attach(svg, options, kind, model): model() returns the blocks. The svg gets a name (its aria-label,
+       its <title>, options.title or its figure's figcaption), role img (group when it holds focusable
+       items) and aria-describedby on a visually hidden element after it (or the page's own
+       [data-describe="<svg id>"]). options.describe === false leaves the figure alone. */
+    function attach(svg, o, kind, model) {
+      var off = o.describe === false, box = null, live = null, queued = false, busy = false;
+      var deck = !!(svg.closest && svg.closest('#stage .slide'));   // EdgeDeck reads a slide's steps itself
+      if (!off && !svg.getAttribute('aria-label') && !svg.getAttribute('aria-labelledby')) {
+        var t = svg.querySelector('title'), fig = svg.closest && svg.closest('figure'), cap = fig && fig.querySelector('figcaption');
+        if (o.title || (t && t.textContent.trim())) svg.setAttribute('aria-label', o.title || t.textContent.trim());
+        else if (cap) { if (!cap.id) cap.id = uid((svg.id || 'trazo-fig') + '-cap'); svg.setAttribute('aria-labelledby', cap.id); }
+        else svg.setAttribute('aria-label', kind);
+      }
+      function wire(blocks) {
+        if (!box) {
+          box = (svg.id && document.querySelector('[data-describe="' + svg.id + '"]')) || null;
+          if (!box) { box = document.createElement('div'); box.className = 'trazo-desc'; box.style.cssText = HIDE; }
+          if (!box.id) box.id = uid((svg.id || 'trazo-fig') + '-desc');
+        }
+        if (!box.parentNode) after(box, svg);
+        fill(box, blocks);
+        var ids = (svg.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(box.id) < 0) svg.setAttribute('aria-describedby', ids.concat([box.id]).join(' '));
+        var r = svg.getAttribute('role');
+        if (!r || r === 'img' || r === 'group') {   // focusable items inside an img would be hidden from a screen reader
+          var group = !!svg.querySelector('[tabindex]');
+          svg.setAttribute('role', group ? 'group' : 'img');
+          if (group) svg.setAttribute('aria-roledescription', kind.toLowerCase()); else svg.removeAttribute('aria-roledescription');
+        }
+      }
+      var h = {
+        box: function () { return box; },
+        describe: function () {   // the text, and the figure's description brought up to date
+          busy = true;
+          try { var b = model(); if (!off) wire(b); return text(b); } finally { busy = false; }
+        },
+        touch: function () {   // after a change to the model: describe again once the page's script is done
+          if (off || queued || busy) return; queued = true;
+          Promise.resolve().then(function () {
+            queued = false;
+            try { h.describe(); } catch (e) { if (global.console) console.warn('[trazo] describe: ' + e.message); }
+          });
+        },
+        prepare: function () {   // a live region present before its first message, so that it is heard
+          if (off || deck || o.live === false || live) return;
+          live = document.createElement('div'); live.className = 'trazo-live'; live.setAttribute('aria-live', 'polite');
+          live.style.cssText = HIDE; after(live, box && box.parentNode ? box : svg);
+        },
+        say: function (s) { if (live) { if (!live.parentNode) after(live, svg); live.textContent = plain(s); } },
+        step: function (k, n, caption, fallback) {
+          var c = plain(caption) || plain(fallback);
+          h.say('Step ' + (k + 1) + ' of ' + n + (c ? ': ' + c : ''));
+        },
+        live: function () { return live; }
+      };
+      return h;
+    }
+    // calls to the model-building methods describe the figure again (once, after the page's script)
+    function watch(api, names, h) {
+      names.forEach(function (k) {
+        var f = api[k]; if (typeof f !== 'function') return;
+        api[k] = function () { var r = f.apply(this, arguments); h.touch(); return r; };
+      });
+    }
+    return {attach: attach, watch: watch, text: text, plain: plain, and: and, stop: stop, uid: uid, HIDE: HIDE};
+  })());
 
   function create(svg, options) {
     options = options || {};
@@ -747,7 +848,11 @@
         tl.to({}, {duration: 0.01}, (list.length - 1) * 0.5);
         tl.onStep = function (k) { if (k >= 0) apply(k, true); };
       }
-      function apply(k, anim) { applyStep(Math.max(0, Math.min(list.length - 1, k)), anim); if (o.onStep) o.onStep(state.step, list[state.step], stepsCtl); }
+      var told = false; DESC.prepare();
+      function apply(k, anim) {
+        applyStep(Math.max(0, Math.min(list.length - 1, k)), anim); if (o.onStep) o.onStep(state.step, list[state.step], stepsCtl);
+        if (told) DESC.step(state.step, list.length, list[state.step].caption, shownText(list[state.step]));   // the live region reads it
+      }
       stepsCtl = {
         get step() { return state.step; }, count: list.length, timeline: tl, steps: list,
         go: function (k) { apply(k, k > state.step); },
@@ -756,6 +861,7 @@
         end: function () { apply(list.length - 1, false); }
       };
       apply(o.start === 'end' ? list.length - 1 : o.start || 0, false);
+      told = true;
       return stepsCtl;
     };
     function applyStep(k, anim) {
@@ -777,6 +883,76 @@
       applyHighlight();
       if (state.cursor) { var cx = cellOf(state.cursor.r, state.cursor.c); if (cx && !isOn(cx.rect)) clearCursor(); }
     }
+
+    /* ---------- the text description: the size, the cells per state, then the rows and columns with
+       gaps; a visually hidden <table> holds every cell (options.table === false leaves it out) ---------- */
+    var DESC = A11Y.attach(svg, options, plane ? 'Plane' : 'Matrix', describeBlocks), table = null;
+    function head(x) { return (x.code ? x.code + ' ' : '') + A11Y.plain(x.label); }
+    function cellText(r, c) {
+      var v = api.get(r.id, c.id), s = v && v.state ? L[v.state] : null;
+      var its = items.filter(function (it) { return it.row === r.id && it.col === c.id; }).map(function (it) { return A11Y.plain(it.label) || it.id; });
+      return [s ? s.label : '', v && v.mark != null ? String(v.mark) : '', its.join(', ')].filter(Boolean).join(', ');
+    }
+    function fillTable() {   // a real table, for reading cell by cell
+      if (!table) {   // in a visually hidden box: a table grows to its content
+        var wrap = document.createElement('div'); wrap.className = 'trazo-table'; wrap.style.cssText = A11Y.HIDE;
+        table = wrap.appendChild(document.createElement('table'));
+      }
+      var b = DESC.box(), ref = b && b.parentNode ? b : svg;
+      if (!table.parentNode.parentNode && ref.parentNode) ref.parentNode.insertBefore(table.parentNode, ref.nextSibling);
+      table.textContent = '';
+      var cap = table.createCaption(); cap.textContent = (svg.getAttribute('aria-label') || (plane ? 'Plane' : 'Matrix')) + ', every cell';
+      var tr = table.createTHead().insertRow(), body = table.createTBody(), th = document.createElement('th');
+      th.textContent = options.axes && options.axes.y ? A11Y.plain(options.axes.y) + ' / ' + A11Y.plain(options.axes.x || '') : ''; tr.appendChild(th);
+      cols.forEach(function (c) { var h = document.createElement('th'); h.scope = 'col'; h.textContent = head(c); tr.appendChild(h); });
+      rows.forEach(function (r) {
+        var row = body.insertRow(), h = document.createElement('th'); h.scope = 'row'; h.textContent = head(r); row.appendChild(h);
+        cols.forEach(function (c) { row.insertCell().textContent = cellText(r, c) || '—'; });
+      });
+    }
+    function describeBlocks() {
+      var out = [], n = {}, empty = 0, gapState = legend.filter(function (s) { return s.gap; }).map(function (s) { return s.id; });
+      legend.forEach(function (s) { n[s.id] = 0; });
+      var rgaps = [], cgaps = {};
+      rows.forEach(function (r) {
+        var g = [];
+        cols.forEach(function (c) {
+          var v = api.get(r.id, c.id);
+          if (v && v.state) n[v.state]++; else empty++;
+          if (v && gapState.indexOf(v.state) >= 0) { g.push(L[v.state].label.toLowerCase() + ' in ' + head(c)); cgaps[c.id] = (cgaps[c.id] || 0) + 1; }
+        });
+        if (g.length) rgaps.push(head(r) + ': ' + g.join(', ') + '.');
+      });
+      out.push((plane ? 'A plane of ' : 'A matrix of ') + rows.length + ' rows' + (plane && options.axes && options.axes.y ? ' (' + A11Y.plain(options.axes.y) + ')' : '') +
+        ' by ' + cols.length + ' columns' + (plane && options.axes && options.axes.x ? ' (' + A11Y.plain(options.axes.x) + ')' : '') + '.');
+      var counted = legend.filter(function (s) { return n[s.id]; }).map(function (s) { return s.label + ': ' + n[s.id]; });
+      if (counted.length) out.push('Cells per state: ' + counted.join(', ') + (empty && Object.keys(cells).length ? ', empty: ' + empty : '') + '.');
+      var rg = rgOrder.filter(function (g) { return rows.some(function (r) { return r.group === g; }); });
+      if (rg.length) out.push('Row groups: ' + rg.map(function (g) { var k = rows.filter(function (r) { return r.group === g; }).length; return A11Y.plain(rgroups[g].label) + ' (' + k + (k === 1 ? ' row)' : ' rows)'); }).join(', ') + '.');
+      if (gapState.length && Object.keys(cells).length) {
+        if (rgaps.length) {
+          out.push({head: 'Rows with gaps (' + rgaps.length + ' of ' + rows.length + '):', items: rgaps});
+          out.push({head: 'Columns with gaps:', items: cols.filter(function (c) { return cgaps[c.id]; }).map(function (c) { return head(c) + ': ' + cgaps[c.id] + (cgaps[c.id] === 1 ? ' gap.' : ' gaps.'); })});
+        } else out.push('No gaps.');
+      }
+      if (items.length) out.push({head: 'In the cells:', items: rows.map(function (r) {
+        var per = cols.map(function (c) {
+          var its = items.filter(function (it) { return it.row === r.id && it.col === c.id; });
+          return its.length ? head(c) + ': ' + A11Y.and(its.map(function (it) { return A11Y.plain(it.label) || it.id; })) : '';
+        }).filter(Boolean);
+        return per.length ? head(r) + ': ' + per.join('; ') + '.' : '';
+      }).filter(Boolean)});
+      var caps = (stepList || []).map(function (s) { return A11Y.plain(s.caption); });
+      if (caps.some(Boolean)) out.push({head: 'In ' + caps.length + ' steps:', items: caps.map(function (c, k) { return (k + 1) + '. ' + (c || '…'); })});
+      if (options.describe !== false && options.table !== false) { fillTable(); out.push('A table with every cell follows.'); }
+      return out;
+    }
+    function shownText(s) {
+      var ns = (s.show || []).map(function (id) { return rgroups[id] ? rgroups[id].label : cgroups[id] ? cgroups[id].label : R[id] ? head(R[id]) : C[id] ? head(C[id]) : id === 'totals' ? 'the totals' : ''; }).filter(Boolean);
+      return ns.length ? 'shows ' + A11Y.and(ns.map(A11Y.plain)) : '';
+    }
+    api.describe = function () { return DESC.describe(); };
+    A11Y.watch(api, ['rowGroup', 'colGroup', 'row', 'col', 'cell', 'cells', 'item', 'steps'], DESC);
 
     /* ---------- check ---------- */
     api.check = function () {

@@ -29,5 +29,5 @@
   --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; }
 /* print: colours as on screen, and a figure on one page and within its width, a table or a heading's first lines never cut */
 @media print{ html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  svg[role="img"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}
-  .pane,.stage,.fig{overflow:visible} svg[role="img"]{min-width:0!important;max-width:100%} }
+  svg[role="img"],svg[role="group"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}
+  .pane,.stage,.fig{overflow:visible} svg[role="img"],svg[role="group"]{min-width:0!important;max-width:100%} }

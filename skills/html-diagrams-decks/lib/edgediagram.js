@@ -58,6 +58,10 @@
  * and dark tokens apply: --ed-ink, --ed-ink2, --ed-muted, --ed-surface, --ed-layer, --ed-rule,
  * --ed-accent, --ed-accent-soft, --ed-gap, --ed-gap-soft, --ed-add, --ed-add-soft, --ed-tip-bg,
  * --ed-tip-ink, and optionally --ed-p3, --ed-p3-soft (tone p3) and --ed-plate (label plates outside any zone).
+ *
+ * d.describe() returns a text description made from the model (zones, parts, links as sentences, fans,
+ * transitions, lanes, captions); the svg points aria-describedby at it, and a live region reads each
+ * step. {describe: false} leaves the svg alone. See references/api.md, Accessibility.
  */
 (function (global) {
   'use strict';
@@ -126,6 +130,7 @@
     '.ed-llabel-bg.on-accent{fill:var(--_accent-soft)}.ed-llabel-bg.on-add{fill:var(--_add-soft)}.ed-llabel-bg.on-p3{fill:var(--_p3-soft)}',
     '.ed-lane .ed-lhead{fill:var(--_surface);stroke:var(--_rule)}.ed-lane .ed-ltitle{font-size:15px}',
     '.ed-debug rect{fill:none;stroke:#e0102f;stroke-width:2;stroke-dasharray:5 3}',
+    '@media (prefers-reduced-motion:reduce){.ed-root .ed-item>*{transition:none!important}}',
     '@media (forced-colors:active){.ed-node .ed-shape,.ed-zone .ed-zshape,.ed-link path.ed-wire{stroke:CanvasText}',
     '.ed-pkt,.ed-arrow{fill:Highlight}.ed-tip{border:1px solid CanvasText}}'
   ].join('');
@@ -336,6 +341,104 @@
   }
   function bboxOf(e) { try { var b = e.getBBox(); return {x: b.x, y: b.y, w: b.width, h: b.height}; } catch (x) { return null; } }
 
+  /* ---------- accessibility: a figure's text description, made from its model, the ARIA that points
+     to it, and a live region that reads each step. The same block is in every figure library; the
+     first one loaded defines window.TrazoA11y and the others use it. ---------- */
+  var A11Y = global.TrazoA11y || (global.TrazoA11y = (function () {
+    var HIDE = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap';
+    function uid(base) { var id = base, k = 1; while (document.getElementById(id)) id = base + '-' + (++k); return id; }
+    function plain(s) {   // a caption or a title may hold markup; a middle dot reads as a comma
+      if (s == null) return '';
+      if (Array.isArray(s)) s = s.join(', ');
+      var d = document.createElement('div'); d.innerHTML = String(s);
+      return d.textContent.replace(/\s*·\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    }
+    function and(a) { a = a.filter(Boolean); return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+    function stop(s) { s = plain(s); return s && !/[.!?:…]$/.test(s) ? s + '.' : s; }
+    // blocks: a string is a paragraph, {head, items} a lead-in and its list
+    function text(blocks) {
+      return blocks.map(function (b) {
+        return typeof b === 'string' ? b : [b.head].concat(b.items.map(function (i) { return '- ' + i; })).join('\n');
+      }).join('\n');
+    }
+    function fill(box, blocks) {
+      box.textContent = '';
+      blocks.forEach(function (b) {
+        var p = document.createElement('p'); p.textContent = typeof b === 'string' ? b : b.head; box.appendChild(p);
+        if (typeof b === 'string' || !b.items.length) return;
+        var ul = document.createElement('ul');
+        b.items.forEach(function (i) { var li = document.createElement('li'); li.textContent = i; ul.appendChild(li); });
+        box.appendChild(ul);
+      });
+    }
+    function after(e, ref) { if (ref.parentNode && e.parentNode !== ref.parentNode) ref.parentNode.insertBefore(e, ref.nextSibling); }
+    /* attach(svg, options, kind, model): model() returns the blocks. The svg gets a name (its aria-label,
+       its <title>, options.title or its figure's figcaption), role img (group when it holds focusable
+       items) and aria-describedby on a visually hidden element after it (or the page's own
+       [data-describe="<svg id>"]). options.describe === false leaves the figure alone. */
+    function attach(svg, o, kind, model) {
+      var off = o.describe === false, box = null, live = null, queued = false, busy = false;
+      var deck = !!(svg.closest && svg.closest('#stage .slide'));   // EdgeDeck reads a slide's steps itself
+      if (!off && !svg.getAttribute('aria-label') && !svg.getAttribute('aria-labelledby')) {
+        var t = svg.querySelector('title'), fig = svg.closest && svg.closest('figure'), cap = fig && fig.querySelector('figcaption');
+        if (o.title || (t && t.textContent.trim())) svg.setAttribute('aria-label', o.title || t.textContent.trim());
+        else if (cap) { if (!cap.id) cap.id = uid((svg.id || 'trazo-fig') + '-cap'); svg.setAttribute('aria-labelledby', cap.id); }
+        else svg.setAttribute('aria-label', kind);
+      }
+      function wire(blocks) {
+        if (!box) {
+          box = (svg.id && document.querySelector('[data-describe="' + svg.id + '"]')) || null;
+          if (!box) { box = document.createElement('div'); box.className = 'trazo-desc'; box.style.cssText = HIDE; }
+          if (!box.id) box.id = uid((svg.id || 'trazo-fig') + '-desc');
+        }
+        if (!box.parentNode) after(box, svg);
+        fill(box, blocks);
+        var ids = (svg.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(box.id) < 0) svg.setAttribute('aria-describedby', ids.concat([box.id]).join(' '));
+        var r = svg.getAttribute('role');
+        if (!r || r === 'img' || r === 'group') {   // focusable items inside an img would be hidden from a screen reader
+          var group = !!svg.querySelector('[tabindex]');
+          svg.setAttribute('role', group ? 'group' : 'img');
+          if (group) svg.setAttribute('aria-roledescription', kind.toLowerCase()); else svg.removeAttribute('aria-roledescription');
+        }
+      }
+      var h = {
+        box: function () { return box; },
+        describe: function () {   // the text, and the figure's description brought up to date
+          busy = true;
+          try { var b = model(); if (!off) wire(b); return text(b); } finally { busy = false; }
+        },
+        touch: function () {   // after a change to the model: describe again once the page's script is done
+          if (off || queued || busy) return; queued = true;
+          Promise.resolve().then(function () {
+            queued = false;
+            try { h.describe(); } catch (e) { if (global.console) console.warn('[trazo] describe: ' + e.message); }
+          });
+        },
+        prepare: function () {   // a live region present before its first message, so that it is heard
+          if (off || deck || o.live === false || live) return;
+          live = document.createElement('div'); live.className = 'trazo-live'; live.setAttribute('aria-live', 'polite');
+          live.style.cssText = HIDE; after(live, box && box.parentNode ? box : svg);
+        },
+        say: function (s) { if (live) { if (!live.parentNode) after(live, svg); live.textContent = plain(s); } },
+        step: function (k, n, caption, fallback) {
+          var c = plain(caption) || plain(fallback);
+          h.say('Step ' + (k + 1) + ' of ' + n + (c ? ': ' + c : ''));
+        },
+        live: function () { return live; }
+      };
+      return h;
+    }
+    // calls to the model-building methods describe the figure again (once, after the page's script)
+    function watch(api, names, h) {
+      names.forEach(function (k) {
+        var f = api[k]; if (typeof f !== 'function') return;
+        api[k] = function () { var r = f.apply(this, arguments); h.touch(); return r; };
+      });
+    }
+    return {attach: attach, watch: watch, text: text, plain: plain, and: and, stop: stop, uid: uid, HIDE: HIDE};
+  })());
+
   /* ---------- diagram ---------- */
   function create(svg, options) {
     options = options || {};
@@ -384,7 +487,7 @@
 
     function focusable(g, name, info) {
       g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button');
-      g.setAttribute('aria-label', name + '. ' + infoText(info));
+      g.setAttribute('aria-label', (name ? name + '. ' : '') + infoText(info));
     }
     api.node = function (id, o) {
       if (hold('node', id, o)) return api;
@@ -784,7 +887,7 @@
         L.plate = el('rect', {'class': 'ed-llabel-bg', rx: 3}, L.lb);
         L.lt = el('text', {'class': 'ed-llabel', 'text-anchor': 'middle'}, L.lb, o.label);
       }
-      if (o.info) focusable(g, o.infoTitle || o.label || id, o.info);
+      if (o.info) focusable(g, o.infoTitle || linkSentence(declared(), o), o.info);
       // between two chips of one node, the wire goes just above that node and under its chips, or the
       // node's fill would cover it; its label and packets go with it. Define the node before such links.
       var host = null;
@@ -1112,6 +1215,7 @@
         if (s.fire) { c.fire = expand([].concat(s.fire), true); c.flows = (c.flows || []).concat(c.fire); }
         return c;
       });
+      stepCaps = list; DESC.prepare();
       // a walk through a state machine: {current: node} rings that node until a later step moves the
       // ring; {fire: link} draws the link thicker with a packet on it, for that step only
       list.forEach(function (s, k) {
@@ -1210,7 +1314,7 @@
           tl.addLabel('s' + k, '+=0.15');
         });
       }
-      var cur = 0;
+      var cur = 0, told = false;
       function flowsAt(k) {
         var on = {};
         if (k >= 0) list.slice(0, k + 1).forEach(function (s) { (s.flows || []).forEach(function (id) { on[id] = true; }); (s.stopFlows || []).forEach(function (id) { delete on[id]; }); });
@@ -1224,6 +1328,7 @@
         else { if (viewAt(cur)) svg.setAttribute('viewBox', viewAt(cur)); walkAt(cur); }
         api.clearFocus();
         if (opt.onStep) opt.onStep(cur, list[cur]);
+        if (told) DESC.step(cur, list.length, list[cur].caption, shownNames(list[cur]));   // the live region reads it
       }
       var ctl = {
         get step() { return cur; }, count: list.length,
@@ -1235,6 +1340,7 @@
         flowsAt: flowsAt       // and switches flows per step; -1 stops them all
       };
       apply(opt.start != null ? opt.start : 0, false);
+      told = true;
       return ctl;
     };
 
@@ -1250,6 +1356,100 @@
       if (caps) out.forEach(function (s, i) { if (caps[i] != null) s.caption = caps[i]; });
       return out;
     };
+
+    /* ---------- the text description: zones and what they hold, nodes, links as sentences, fans,
+       transitions, lanes in order and the steps' captions; from the calls made, laid out or held ---------- */
+    var DESC = A11Y.attach(svg, options, 'Diagram', describeBlocks), stepCaps = null;
+    function declared() {
+      var D = {zones: [], nodes: [], links: [], fans: [], moves: [], texts: [], node: {}};
+      function take(kind, id, o) {
+        if (!o) return;
+        if (kind === 'zone') { if (!laneOf[id] && !o.lanes) D.zones.push({id: id, o: o}); }
+        else if (kind === 'node') { D.nodes.push({id: id, o: o}); D.node[id] = o; }
+        else if (kind === 'link') { if (!o._fan) (o._transition ? D.moves : D.links).push({id: id, o: o}); }
+        else if (kind === 'fan') D.fans.push({id: id, o: o});
+        else if ((kind === 'label' || kind === 'text') && o.text != null) D.texts.push(A11Y.plain(o.text));
+      }
+      Object.keys(items).forEach(function (id) { take(items[id].kind, id, items[id].o); });
+      (held || []).forEach(function (c) { take(c.kind, c.id, c.o); });
+      return D;
+    }
+    function nameOf(D, id) {
+      var o = D.node[id] || {};
+      if (o.title) return A11Y.plain(o.title);
+      if (o.label) return A11Y.plain(o.label);
+      return {initial: 'the start', final: 'the end', choice: 'a choice', start: 'the start', end: 'the end'}[o.shape] || o.icon || id;
+    }
+    function endOf(e) { return typeof e === 'string' ? e : e[0]; }
+    // 'Gateway sends to Buffer (publish)': the arrow, else the packets' direction, says which way
+    function linkSentence(D, o) {
+      var a = nameOf(D, endOf(o.from)), b = nameOf(D, endOf(o.to)), lab = o.label ? ' (' + A11Y.plain(o.label) + ')' : '';
+      var dir = o.arrow === 'end' ? 1 : o.arrow === 'start' ? -1 : o.arrow === 'both' ? 2 : o.flow ? (o.flow.dir || 1) : 0;
+      return dir === 2 ? a + ' and ' + b + ' exchange' + lab : dir === 1 ? a + ' sends to ' + b + lab
+        : dir === -1 ? b + ' sends to ' + a + lab : a + ' is joined to ' + b + lab;
+    }
+    function moveSentence(D, o) {   // 'from Trusted, on quote fails, to Untrusted (stop workloads)'
+      var a = nameOf(D, endOf(o.from)), b = nameOf(D, endOf(o.to)), on = [];
+      if (o.event) on.push('on ' + A11Y.plain(o.event));
+      if (o.guard) on.push('if ' + A11Y.plain(o.guard));
+      if (!o.event && !o.guard && o.label) on.push('on ' + A11Y.plain(o.label));
+      var act = o.action ? ' (' + A11Y.plain(o.action) + ')' : '';
+      if (a === b) return 'In ' + a + (on.length ? ', ' + on.join(' ') : '') + ', it stays in ' + b + act;
+      return 'From ' + a + (on.length ? ', ' + on.join(' ') : '') + ', to ' + b + act;
+    }
+    function holds(z, id) {   // a node in a zone or a composite: declared so, or drawn inside it
+      if (z.o.nodes && z.o.nodes.indexOf(id) >= 0) return true;
+      var n = nodes[id], o = z.o;
+      return !!(n && o.x != null && o.w != null && id !== z.id && contains({x: o.x, y: o.y, w: o.w, h: o.h}, n));
+    }
+    function describeBlocks() {
+      var D = declared(), out = [], machine = D.moves.length > 0, laned = laneSets.length > 0;
+      var shown = D.nodes.filter(function (n) { return !n.o.ghost && !(POINT[n.o.shape] && !n.o.title && !n.o.info); });
+      var wires = D.links.length + D.fans.length + D.moves.length;
+      out.push((machine ? 'A state machine of ' : laned ? 'A process of ' : 'A diagram of ') + shown.length +
+        (machine ? ' states' : laned ? ' tasks' : ' parts') + (D.zones.length ? ' in ' + D.zones.length + ' zones' : '') +
+        (laned ? ' across ' + laneSets.reduce(function (s, L) { return s + L.lanes.length; }, 0) + ' lanes' : '') +
+        (wires ? ', joined by ' + wires + (machine ? ' transitions.' : ' links.') : '.'));
+      var zs = D.zones.concat(D.nodes.filter(function (n) { return n.o.shape === 'composite'; })).map(function (z) {
+        var inZ = D.nodes.filter(function (n) { return n.id !== z.id && !POINT[n.o.shape] && !n.o.ghost && (n.o.zone === z.id || holds(z, n.id)); }).map(function (n) { return nameOf(D, n.id); });
+        var label = z.o.shape === 'composite' ? nameOf(D, z.id) : A11Y.plain(z.o.label) || z.id;
+        return inZ.length ? label + ' holds ' + A11Y.and(inZ) + '.' : z.o.label ? label + '.' : '';
+      }).filter(Boolean);
+      if (zs.length) out.push({head: 'Zones:', items: zs});
+      var ns = shown.map(function (n) {
+        var o = n.o, sub = A11Y.plain(o.sub), info = A11Y.plain(o.info && (typeof o.info === 'string' ? o.info : o.info.text));
+        return nameOf(D, n.id) + (sub ? ' (' + sub + ')' : '') + (info ? ': ' + A11Y.stop(info) : '.');
+      });
+      if (ns.length) out.push({head: machine ? 'States:' : laned ? 'Tasks:' : 'Parts:', items: ns});
+      var ls = D.links.map(function (l) {
+        var s = linkSentence(D, l.o), info = l.o.info && A11Y.plain(typeof l.o.info === 'string' ? l.o.info : l.o.info.text);
+        return s + (info ? ': ' + A11Y.stop(info) : '.');
+      }).concat(D.fans.map(function (f) {   // one sentence for the fan, its branches left out
+        var o = f.o, into = Array.isArray(o.from[0]), one = nameOf(D, endOf(into ? o.to : o.from));
+        var many = A11Y.and((into ? o.from : o.to).map(function (e) { return nameOf(D, endOf(e)); }));
+        return (into ? many + ' feed ' + one : one + ' feeds ' + many) + (o.label ? ' (' + A11Y.plain(o.label) + ')' : '') + '.';
+      }));
+      if (ls.length) out.push({head: 'Links:', items: ls});
+      if (D.moves.length) out.push({head: 'Transitions:', items: D.moves.map(function (m) { return moveSentence(D, m.o) + '.'; })});
+      laneSets.forEach(function (LS) {   // who does what, in the order of the flow
+        out.push({head: 'Lanes, who does what in order:', items: LS.lanes.map(function (ln) {
+          var ms = ln.members.slice().sort(function (p, q) {
+            var a = nodes[p], b = nodes[q]; return LS.hz ? a.x - b.x || a.y - b.y : a.y - b.y || a.x - b.x;
+          }).map(function (id) { return nameOf(D, id); });
+          return A11Y.plain(ln.o.title || ln.id) + ': ' + (ms.length ? ms.join(', then ') + '.' : 'nothing.');
+        })});
+      });
+      if (D.texts.length) out.push({head: 'Notes:', items: D.texts.map(A11Y.stop)});
+      var caps = (stepCaps || []).map(function (s) { return A11Y.plain(s.caption); });
+      if (caps.some(Boolean)) out.push({head: 'In ' + caps.length + ' steps:', items: caps.map(function (c, k) { return (k + 1) + '. ' + (c || '…'); })});
+      return out;
+    }
+    function shownNames(s) {   // what a step without a caption brings in
+      var D = declared(), ns = (s.show || []).filter(function (id) { return nodes[id]; }).map(function (id) { return nameOf(D, id); });
+      return ns.length ? 'shows ' + A11Y.and(ns) : '';
+    }
+    api.describe = function () { return DESC.describe(); };
+    A11Y.watch(api, ['zone', 'node', 'text', 'link', 'fan', 'transition', 'lanes', 'layout', 'steps'], DESC);
 
     /* ---------- check ---------- */
     function samples(L) {
