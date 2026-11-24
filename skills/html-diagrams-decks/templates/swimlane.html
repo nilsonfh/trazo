@@ -60,24 +60,24 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
   ]});
 
   d.node('shipped', {lane: 'operator', x: 160, w: 30, h: 30, shape: 'start', tone: 'add', title: 'Device shipped'})
-   .node('register', {lane: 'operator', x: 225, w: 130, h: 56, shape: 'task', title: 'Register device', sub: 'serial · site · profile',
+   .node('register', {lane: 'operator', x: 240, w: 150, h: 56, shape: 'task', title: 'Register device', sub: 'serial · site · profile',
       info: 'The operator records the serial number, the target site and the polling profile in the inventory.'})
-   .node('token', {lane: 'hub', x: 395, w: 130, h: 56, shape: 'task', title: 'Issue token', sub: 'one-time, 72 h',
+   .node('token', {lane: 'hub', x: 395, w: 150, h: 56, shape: 'task', title: 'Issue token', sub: 'one-time, 72 h',
       info: 'A one-time enrolment token bound to the serial; it expires after 72 hours.'})
-   .node('install', {lane: 'site', x: 565, w: 130, h: 56, shape: 'task', title: 'Install device', sub: 'wire · power on',
+   .node('install', {lane: 'site', x: 565, w: 150, h: 56, shape: 'task', title: 'Install device', sub: 'wire · power on',
       info: 'The technician mounts the device, wires it to the fieldbus and powers it on.'})
-   .node('discover', {lane: 'node', x: 565, w: 130, h: 56, shape: 'task', title: 'Discover', sub: 'Modbus / DNP3 scan',
+   .node('discover', {lane: 'node', x: 565, w: 150, h: 56, shape: 'task', title: 'Discover', sub: 'Modbus / DNP3 scan',
       info: 'The edge node scans the fieldbus and finds a new device answering at an unassigned address.'})
-   .node('request', {lane: 'node', x: 740, w: 130, h: 56, shape: 'task', title: 'Request cert', sub: 'EST + token',
+   .node('request', {lane: 'node', x: 740, w: 150, h: 56, shape: 'task', title: 'Request cert', sub: 'EST + token',
       info: 'The node asks the hub for a device certificate over EST, presenting the enrolment token.'})
    .node('valid', {lane: 'hub', x: 750, w: 110, h: 76, shape: 'decision', title: 'Token valid?',
       info: 'The token must be unexpired and bound to the serial the device reports.'})
-   .node('sign', {lane: 'hub', x: 905, w: 130, h: 56, shape: 'task', tone: 'add', title: 'Sign certificate', sub: 'add to inventory',
+   .node('sign', {lane: 'hub', x: 905, w: 150, h: 56, shape: 'task', tone: 'add', title: 'Sign certificate', sub: 'add to inventory',
       info: 'The hub signs the device certificate and marks the device active in the inventory.'})
-   .node('investigate', {lane: 'operator', x: 740, w: 130, h: 56, shape: 'task', tone: 'gap', title: 'Investigate', sub: 'wrong serial or site',
+   .node('investigate', {lane: 'operator', x: 740, w: 150, h: 56, shape: 'task', tone: 'gap', title: 'Investigate', sub: 'wrong serial or site',
       info: 'A mismatch goes back to the operator: a swapped device, a typo, or an expired token.'})
    .node('rejected', {lane: 'operator', x: 935, w: 30, h: 30, shape: 'end', tone: 'gap', title: 'Rejected'})
-   .node('poll', {lane: 'node', x: 905, w: 130, h: 56, shape: 'task', title: 'Start polling', sub: 'every 2 s',
+   .node('poll', {lane: 'node', x: 905, w: 150, h: 56, shape: 'task', title: 'Start polling', sub: 'every 2 s',
       info: 'With its certificate, the node opens a secure session to the device and starts polling it.'})
    .node('online', {lane: 'node', x: 1078, w: 30, h: 30, shape: 'end', tone: 'add', title: 'Online'});
 

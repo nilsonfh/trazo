@@ -353,7 +353,6 @@
     start = isNaN(start) ? 0 : Math.max(0, Math.min(slides.length - 1, start - 1));
     show(start, frozen == null ? 0 : frozen === 'end' ? steps(start) : Math.min(frozen, steps(start)), 1);
     fit();
-    show(isNaN(start) ? 0 : Math.max(0, Math.min(slides.length - 1, start - 1)), 0, 1);
     if (/^#presenter/.test(hash)) { pwOwn = true; setPresenting(true); }
     quiet = false;
     send({type: 'hello'});
