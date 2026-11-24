@@ -5,6 +5,7 @@
   trazo inline page.html > out.html          scripts/inline.py
   trazo shot ... | trazo check page.html     scripts/shot.sh, shot.sh --check
   trazo todrawio page.html TARGET out.drawio scripts/todrawio.sh
+  trazo pdf [--steps] [--dark] page.html out.pdf   scripts/topdf.sh
   trazo theme DESIGN.md -o themes/x.css      scripts/theme_from_design.py
   trazo check-theme themes/x.css             scripts/check_theme.py
   trazo vendor DEST                          scripts/vendor.sh
@@ -33,6 +34,7 @@ TOOLS = {   # command: (script, extra arguments)
     "shot": ("shot.sh", []),
     "check": ("shot.sh", ["--check"]),
     "todrawio": ("todrawio.sh", []),
+    "pdf": ("topdf.sh", []),
     "theme": ("theme_from_design.py", []),
     "check-theme": ("check_theme.py", []),
     "vendor": ("vendor.sh", []),

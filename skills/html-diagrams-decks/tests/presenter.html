@@ -1,0 +1,43 @@
+<!-- The presenter window: N opens this page again as #presenter, which catches up with the deck, shows the
+     notes and the next slide, and drives the deck when its own keys are pressed. Run with scripts/test.sh. -->
+<div id="viewport" style="position:fixed;inset:0;bottom:52px"><div id="stage" style="width:1600px;height:900px">
+  <section class="slide" data-steps="2"><h2>One</h2><aside class="notes"><p>Say this first.</p><p data-step="1">Then this, at step one.</p></aside></section>
+  <section class="slide" data-steps="0"><h2>Two</h2></section>
+  <section class="slide" data-steps="1"><h2>Three</h2></section>
+</div></div>
+<div><button id="b-prev">‹</button><button id="b-next">›</button><button id="b-full">full</button><button id="b-notes">notes</button><span id="prog"></span><span id="count"></span></div>
+<pre id="out"></pre>
+<script src="../lib/edgedeck.js"></script>
+<script>
+var deck = EdgeDeck.run({});
+function key(k) { document.body.dispatchEvent(new KeyboardEvent('keydown', {key: k, bubbles: true, cancelable: true})); }
+if (location.hash === '#presenter') {
+  // the presenter window: once caught up, it reports what it shows, then steps on as a clicker would
+  setTimeout(function () {
+    var pv = document.querySelector('.ed-pv'), h = pv && pv.querySelector('.ed-pv-next-in h2');
+    var r = {state: deck.state(), notes: pv ? pv.querySelector('.ed-pv-text').innerHTML : '', next: h ? h.textContent : ''};
+    key('PageDown');
+    opener.postMessage({test: r}, '*');
+  }, 300);
+} else {
+  var bad = [], got = null;
+  key('ArrowRight');
+  key('n');
+  window.addEventListener('message', function (e) {
+    if (!e.data || !e.data.test) return;
+    var r = got = e.data.test;
+    if (r.state.slide !== 0 || r.state.step !== 1) bad.push('the presenter window is at ' + r.state.slide + '.' + r.state.step + ', want 0.1');
+    if (!r.state.presenter) bad.push('#presenter does not open the presenter view');
+    if (!/class="cur">Then this/.test(r.notes)) bad.push('notes in the presenter window: ' + r.notes);
+    if (r.next !== 'Two') bad.push('next slide in the presenter window: ' + r.next);
+    setTimeout(function () {
+      var s = deck.state();
+      if (s.slide !== 0 || s.step !== 2) bad.push('a key in the presenter window leaves the deck at ' + s.slide + '.' + s.step + ', want 0.2');
+      if (s.presenter) bad.push('the deck took the presenter view although its window opened');
+      done();
+    }, 300);
+  });
+  setTimeout(function () { if (!got) { bad.push('no word from the presenter window'); done(); } }, 2500);
+  function done() { document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok'; }
+}
+</script>

@@ -1,0 +1,110 @@
+<title>Icon Gallery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* Every icon of lib/icons.js with its name: type to filter, click a tile to copy the name (what
+   EdgeDiagram's icon option and EdgeSketch take), and switch light and dark at the top. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0}
+.lede{margin:0;color:var(--ink2);font-size:17px;line-height:1.5;max-width:62ch}
+.lede code{font-family:var(--mono);font-size:.9em}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.tools input{flex:1 1 220px;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:999px;padding:8px 16px}
+.tools input:focus-visible,.tools button:focus-visible,.tile:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tools button{font:inherit;font-size:14px;color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:999px;padding:7px 14px;cursor:pointer}
+.tools button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.count{font-family:var(--mono);font-size:13px;color:var(--muted);min-width:9ch;text-align:right}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.tile{display:grid;justify-items:center;gap:10px;padding:18px 8px 12px;background:var(--card);border:1px solid var(--rule);border-radius:10px;color:var(--ink);font:inherit;cursor:pointer}
+.tile[hidden]{display:none}
+.tile:hover{border-color:var(--accent);color:var(--accent)}
+.tile svg{width:36px;height:36px;display:block}
+.tile span{font-family:var(--mono);font-size:13px;color:var(--ink2);overflow-wrap:anywhere}
+.tile.copied{border-color:var(--ok);background:var(--ok-soft)}
+.empty{color:var(--muted);font-style:italic}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);font-family:var(--mono);font-size:14px;padding:8px 16px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Reference · icon sprite</p>
+  <h1>Icon gallery</h1>
+  <p class="lede">The icons of <code>lib/icons.js</code>, drawn in <code>currentColor</code> on a 24-unit grid. Click one to copy its name, as <code>icon: 'name'</code> takes it.</p>
+  <div class="tools">
+    <input type="search" id="q" placeholder="Filter by name ( / )" aria-label="Filter icons by name" autocomplete="off">
+    <span class="count" id="count" aria-live="polite"></span>
+    <button type="button" data-theme-set="" aria-pressed="true">Auto</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <p class="empty" id="empty" hidden>No icon has that in its name.</p>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg', src = window.EDGE_ICONS || '';
+  var sprite = document.createElementNS(NS, 'svg');
+  sprite.id = 'ed-icons'; sprite.setAttribute('aria-hidden', 'true');
+  sprite.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden');
+  sprite.innerHTML = '<defs>' + src + '</defs>';
+  document.body.insertBefore(sprite, document.body.firstChild);
+
+  var names = [].map.call(sprite.querySelectorAll('symbol[id^="i-"]'), function (s) { return s.id.slice(2); });
+  var grid = document.getElementById('grid'), q = document.getElementById('q'), count = document.getElementById('count');
+  var toast = document.getElementById('toast'), toastT = 0;
+  names.forEach(function (n) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tile'; b.dataset.name = n; b.title = 'Copy "' + n + '"';
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-' + n + '"></use></svg><span>' + n + '</span>';
+    b.addEventListener('click', function () { copy(n, b); });
+    grid.appendChild(b);
+  });
+
+  function filter() {
+    var t = q.value.trim().toLowerCase(), shown = 0;
+    [].forEach.call(grid.children, function (b) { var on = b.dataset.name.indexOf(t) >= 0; b.hidden = !on; if (on) shown++; });
+    count.textContent = shown + ' / ' + names.length;
+    document.getElementById('empty').hidden = shown > 0;
+  }
+  q.addEventListener('input', filter);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); }
+    else if (e.key === 'Escape' && document.activeElement === q) { q.value = ''; filter(); }
+  });
+
+  function say(text) { toast.textContent = text; toast.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(function () { toast.classList.remove('on'); }, 1400); }
+  function copy(n, b) {
+    function done(ok) {
+      say(ok ? 'Copied ' + n : n);   // where the clipboard is closed (an artifact's frame), the name is still shown
+      b.classList.add('copied'); setTimeout(function () { b.classList.remove('copied'); }, 600);
+    }
+    function legacy() {
+      var t = document.createElement('textarea'); t.value = n; t.setAttribute('readonly', '');
+      t.style.position = 'fixed'; t.style.opacity = '0'; document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(t); done(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(n).then(function () { done(true); }, legacy);
+    else legacy();
+  }
+
+  // light, dark or the viewer's own; remembered in this browser when it can be
+  var root = document.documentElement, btns = document.querySelectorAll('[data-theme-set]');
+  function theme(t) {
+    if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme');
+    [].forEach.call(btns, function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === (t || ''))); });
+    try { localStorage.setItem('ed-icons-theme', t || ''); } catch (e) {}
+  }
+  [].forEach.call(btns, function (b) { b.addEventListener('click', function () { theme(b.dataset.themeSet); }); });
+  var saved = ''; try { saved = localStorage.getItem('ed-icons-theme') || ''; } catch (e) {}
+  if (root.hasAttribute('data-theme')) [].forEach.call(btns, function (b) { b.setAttribute('aria-pressed', String(b.dataset.themeSet === root.getAttribute('data-theme'))); });
+  else if (saved) theme(saved);
+  filter();
+})();
+</script>

@@ -1,9 +1,17 @@
-"""Tests for the Python tools: inline.py and check_theme.py. Run with scripts/test.sh, or python3 -m unittest discover -s tests."""
-import os, subprocess, sys, tempfile, unittest
+"""Tests for the tools: inline.py, check_theme.py, theme_from_design.py, topdf.sh, the icon gallery and the version stamps. Run with scripts/test.sh, or python3 -m unittest discover -s tests."""
+import glob, os, re, shutil, subprocess, sys, tempfile, unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INLINE = os.path.join(ROOT, "scripts", "inline.py")
 CHECK = os.path.join(ROOT, "scripts", "check_theme.py")
+
+
+def chrome():
+    if os.environ.get("CHROME"):
+        return os.environ["CHROME"]
+    found = sorted(glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-*/chrome-headless-shell"))
+                   + glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux/headless_shell")))
+    return found[-1] if found else shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("google-chrome")
 
 
 def run(*args):
@@ -138,6 +146,74 @@ class ThemeFromDesign(unittest.TestCase):
     def test_explain_reports_every_role(self):
         _, r = self.make(os.path.join(ROOT, "examples", "design-md", "DESIGN.md"), "--explain")
         self.assertIn("light: accent <- primary", r.stderr)
+
+
+class Icons(unittest.TestCase):
+    def names(self):
+        src = open(os.path.join(ROOT, "lib", "icons.js"), encoding="utf-8").read()
+        return src, re.findall(r'<symbol id=\\"i-([^\\"]+)\\"', src)
+
+    def test_the_count_is_the_one_the_docs_give(self):
+        src, names = self.names()
+        self.assertEqual(len(names), len(set(names)), "a name twice")
+        self.assertIn("%d icons" % len(names), src.split("\n")[0])
+        self.assertIn("There are %d." % len(names), open(os.path.join(ROOT, "references", "api.md"), encoding="utf-8").read())
+
+    @unittest.skipUnless(chrome(), "no Chrome")
+    def test_the_gallery_shows_every_icon(self):
+        _, names = self.names()
+        d = tempfile.mkdtemp()
+        page = os.path.join(d, "icons.html")
+        r = run(INLINE, os.path.join(ROOT, "templates", "icons.html"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(r.stdout)
+        dom = subprocess.run([chrome(), "--headless", "--no-sandbox", "--virtual-time-budget=2000", "--dump-dom", "file://" + page],
+                             capture_output=True, text=True).stdout
+        self.assertEqual(re.findall(r'class="tile" data-name="([^"]+)"', dom), names)
+        self.assertIn('id="count" aria-live="polite">%d / %d<' % (len(names), len(names)), dom)
+
+
+@unittest.skipUnless(chrome(), "no Chrome")
+class ToPdf(unittest.TestCase):
+    TOOL = os.path.join(ROOT, "scripts", "topdf.sh")
+
+    def pdf(self, template, *opts):
+        d = tempfile.mkdtemp()
+        page, out = os.path.join(d, "page.html"), os.path.join(d, "out.pdf")
+        r = run(INLINE, os.path.join(ROOT, "templates", template))
+        with open(page, "w", encoding="utf-8") as f:
+            f.write(r.stdout)
+        r = subprocess.run(["bash", self.TOOL, *opts, page, out], capture_output=True, text=True, env=dict(os.environ, CHROME=chrome()))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        data = open(out, "rb").read()
+        boxes = [tuple(float(v) for v in m.split()) for m in re.findall(rb"/MediaBox\s*\[([^\]]*)\]", data)]
+        return len(re.findall(rb"/Type\s*/Page\b", data)), boxes
+
+    def test_a_deck_prints_a_169_page_per_slide(self):
+        n, boxes = self.pdf("deck.html")
+        self.assertEqual(n, 2)
+        for b in boxes:
+            self.assertAlmostEqual((b[2] - b[0]) / (b[3] - b[1]), 16 / 9, places=2)
+
+    def test_steps_print_a_page_per_step(self):
+        n, _ = self.pdf("deck.html", "--steps", "--dark")
+        self.assertEqual(n, 4)   # the title, and the three steps of the second slide
+
+    def test_a_plain_page_prints(self):
+        n, _ = self.pdf("sketch.html")
+        self.assertGreaterEqual(n, 1)
+
+    def test_trazo_pdf_runs_it(self):
+        top = os.path.dirname(os.path.dirname(ROOT))
+        if not os.path.exists(os.path.join(top, "src", "trazo", "cli.py")):
+            self.skipTest("the skill without the package")
+        sys.path.insert(0, os.path.join(top, "src"))
+        try:
+            from trazo import cli
+        finally:
+            sys.path.pop(0)
+        self.assertEqual(cli.TOOLS["pdf"], ("topdf.sh", []))
 
 
 class Versions(unittest.TestCase):

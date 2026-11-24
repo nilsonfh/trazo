@@ -211,15 +211,15 @@ The check finds text running out of an actor or a note, labels on top of each ot
 `EdgeDeck.version` is the version.
 
 ```js
-EdgeDeck.run({builds: BUILDS, lib: {name: 1}, icons: window.EDGE_ICONS});
+EdgeDeck.run({builds: BUILDS, lib: {name: 1}, icons: window.EDGE_ICONS, notes: {name: ['step 0', 'step 1']}, printTheme: 'light'});
 ```
 
 The page must contain:
 
 - `#viewport` with a 1600×900 `#stage` inside it;
 - slides as `<section class="slide" data-steps="N" data-build="name">`;
-- in each slide, an optional `<ol class="caps">` (N+1 `<li>`, one per state) and `<div class="stepdots">`;
-- a control bar with `#b-prev`, `#b-next`, `#b-full`, `#prog` and `#count`.
+- in each slide, an optional `<ol class="caps">` (N+1 `<li>`, one per state), `<div class="stepdots">` and `<aside class="notes">` (the speaker's notes);
+- a control bar with `#b-prev`, `#b-next`, `#b-full`, `#prog` and `#count`, and optionally `#b-notes` (opens the presenter view).
 
 `templates/deck.html` has all of this.
 
@@ -231,20 +231,41 @@ Input:
 
 | Keys | What they do |
 | --- | --- |
-| right, down, PageDown, space, Enter, N, J | The next step, then the next slide |
+| right, down, PageDown, space, Enter, J | The next step, then the next slide |
 | left, up, PageUp, Backspace, Shift+space, P, K | The previous step, then the previous slide |
 | Shift with an arrow or PageUp/PageDown | A whole slide, past its steps |
 | Home, End | The first slide, the end of the last one |
 | a number, then Enter | That slide |
 | F | Fullscreen on and off |
 | B, W or `.` | Blanks the screen (the key a presenter's clicker sends); any key brings it back |
+| N | Opens the presenter view (N in the presenter view closes it when it shares the deck's window) |
 
 - Presenter clickers send PageDown and PageUp, so they work as they are.
 - Enter and space on a focused button, link or diagram item are left to it, so one press never acts twice; keys with Ctrl, Alt or Cmd are left to the browser, and keys typed into a field to the field.
 - A click turns the page (the left 30% goes back), a swipe too, and a click on a diagram node pins its tooltip instead. When the deck is embedded (an iframe, a claude.ai artifact), the first click only brings it into focus, so that the keys reach it.
 - A bare `#n` in the URL opens slide n.
 
-`EdgeDeck.run` returns `{next, prev, show, go, nextSlide, prevSlide, state}`; `state()` is `{slide, step, blank}`.
+### Speaker's notes and the presenter view
+
+A slide's notes are its `<aside class="notes">`, which never shows on the slide; an element in it with `data-step="k"` is marked while step k is on. A slide without one takes `opt.notes[n]` (n, the slide's number from 1) or `opt.notes[build name]`, or the build function's own `.notes`: a string, or a list with one item per step, the current one marked.
+
+N (or `#b-notes`) opens the presenter view in a second window: the same page at `#presenter`, with the current slide and step, the next step's caption, the next slide as it opens, the notes, the time since the view opened (Reset sets it to 0) and the clock. Every window of the deck follows the one that moved, so the keys and a clicker drive both from either; the blank key blanks the room's screen and dims the presenter's copy. The windows talk over a BroadcastChannel named after the page's path, and by `postMessage` between the deck and the window it opened, which also works where file:// pages get no channel (Firefox). A window that opens asks the others where the deck is. Where popups are blocked (a claude.ai artifact's frame, a popup blocker), the view takes the deck's own window; N leaves it.
+
+### Print and PDF
+
+The browser's print gives one 1600×900 page per slide (16:9, no margins), every slide at its last step, every build done, captions at the last one, notes and controls left out, in the light theme (`printTheme: 'dark'`, or `'page'` for the theme on screen). EdgeDeck makes a still copy of each slide for it, and puts the deck back as it was after printing. `scripts/topdf.sh` (or `trazo pdf`) does the same with headless Chrome:
+
+```bash
+scripts/topdf.sh build/deck.html deck.pdf            # a page per slide, light
+scripts/topdf.sh --steps --dark build/deck.html steps.pdf   # a page per step, dark
+scripts/topdf.sh build/figure.html figure.pdf        # any other page, as the browser prints it
+```
+
+A page that is not a deck prints as the browser lays it out; the themes keep each figure (`svg[role="img"]`, `figure`, `.fig`, `.pane`, `.stage`), table and `pre` on one page, keep a heading with what follows it, and shrink a figure that scrolls on screen to the page's width. Figures print at their resting state. `window.ED_PRINT = {steps, theme}` set before `run` makes the still copies at once, for a print run by a script.
+
+### Returns
+
+`EdgeDeck.run` returns `{next, prev, show, go, nextSlide, prevSlide, presenter, notes, printPages, state}`. `state()` is `{slide, step, blank, presenter}`. `presenter()` opens the view as N does, `presenter(true | false)` shows or leaves it in this window. `notes(i, k)` is the notes' HTML for slide i (from 0) at step k. `printPages({steps, theme})` makes the still copies the print shows and returns how many; `printPages(false)` takes them away.
 
 ## A frozen page: `?static`
 
@@ -266,4 +287,6 @@ There are 50. They cover:
 - **Operations:** control, gauge, clock, calendar, truck, coin, link, plug, target, safety, home, phone, watch.
 - **Test:** simulator, evidence, cell, federated, model, wan-cut, ticket.
 
-To add an icon, append a `<symbol id="i-name" viewBox="0 0 24 24">` that uses the same stroke conventions.
+`templates/icons.html` shows every icon with its name, in light and dark: type to filter, click to copy the name. `python3 scripts/inline.py templates/icons.html > icons.html` makes it a page to keep open or publish.
+
+To add an icon, append a `<symbol id="i-name" viewBox="0 0 24 24">` that uses the same stroke conventions; `tests/icons.html` checks that every name is unique and that every icon draws inside its grid, and `tests/test_tools.py` that the count in the sprite's header and here is right.
