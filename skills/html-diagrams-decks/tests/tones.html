@@ -1,0 +1,31 @@
+<!-- Every tone of EdgeDiagram's zones, nodes and links reads in each theme, light and dark: the paint check finds no contrast issue. Run with scripts/test.sh. -->
+<svg id="t" viewBox="0 0 760 300"></svg>
+<pre id="out"></pre>
+<script>window.onerror = function (m, u, l) { document.getElementById("out").textContent = "error: " + m + " line " + l; };</script>
+<script src="../lib/edgesketch.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script>
+var bad = [], tones = ['neutral', 'accent', 'add', 'gap', 'p3'];
+var d = EdgeDiagram.create(document.getElementById('t'));
+tones.forEach(function (t, i) {
+  d.zone('z' + i, {x: 10 + i * 150, y: 10, w: 140, h: 280, label: t.toUpperCase(), tone: t === 'neutral' ? 'layer' : t})
+   .node('n' + i, {x: 25 + i * 150, y: 60, w: 110, h: 56, title: 'Node', sub: 'a subtitle', tone: t})
+   .node('m' + i, {x: 25 + i * 150, y: 200, w: 110, h: 56, title: 'Other', sub: 'muted text'})
+   .link('l' + i, {from: ['n' + i, 'bottom'], to: ['m' + i, 'top'], label: 'label', tone: t === 'neutral' ? null : t});
+});
+var themes = ['engineering', 'indigo', 'drafting'], k = 0, link = null;
+function next() {
+  if (k === themes.length) { document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok'; return; }
+  var name = themes[k++];
+  if (link) link.remove();
+  link = document.createElement('link'); link.rel = 'stylesheet';
+  link.onerror = function () { bad.push(name + ': theme did not load'); next(); };
+  link.onload = function () {
+    var issues = d.check().filter(function (m) { return /contrast/.test(m); });
+    if (issues.length) bad.push(name + ': ' + issues.join(' / '));
+    next();
+  };
+  link.href = '../themes/' + name + '.css'; document.head.appendChild(link);
+}
+next();
+</script>

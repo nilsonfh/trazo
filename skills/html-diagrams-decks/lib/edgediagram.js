@@ -98,7 +98,7 @@
     '.ed-link[tabindex]:focus-visible path.ed-wire{stroke-width:4}',
     '.ed-zone .ed-zshape{fill:var(--_layer);stroke:var(--_rule)}',
     '.ed-zone.t-gap .ed-zshape{fill:var(--_gap-soft);stroke:var(--_gap);stroke-width:1.6;stroke-dasharray:8 6}',
-    '.ed-zone.t-gap .ed-zlabel{fill:var(--_gap)}',
+    '.ed-zone.t-gap .ed-zlabel{fill:var(--_gap);fill:color-mix(in srgb,var(--_gap) 60%,var(--_ink))}',   // the gap tone alone is under 4.5:1 on its soft fill
     '.ed-link path.ed-wire{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}',
     '.ed-link.t-accent path.ed-wire{stroke:var(--_accent)}.ed-link.t-muted path.ed-wire{stroke:var(--_muted);stroke-width:1.4}',
     '.ed-link.t-gap path.ed-wire{stroke:var(--_gap)}.ed-link.t-add path.ed-wire{stroke:var(--_add)}',
