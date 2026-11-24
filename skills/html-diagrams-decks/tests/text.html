@@ -242,7 +242,7 @@ setTimeout(function () {
   var pre = document.getElementById('from-pre');
   ok(pre && pre.tagName.toLowerCase() === 'svg' && pre.querySelector('.sq-actor') && document.querySelector('pre.trazo').hidden, 'the pre block became an svg in its place');
   ok(EdgeText.auto().length === 2, 'auto renders a block once');
-  if (EdgeText.version !== '1.3.1') bad.push('version');
+  if (EdgeText.version !== '1.4.0') bad.push('version');
   document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 }, 50);
 </script>

@@ -1,7 +1,13 @@
 # Changelog
 
-## Unreleased
+## 1.4.0 (2026-11-23)
 
+New kinds of figure: timelines and roadmaps (EdgeTimeline), matrices and coverage maps (EdgeMatrix), state machines and swimlanes (EdgeDiagram), figures with no coordinates (EdgeLayout) and figures written as text (EdgeText). Decks gain speaker's notes, a presenter view and PDF. Figures describe themselves to screen readers, the layout check finds more, and a visual regression test guards the templates.
+
+**Changes to note when updating.** N opens the presenter view instead of stepping forward (J still steps). The new checks report contrast, wires over text, wires that run together, crowding and avoidable crossings, so figures that passed before may now list issues. The libraries' `onStep` gets `ctl` as a third argument.
+
+- EdgeSequence and EdgeTimeline pass `ctl` to `onStep`, whose first call comes before `steps()` returns; `templates/sequence.html` read `ctl.count` there and threw, so its caption, dots and buttons were never set up.
+- A gap zone's label mixes the gap tone with the ink: the gap tone alone was under 4.5:1 on its soft fill in the light themes. `tests/tones.html` checks every tone in the three themes.
 - **Stronger layout checks.**
   - Contrast: `EdgeSketch.paint(svg)` measures every text, wire and icon against what is painted behind it (the fills before it that hold the point, their opacity and every opacity above them, the page's background) in the light and the dark theme, switching `data-theme` on the root and putting it back. Text needs 4.5:1 (3:1 at 18.66 px bold or 24 px), wires and icons 3:1; the message names the ratio, the theme and what is behind. Anything faded below half its opacity is left out as faded on purpose.
   - A wire through a text that is not its own: any text (a node's sub, a link label, a zone label, free text), unless a solid fill drawn between them hides the wire (a label's plate over its own wire passes); an arrowhead may touch its target.

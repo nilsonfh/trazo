@@ -116,7 +116,7 @@ try {
   if (kc.length) bad.push('clip leaves nothing to report: ' + kc.join(' / '));
   if (document.querySelector('#clip text.em-h').textContent.slice(-1) !== '…') bad.push('a clipped header ends with an ellipsis');
   try { k.cells({x: 'Q'}); bad.push('an unknown key throws'); } catch (e) {}
-  if (EdgeMatrix.version !== '1.3.1') bad.push('version');
+  if (EdgeMatrix.version !== '1.4.0') bad.push('version');
 } catch (e) { bad.push('threw: ' + (e && e.stack || e)); }
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

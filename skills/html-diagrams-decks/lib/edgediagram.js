@@ -1,4 +1,4 @@
-/* EdgeDiagram v1.3.1 — declarative, animated SVG diagrams for single-file HTML pages and decks.
+/* EdgeDiagram v1.4.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('svc', {x, y, w, h, label: 'SERVICE'});
@@ -71,7 +71,7 @@
   var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
     return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
   var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.3.1', FIRED = 3.6;   // a fired transition's width
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.4.0', FIRED = 3.6;   // a fired transition's width
 
   var CSS = [
     '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',
