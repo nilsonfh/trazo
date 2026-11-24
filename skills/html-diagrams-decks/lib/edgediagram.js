@@ -350,7 +350,7 @@
        positions and sides; then they are drawn in the order given. steps, bindFocus and check call it. */
     var held = null;
     function hold(kind, id, o) {
-      if (!held && !((kind === 'node' || kind === 'zone') && (o.x == null || o.y == null))) return false;
+      if (!held && !((kind === 'node' || kind === 'zone') && !o.lane && (o.x == null || o.y == null))) return false;   // a node in a lane is placed by its lane
       (held = held || []).push({kind: kind, id: id, o: o}); return true;
     }
 
