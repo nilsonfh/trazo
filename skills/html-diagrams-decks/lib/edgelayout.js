@@ -130,10 +130,13 @@
     }
     function end(e) { return typeof e === 'string' ? [e] : (e || []).slice(); }
     calls.forEach(function (c) {
-      if (c.kind === 'link') {
+      if (c.kind === 'link' || c.kind === 'transition') {
         c.o.from = end(c.o.from); c.o.to = end(c.o.to);
         var u = nodeOf(c.o.from[0], 'link ' + c.id), v = nodeOf(c.o.to[0], 'link ' + c.id);
-        if (u !== v) E.push({idx: E.length, u: u, v: v, o: c.o, ends: [c.o.from, c.o.to]});
+        var lo = c.o;   // a transition's label is made of its event, guard and action: room for that
+        if (c.kind === 'transition' && !c.o.label && (c.o.event || c.o.guard || c.o.action))
+          lo = Object.assign({}, c.o, {label: [c.o.event, c.o.guard && '[' + c.o.guard + ']', c.o.action && '/ ' + c.o.action].filter(Boolean).join(' ')});
+        if (u !== v) E.push({idx: E.length, u: u, v: v, o: lo, ends: [c.o.from, c.o.to]});
       } else if (c.kind === 'fan') {
         var into = Array.isArray(c.o.from[0]), sh = end(into ? c.o.to : c.o.from), many = (into ? c.o.from : c.o.to).map(end);
         if (into) { c.o.to = sh; c.o.from = many; } else { c.o.from = sh; c.o.to = many; }

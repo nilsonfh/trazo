@@ -843,6 +843,7 @@
        loop on o.side (default right), o.span wide and o.loop deep, its label beside it. Ink by default,
        with an arrowhead and a packet that runs while a step fires it. */
     api.transition = function (id, o) {
+      if (hold('transition', id, o)) return api;
       function end(e) { return typeof e === 'string' ? [e, 'auto'] : e; }
       var from = end(o.from), to = end(o.to), parts = [];
       if (from[0] === to[0] && o.side) { from = [from[0], o.side, from[2]]; to = [to[0], o.side, to[2]]; }
