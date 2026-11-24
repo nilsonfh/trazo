@@ -1,0 +1,245 @@
+<!-- EdgeText: each kind parsed and drawn through its library, which checks it with 0 issues; steps; errors with their line numbers. Run with scripts/test.sh. -->
+<svg id="flow" role="img" aria-label="flow"></svg>
+<svg id="seq" role="img" aria-label="sequence"></svg>
+<svg id="st" role="img" aria-label="state"></svg>
+<svg id="tl" role="img" aria-label="timeline"></svg>
+<svg id="mx" role="img" aria-label="matrix"></svg>
+<svg id="bad" role="img" aria-label="error"></svg>
+<svg id="auto-svg" role="img" aria-label="auto"></svg>
+<script type="text/trazo" data-target="#auto-svg">
+flow TB
+a[Alpha] -> b[Beta]
+</script>
+<pre class="trazo" data-id="from-pre">
+sequence
+a -> b: hello
+</pre>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgelayout.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script src="../lib/edgetimeline.js"></script>
+<script src="../lib/edgematrix.js"></script>
+<script src="../lib/edgetext.js"></script>
+<script>
+var bad = [];
+function eq(a, b, what) { if (JSON.stringify(a) !== JSON.stringify(b)) bad.push(what + ': want ' + JSON.stringify(b) + ', got ' + JSON.stringify(a)); }
+function ok(c, what) { if (!c) bad.push(what); }
+function clean(r, what) {
+  if (r.errors.length) { bad.push(what + ' errors: ' + JSON.stringify(r.errors)); return; }
+  var c = r.check();
+  if (c.length) bad.push(what + ' check: ' + c.join(' / '));
+}
+function err(src, line, words, what) {
+  var m = EdgeText.parse(src);
+  if (!m.errors.length) { bad.push(what + ': no error'); return; }
+  if (m.errors[0].line !== line) bad.push(what + ': line ' + m.errors[0].line + ', want ' + line + ' (' + m.errors[0].message + ')');
+  if (m.errors[0].message.indexOf(words) < 0) bad.push(what + ': "' + m.errors[0].message + '" lacks "' + words + '"');
+}
+
+/* ---------- flow ---------- */
+var FLOW = [
+  'flow LR',
+  '%% a comment',
+  '# another',
+  'zone FIELD { meter[Meter | Modbus TCP] relay[Recloser | DNP3] }',
+  'zone EDGE {',
+  '  gw[Gateway | polls · converts] {icon: rtu, tone: accent, info: polls each device, then converts}',
+  '  buf[Buffer]',
+  '}',
+  'cloud[Ingest] {icon: cloud}',
+  'meter, relay -> gw: poll',
+  'gw -> buf: queue',
+  'buf --> cloud: forward {tone: add}',
+  'cloud <-> ops(Operator)',
+  'step: meter relay | Field devices.',
+  'step: gw buf | The edge.',
+  'step: cloud ops | The cloud.'
+].join('\n');
+var fm = EdgeText.parse(FLOW);
+eq(fm.errors, [], 'flow parses');
+eq(fm.kind + ' ' + fm.dir, 'flow LR', 'flow kind and direction');
+eq(fm.nodes.map(function (n) { return n.id + ':' + (n.zone || ''); }), ['meter:zone-field', 'relay:zone-field', 'gw:zone-edge', 'buf:zone-edge', 'cloud:', 'ops:'], 'nodes and zones');
+var gw = fm.nodes[2].o;
+eq([gw.title, gw.sub, gw.icon, gw.tone, gw.info], ['Gateway', 'polls · converts', 'rtu', 'accent', 'polls each device, then converts'], 'node title, sub and options');
+eq(fm.nodes[5].o.shape, 'pill', '(text) is a pill');
+eq(fm.links.map(function (l) { return [l.id, l.fan, l.o.arrow || null, !!l.o.dashed, l.o.label || null]; }),
+  [['gw-in', true, 'end', false, 'poll'], ['gw-buf', false, 'end', false, 'queue'], ['buf-cloud', false, 'end', true, 'forward'], ['cloud-ops', false, 'both', false, null]], 'links, fans, arrows and labels');
+eq(fm.steps.map(function (s) { return s.items.join(' ') + '|' + s.caption; }), ['meter relay|Field devices.', 'gw buf|The edge.', 'cloud ops|The cloud.'], 'flow steps');
+var fan2 = EdgeText.parse('flow TB\na -> b, c, d\nx -> y -> z: last');
+eq(fan2.links.map(function (l) { return l.id + ' ' + l.to.join(',') + ' ' + (l.o.label || '-'); }), ['a-out b,c,d -', 'x-y y -', 'y-z z last'], 'a fan out, and a chain labelled at its end');
+
+var caps = [];
+var fr = EdgeText.render('#flow', FLOW, {onStep: function (k, s) { caps[k] = s.caption; }});
+clean(fr, 'flow');
+eq(fr.ctl.count, 3, 'flow step count');
+var fl = fr.steps.map(function (s) { return s.show.join(' ') + (s.flows.length ? ' >' + s.flows.join(' ') : ''); });
+eq(fl, ['', 'zone-edge zone-edge.label gw buf gw-in gw-buf >gw-in gw-buf', 'cloud ops buf-cloud cloud-ops >buf-cloud cloud-ops'],
+  'a zone shows with its first node, a link with its last end, and its packets run in that step');
+eq(fr.steps[2].stopFlows, ['gw-in', 'gw-buf'], 'and stop in the next');
+fr.ctl.end();
+eq(caps[2], 'The cloud.', 'captions reach onStep');
+ok(document.querySelector('#flow .ed-zone') && document.getElementById('flow').getAttribute('viewBox') !== '0 0 1000 560', 'the layout fits the viewBox');
+
+/* ---------- sequence ---------- */
+var SEQ = [
+  'sequence',
+  'title: A write, queued',
+  'participant web[Browser] {icon: desktop}',
+  'participant api as API',
+  'actor db[Database | primary] {icon: database}',
+  'group SERVICE { api db }',
+  'web -> api: POST /orders | The browser sends a write.',
+  'api -> api: validate',
+  'alt valid',
+  '  api -> db: INSERT',
+  '  db --> api: ok {with: true}',
+  'else invalid',
+  '  api --> web: 400',
+  'end',
+  'loop every 2 s',
+  '  web ->> api: poll',
+  'end',
+  'note over web, api: one round trip',
+  'api --> web: 201'
+].join('\n');
+var sm = EdgeText.parse(SEQ);
+eq(sm.errors, [], 'sequence parses');
+eq(sm.actors.map(function (a) { return a.id + ':' + a.o.title; }), ['web:Browser', 'api:API', 'db:Database'], 'participants in order');
+eq(sm.entries.map(function (e) { return e.type; }), ['msg', 'self', 'msg', 'msg', 'msg', 'msg', 'note', 'msg'], 'entries');
+eq([sm.entries[0].o.caption, !!sm.entries[3].o.reply, !!sm.entries[3].o.with], ['The browser sends a write.', true, true], 'a caption, a reply, with');
+eq(sm.frames.map(function (f) { return [f.kind, f.label, f.from, f.to, f.else.map(function (e) { return e.at + ':' + e.label; })]; }),
+  [['alt', 'valid', 'm3', 'm5', ['m5:invalid']], ['loop', 'every 2 s', 'm6', 'm6', []]], 'frames and else');
+eq(sm.groups, [{label: 'SERVICE', ids: ['api', 'db'], line: 6}], 'group');
+var sr = EdgeText.render('#seq', SEQ);
+clean(sr, 'sequence');
+eq(sr.ctl.count, 8, 'sequence steps: participants, then each entry (with joins)');
+eq(document.getElementById('seq').getAttribute('aria-label'), 'sequence', 'a given aria-label stays');
+
+/* ---------- state ---------- */
+var ST = [
+  'state LR',
+  '[*] -> Registered',
+  'Registered[Registered | identity issued]',
+  'Registered -> Attested: quote [EK valid] / store PCRs',
+  'Attested -> InService: policy ok',
+  'state InService[In service] {',
+  '  [*] -> Trusted',
+  '  Trusted {tone: add}',
+  '  Trusted -> Untrusted: quote fails / stop work',
+  '  Untrusted -> Trusted: quote ok [3 in a row]',
+  '  Trusted -> Trusted: quote ok',
+  '}',
+  'Untrusted -> [*]: retire',
+  'step: [*] | Outside the fleet.',
+  'step: Registered | Enrolled.',
+  'step: Attested | Quoted.',
+  'step: InService | Admitted.',
+  'step: Trusted | Trusted.'
+].join('\n');
+var stm = EdgeText.parse(ST);
+eq(stm.errors, [], 'state parses');
+var reg = stm.transitions.filter(function (t) { return t.from === 'Registered'; })[0];
+eq([reg.o.event, reg.o.guard, reg.o.action], ['quote', 'EK valid', 'store PCRs'], 'event [guard] / action');
+eq(stm.transitions.filter(function (t) { return t.o.event === 'policy ok'; })[0].to, '_start_InService', 'a transition into a composite enters at its start');
+eq(stm.states.filter(function (s) { return s.comp === 'InService'; }).map(function (s) { return s.id; }), ['_start_InService', 'Trusted', 'Untrusted'], 'states in the composite');
+eq(stm.walk, ['_start', '_start-Registered', 'Registered', 'Registered-Attested', 'Attested', 'Attested-InService', '_start_InService', '_start_InService-Trusted', 'Trusted'], 'the walk');
+var str = EdgeText.render('#st', ST);
+clean(str, 'state');
+eq(str.ctl.count, 5, 'state steps');
+ok(document.querySelector('#st .ed-zone') && document.querySelector('#st .ed-tguard'), 'a composite zone and a styled guard');
+
+/* ---------- timeline ---------- */
+var TL = [
+  'timeline {today: 2027-04-19}',
+  'axis 2027-01 .. 2027-12 month',
+  'band PRODUCT',
+  'lane API',
+  'bar Schema 2027-01-15 .. 2027-03-10 {progress: 1, tone: accent}',
+  'bar Endpoints 2027-03-20 .. 2027-06-25 {progress: 0.3}',
+  'lane web[Web app | front end]',
+  'bar Screens and flows 2027-03-20 .. 2027-07-16',
+  'milestone Beta 2027-07-28 {tone: gap}',
+  'phase Design 2027-01 .. 2027-03 | The API first. {tone: accent}',
+  'phase Build 2027-04 .. 2027-08',
+  'Schema -> Endpoints, Screens and flows',
+  'Screens and flows -> beta'
+].join('\n');
+var tm = EdgeText.parse(TL);
+eq(tm.errors, [], 'timeline parses');
+eq([tm.axis.start, tm.axis.end, tm.axis.unit, tm.opts.today], ['2027-01', '2027-12', 'month', '2027-04-19'], 'axis and today');
+eq(tm.lanes.map(function (l) { return [l.id, l.o.title, l.o.sub || null, l.o.band]; }), [['lane-api', 'API', null, 'band-product'], ['web', 'Web app', 'front end', 'band-product']], 'lanes');
+eq(tm.items.map(function (i) { return i.kind + ':' + i.id; }), ['bar:schema', 'bar:endpoints', 'bar:screens-and-flows', 'milestone:beta', 'phase:design', 'phase:build'], 'items');
+eq(tm.items[4].o.caption, 'The API first.', 'a phase caption');
+eq(tm.deps.map(function (d) { return d.from + '>' + d.to; }), ['schema>endpoints', 'schema>screens-and-flows', 'screens-and-flows>beta'], 'dependencies by label or id');
+var tr = EdgeText.render('#tl', TL);
+clean(tr, 'timeline');
+eq(tr.ctl.count, 3, 'timeline steps: one per phase');
+
+/* ---------- matrix ---------- */
+var MX = [
+  'matrix {totals: true}',
+  '| Power cut | Disk full | Link down',
+  'group UPDATES | Updates first.',
+  '[U-01] Applies atomically | F P N',
+  'Rolls back | F | P3 | .',
+  'group RECOVERY',
+  'Restarts | X F F'
+].join('\n');
+var mm = EdgeText.parse(MX);
+eq(mm.errors, [], 'matrix parses');
+eq(mm.cols.map(function (c) { return c.label; }), ['Power cut', 'Disk full', 'Link down'], 'columns');
+eq(mm.rows.map(function (r) { return [r.code, r.label, r.group, r.cells]; }),
+  [['U-01', 'Applies atomically', 'g-updates', ['full', 'part', 'none']], [null, 'Rolls back', 'g-updates', ['full', {state: 'part', mark: '3'}, null]], [null, 'Restarts', 'g-recovery', ['na', 'full', 'full']]], 'rows, codes, marks and empties');
+var mr = EdgeText.render('#mx', MX);
+clean(mr, 'matrix');
+eq(mr.ctl.count, 4, 'matrix steps: headers, two groups, totals');
+eq(mr.figure.get('r2', 'c2'), {state: 'part', mark: '3'}, 'a marked cell');
+
+/* ---------- errors, with their line numbers ---------- */
+err('', 1, 'empty', 'empty text');
+err('pie\na: 1', 1, 'names the kind', 'unknown kind');
+err('flow LR\na -> b\n\nc => d', 4, 'unexpected', 'a wrong arrow');
+err('flow XY\na', 1, 'LR or TB', 'a wrong direction');
+err('flow LR\nzone A {\n a\n', 2, 'not closed', 'an open zone');
+err('flow LR\na -> b\nstep: a zz', 3, 'zz', 'a step naming nothing');
+err('flow LR\na, b -> c, d', 2, 'fan', 'a fan with two sides');
+err('flow LR\na {tone: "accent}', 2, 'quote', 'an open quote');
+err('sequence\na -> b: x\nelse no', 3, 'outside', 'else outside a frame');
+err('sequence\nalt x\na -> b: y', 2, 'not closed', 'an open frame');
+err('sequence\na -> b: x\nend', 3, 'closes no frame', 'end with no frame');
+err('sequence\na => b', 2, 'not a sequence line', 'a wrong message');
+err('state\n[*] -> A\nA -> B\nstep: A\nstep: C', 5, 'no state', 'a step to no state');
+err('state\nA -> B\nstep: B\nstep: A', 4, 'no transition from B to A', 'a step with no transition');
+err('state\nstate X {\n  state Y {\n  }\n}', 3, 'nest', 'nested composites');
+err('timeline\nlane A\nbar x 2027-01 .. 2027-02', 1, 'axis', 'no axis');
+err('timeline\naxis 2027-01 .. 2027-12\nbar x 2027-01 .. 2027-02', 3, 'lane', 'a bar before a lane');
+err('timeline\naxis 2027-01 .. 2027-12\nlane A\nbar x 2027-01\n', 4, 'bar Label', 'a bar without an end');
+err('timeline\naxis 2027-01 .. 2027-12\nlane A\nbar x 2027-01 .. 2027-02\nx -> y', 5, 'no bar or milestone named y', 'a dependency on nothing');
+err('matrix\n| a | b\nrow | F', 3, '1 cells for 2 columns', 'a short row');
+err('matrix\n| a | b\nrow | F Q', 3, 'Q is no state', 'an unknown state');
+
+// render shows the errors in the figure's place and returns them; a library's own error gets its line too
+var br = EdgeText.render('#bad', 'flow LR\na -> b\nc => d');
+eq(br.errors.map(function (e) { return e.line; }), [3], 'render returns the error');
+ok(br.figure === null && br.ctl === null, 'no figure on an error');
+var t = document.querySelector('#bad .et-err');
+ok(t && /Line 3/.test(t.textContent) && /c => d/.test(t.textContent), 'the error and its source line are drawn in the figure');
+ok(/line 3/.test(document.getElementById('ed-issues').textContent), 'the error is reported to ed-issues');
+var lr = EdgeText.render(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), 'timeline\n\naxis 2027-12 .. 2027-01\nlane A');
+eq(lr.errors.map(function (e) { return e.line + ' ' + e.message; }), ['3 end must come after start'], 'a library error points at its line');
+delete window.ED_ISSUES; document.getElementById('ed-issues').remove();
+
+// auto-render: script blocks into their target, pre blocks into an svg in their place
+setTimeout(function () {
+  var all = EdgeText.auto();
+  ok(all.length === 2 && all.every(function (r) { return !r.errors.length; }), 'two blocks rendered by themselves: ' + JSON.stringify(all.map(function (r) { return r.errors; })));
+  ok(document.querySelector('#auto-svg .ed-node'), 'the script block drew into its target');
+  var pre = document.getElementById('from-pre');
+  ok(pre && pre.tagName.toLowerCase() === 'svg' && pre.querySelector('.sq-actor') && document.querySelector('pre.trazo').hidden, 'the pre block became an svg in its place');
+  ok(EdgeText.auto().length === 2, 'auto renders a block once');
+  if (EdgeText.version !== '1.3.1') bad.push('version');
+  document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+}, 50);
+</script>
