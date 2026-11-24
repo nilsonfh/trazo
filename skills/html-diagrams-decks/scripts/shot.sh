@@ -16,8 +16,10 @@
 # --check runs the layout check of every figure, at every step for EdgeDiagram figures and in their
 # resting state for the rest: EdgeDiagram's own check, and EdgeSketch.check on every other
 # svg[role="img"] (figures drawn by hand), so text that runs out of its box, text on text and icons on
-# text are found in any figure. EdgeSketch is injected if the page does not load it. --diagrams-only
-# leaves the hand-drawn figures out. Exit 1 if any issue, 2 if no figure was checked.
+# text are found in any figure. EdgeSketch is put first on the page if the page does not load it, so
+# every library's check also gets EdgeSketch.paint (contrast in the light and the dark theme, wires
+# through text, wires run together). --diagrams-only leaves the hand-drawn svg[role="img"] figures
+# out. Exit 1 if any issue, 2 if no figure was checked.
 #
 # Transitions are switched off (*{transition:none}): with --virtual-time-budget a CSS transition
 # freezes at its first frame, so a dimmed or hidden state would not show. GSAP's lag smoothing is
@@ -61,12 +63,13 @@ src, dst, theme, js, mode, only, full, sketch, skpath = sys.argv[1:10]
 s = open(src, encoding="utf-8").read()
 head = '<style>*{transition:none!important}</style><script>window.gsap&&gsap.ticker.lagSmoothing(0)</script>'
 if mode == "check":
-    s = '<script>window.ED_DEBUG=1;' + ('window.ED_DEBUG_ALL=1;' if sketch == "1" else '') + '</script>' + s
+    # EdgeSketch first, unless the page has it: it checks hand-drawn figures and gives every library its paint check
+    own = "global.EdgeSketch = {" in s
+    s = ('<script>window.ED_DEBUG=1;' + ('window.ED_DEBUG_ALL=1;' if sketch == "1" else '') + '</script>' +
+         ('' if own else '<script>' + open(skpath, encoding="utf-8").read().replace("</script", "<\\/script") + '</script>') + s)
 inject = head
 if theme == "dark":
     inject += '<script>document.documentElement.setAttribute("data-theme","dark")</script>'
-if mode == "check" and sketch == "1" and "EdgeSketch" not in s:
-    inject += '<script>' + open(skpath, encoding="utf-8").read().replace("</script", "<\\/script") + '</script>'
 now = js     # the page's own js runs on load, as before; isolating and measuring wait for the fonts
 after = ''
 if only:

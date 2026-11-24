@@ -20,7 +20,7 @@
  * its way, avoids short jogs, and keeps its turns out of zones that hold neither end; 'straight' a
  * line; 'curve' a cubic Bézier. d.fan() feeds several nodes from one point (or gathers several
  * into one): a trunk, a bus at right angles and a branch to each, with a dot at every junction. Link labels move
- * along their wire until they clear the nodes and the other labels, on a plate the colour of
+ * along their wire until they clear the nodes, the other labels and the other wires, on a plate the colour of
  * the zone beneath. Packets follow the drawn path, fade with their link, wait until the wire is
  * drawn, and stop when nothing flows or the figure is off screen.
  *
@@ -43,7 +43,12 @@
  *
  * {debug: true} or window.ED_DEBUG = 1 checks the figure at every step once fonts are loaded:
  * overlapping nodes, text outside its node, links through nodes, ortho links turning inside a
- * zone that holds neither end, slanted straight links, ortho links with a jog of a few pixels, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view), a node outside its lane, a transition's label on another wire, text outside a diamond, a node on a composite's title tab. Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
+ * zone that holds neither end, slanted straight links, ortho links with a jog of a few pixels, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view), a node outside its lane, a link's label on another wire, text outside a diamond, a node on a composite's title tab,
+ * nodes closer than 8 units to each other or to the border of their zone or lane, and two links that cross where
+ * swapping their ends on a shared side, or moving one end to another side, would remove the crossing (the fix
+ * is named). With lib/edgesketch.js on the page (shot.sh --check puts it there) it adds EdgeSketch.paint: text,
+ * wires and icons under 4.5:1 or 3:1 against what is drawn behind them in the light or the dark theme, a wire
+ * through a text that is not its own, two wires closer than 6 units over 30 or more. Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
  * <pre id="ed-issues"> (scripts/shot.sh --check reads it). d.check() returns the list. An item
  * with {check: false} is left out; create(svg, {check: false}) leaves out a whole figure whose own
  * timeline swaps overlapping items.
@@ -170,6 +175,12 @@
   function inter(a, b, pad) { pad = pad || 0; return a.x < b.x + b.w - pad && b.x < a.x + a.w - pad && a.y < b.y + b.h - pad && b.y < a.y + a.h - pad; }
   function contains(a, b) { return b.x >= a.x - 0.5 && b.y >= a.y - 0.5 && b.x + b.w <= a.x + a.w + 0.5 && b.y + b.h <= a.y + a.h + 0.5; }
   function rectOf(n) { return {x: n.x, y: n.y, w: n.w, h: n.h}; }
+  var CROWD = 8;   // the least room between two nodes, and between a node and its zone's border
+  function gapOf(a, b) {   // the gap between two boxes that neither overlap nor nest, else null
+    if (contains(a, b) || contains(b, a)) return null;
+    var gx = Math.max(b.x - a.x - a.w, a.x - b.x - b.w), gy = Math.max(b.y - a.y - a.h, a.y - b.y - b.h);
+    return gx < -0.5 && gy < -0.5 ? null : Math.max(0, gx, gy);
+  }
   function roundedPolyline(pts, r) {   // r: a radius, or a function of the corner's point
     var d = 'M' + pts[0][0] + ' ' + pts[0][1];
     for (var i = 1; i < pts.length - 1; i++) {
@@ -603,7 +614,7 @@
     function labelBlocked(L, box) {
       for (var k in nodes) if (!nodes[k].o.ghost && inter(box, nodes[k], 0) && !inComposite(nodes[k], box)) return true;
       for (var j in links) if (j !== L.id && links[j].lbox && inter(box, links[j].lbox, 0)) return true;
-      if (L.o._transition) for (var w in links) if (w !== L.id && onWire(box, links[w])) return true;
+      for (var w in links) if (w !== L.id && !(L.fan && L.fan === links[w].fan) && links[w].len && onWire(box, links[w])) return true;
       for (var z = 0; z < zones.length; z++) { var zl = items[zones[z].id + '.label'], zb = zl && bboxOf(zl.el); if (zb && zb.w && inter(box, zb, 0)) return true; }
       return false;
     }
@@ -1247,10 +1258,74 @@
       for (var s = 4; s < L.len - 4; s += 4) { var p = L.path.getPointAtLength(s); out.push([p.x, p.y]); }
       return (L.samples = out);
     }
+    /* ---------- crossings that a different order of ends, or another side, would remove ---------- */
+    function crossCount(A, B) {
+      var n = 0;
+      A.forEach(function (g) { B.forEach(function (h) { if (crosses(g[0], g[1], h[0], h[1])) n++; }); });
+      return n;
+    }
+    function tOf(n, side, p) { return side === 'top' || side === 'bottom' ? (p[0] - n.x) / n.w : (p[1] - n.y) / n.h; }
+    function polysBut(skip) {
+      var out = [];
+      Object.keys(links).forEach(function (k) { if (skip.indexOf(k) < 0 && links[k].poly) out = out.concat(links[k].poly); });
+      return out;
+    }
+    // L's ortho route with the ends given, as segments, the way drawLink would draw it
+    function routeWith(L, s0, t0, s1, t1, others) {
+      var p0 = anchor(nodes[L.from], s0, t0), p1 = anchor(nodes[L.to], s1, t1), ro = L.o, nf = NORMAL[s0], nt = NORMAL[s1];
+      var gap = (p1[0] - p0[0]) * nf[0] + (p1[1] - p0[1]) * nf[1];
+      if (nf[0] === -nt[0] && nf[1] === -nt[1] && gap > 0 && gap < 2 * (ro.stub != null ? ro.stub : 16)) ro = Object.assign({}, ro, {stub: gap / 2});
+      var pts = orthoPoints(p0, s0, p1, s1, ro, L.o.avoid !== false ? obstaclesFor(L) : null, others, L.o.avoid !== false ? foreignZones(L) : null, vb);
+      return pts.slice(1).map(function (q, i) { return [pts[i], q]; });
+    }
+    function clean(L, segs, others) {   // through no node, along no other wire, inside the figure
+      var obs = obstaclesFor(L).filter(function (r) { return r.own == null; });
+      for (var i = 0; i < segs.length; i++) {
+        if (vb && !inside(segs[i][1], {x: vb.x - 2, y: vb.y - 2, w: vb.w + 4, h: vb.h + 4})) return false;
+        for (var j = 0; j < obs.length; j++) if (segHit(segs[i][0], segs[i][1], obs[j])) return false;
+        for (var k = 0; k < others.length; k++) if (overlap(segs[i][0], segs[i][1], others[k][0], others[k][1]) > 4) return false;
+      }
+      return true;
+    }
+    function runLength(segs) { return segs.reduce(function (a, g) { return a + Math.abs(g[1][0] - g[0][0]) + Math.abs(g[1][1] - g[0][1]); }, 0); }
+    function movable(L) { return !L.fan && !L.loop && !L.pair && (L.o.route || 'ortho') === 'ortho' && L.segs; }
+    /* the fix for two crossing links, or null: swap their ends where they share a side of a node (when the
+       new routes cross neither each other nor more of the rest), or move one end of one of them to another
+       side (when the new route crosses nothing, turns no more often and is at most 40 longer); the new
+       routes must run through no node and along no wire, inside the viewBox */
+    function uncross(L, M) {
+      if (!movable(L) || !movable(M)) return null;
+      var ends = [[L.from, L.s0, 0], [L.to, L.s1, 1]], rest = polysBut([L.id, M.id]), before = crossCount(L.poly, rest) + crossCount(M.poly, rest);
+      var tL = [tOf(nodes[L.from], L.s0, L.p0), tOf(nodes[L.to], L.s1, L.p1)], tM = [tOf(nodes[M.from], M.s0, M.p0), tOf(nodes[M.to], M.s1, M.p1)];
+      var mEnds = [[M.from, M.s0, 0], [M.to, M.s1, 1]];
+      for (var i = 0; i < 2; i++) for (var j = 0; j < 2; j++) {
+        var e = ends[i], f = mEnds[j];
+        if (e[0] !== f[0] || e[1] !== f[1] || Math.abs(tL[i] - tM[j]) < 0.02) continue;
+        var a = tL.slice(), b = tM.slice(); a[i] = tM[j]; b[j] = tL[i];
+        var L2 = routeWith(L, L.s0, a[0], L.s1, a[1], rest), M2 = routeWith(M, M.s0, b[0], M.s1, b[1], rest.concat(L2));
+        if (crossCount(L2, M2) || crossCount(L2, rest) + crossCount(M2, rest) > before || !clean(L, L2, rest) || !clean(M, M2, rest)) continue;
+        return 'swap their ends on the ' + e[1] + ' side of node ' + e[0] + ' (' + L.id + ' at ' + a[i].toFixed(2) + ', ' + M.id + ' at ' + b[j].toFixed(2) + ')';
+      }
+      var best = null;
+      [L, M].forEach(function (X) {
+        var others = polysBut([X.id]), was = runLength(X.segs), bends = X.segs.length - 1;
+        [0, 1].forEach(function (k) {
+          var cur = k ? X.s1 : X.s0;
+          ['top', 'right', 'bottom', 'left'].forEach(function (sd) {
+            if (sd === cur) return;
+            var X2 = k ? routeWith(X, X.s0, tOf(nodes[X.from], X.s0, X.p0), sd, 0.5, others) : routeWith(X, sd, 0.5, X.s1, tOf(nodes[X.to], X.s1, X.p1), others);
+            var len = runLength(X2);
+            if (crossCount(X2, others) || X2.length - 1 > bends || len > was + 40 || !clean(X, X2, others)) return;
+            if (!best || len < best.len) best = {len: len, msg: (k ? 'bring ' + X.id + ' into the ' : 'take ' + X.id + ' out of the ') + sd + ' side of node ' + (k ? X.to : X.from) + ' instead of its ' + cur + ' side'};
+          });
+        });
+      });
+      return best && best.msg;
+    }
     function collect() {
       if (options.check === false) return [];   // a figure whose own timeline swaps overlapping items
       relayout();
-      var out = [], seen = {}, name = svg.id ? '#' + svg.id : 'svg';
+      var out = [], seen = {}, fixes = {}, name = svg.id ? '#' + svg.id : 'svg';
       function add(msg, box, step) {
         if (seen[msg]) return; seen[msg] = 1;
         out.push({msg: name + ': ' + msg + (step != null ? ' (step ' + step + ')' : ''), box: box});
@@ -1303,9 +1378,25 @@
         for (var i = 0; i < ns.length; i++) for (var j = i + 1; j < ns.length; j++) {
           var a = nodes[ns[i]], b = nodes[ns[j]];
           if (inter(a, b, 1) && !contains(a, b) && !contains(b, a)) add('nodes ' + ns[i] + ' and ' + ns[j] + ' overlap', rectOf(b), step);
+          else { var gp = gapOf(a, b); if (gp != null && gp < CROWD) add('nodes ' + ns[i] + ' and ' + ns[j] + ' are ' + Math.round(gp * 10) / 10 + ' units apart: keep ' + CROWD + ' or more between nodes', rectOf(b), step); }
           [[a, b, ns[i], ns[j]], [b, a, ns[j], ns[i]]].forEach(function (q) {   // a state on its composite's title
             if (q[0].tab && contains(q[0], q[1]) && inter(q[0].tab, q[1], 1)) add('node ' + q[3] + ' covers the title of composite ' + q[2], rectOf(q[1]), step);
           });
+        }
+        ns.forEach(function (nid) {   // a node too close to the border of its zone or lane
+          var n = nodes[nid];
+          zones.forEach(function (z) {
+            var ln = laneOf[z.id], r = ln ? ln.lane.area : z;
+            if (!r || !(V[z.id] || (ln && V[ln.set.id])) || !contains(r, n)) return;
+            var m = Math.min(n.x - r.x, r.x + r.w - n.x - n.w, n.y - r.y, r.y + r.h - n.y - n.h);
+            if (m < CROWD) add('node ' + nid + ' is ' + Math.round(m * 10) / 10 + ' units from the border of ' + (ln ? 'lane ' : 'zone ') + z.id + ': keep ' + CROWD + ' or more', rectOf(n), step);
+          });
+        });
+        for (var i2 = 0; i2 < ls.length; i2++) for (var j2 = i2 + 1; j2 < ls.length; j2++) {   // crossings with a clear fix
+          var P = links[ls[i2]], Q = links[ls[j2]], key = P.id + '\n' + Q.id;
+          if (!P.poly || !Q.poly || (P.fan && P.fan === Q.fan) || !crossCount(P.poly, Q.poly)) continue;
+          if (!(key in fixes)) fixes[key] = uncross(P, Q);
+          if (fixes[key]) add('links ' + P.id + ' and ' + Q.id + ' cross where they need not: ' + fixes[key], bboxOf(P.path), step);
         }
         ls.forEach(function (lid, li) {
           var L = links[lid], A = nodes[L.from], B = nodes[L.to], pts = samples(L);
@@ -1331,14 +1422,18 @@
           });
           if (!L.lbox) return;
           ns.forEach(function (nid) { if (inter(L.lbox, nodes[nid], 1) && !inComposite(nodes[nid], L.lbox)) add('label of link ' + lid + ' covers node ' + nid, L.lbox, step); });
-          if (L.o._transition) ls.forEach(function (oid) {
-            if (oid !== lid && onWire(L.lbox, links[oid])) add('label of transition ' + lid + ' lies on link ' + oid, L.lbox, step);
+          ls.forEach(function (oid) {   // its plate hides a wire it does not belong to
+            var M = links[oid];
+            if (oid === lid || (L.fan && L.fan === M.fan) || !onWire(L.lbox, M)) return;
+            add('label of ' + (L.o._transition ? 'transition ' : 'link ') + lid + ' lies on link ' + oid + (L.o._transition ? '' : ': move it with labelAt, or route one of them apart'), L.lbox, step);
           });
           ls.slice(li + 1).forEach(function (oid) {
             if (links[oid].lbox && inter(L.lbox, links[oid].lbox, 1)) add('labels of links ' + lid + ' and ' + oid + ' overlap', L.lbox, step);
           });
         });
       });
+      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page
+      if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
       return out;
     }
     api.check = function () { return collect().map(function (i) { return i.msg; }); };

@@ -117,7 +117,7 @@ A `d.link` with `arrow: 'end'`, tone `ink2` and a packet that runs while a step 
 | `side`, `span`, `loop` | For a self-transition (`from` and `to` the same node): the side its loop sits on (default `right`), how far apart it leaves and comes back (30) and how far it reaches out (26). Its label sits beside the loop |
 | `apart` | Two links that run opposite ways between the same sides, with no `t` given, keep `apart` (default 22) between them, centred on the span the nodes share: the one going right runs above, the one going down runs on the right. Each label goes beside its wire, on its outer side. `apart: false` turns this off. It applies to any `d.link`, not just transitions |
 
-A transition's label also slides along its wire until it clears every other wire, and the check reports one that lies on another wire.
+A label (a transition's or any link's) also slides along its wire until it clears every other wire, and the check reports one that still lies on another wire (with `labelFixed`, or with no clear spot).
 
 ### `d.lanes(id, o)`: swimlanes
 
@@ -184,7 +184,11 @@ Returns a list of problems, checked at every step with what is visible at that s
 - a link label on a node or on another label;
 - a node or label outside the viewBox;
 - a node outside its lane, a node on a composite's title tab, and text outside a diamond;
-- a transition's label on another wire.
+- a link's label on another wire (its plate hides that wire, so the label reads as that wire's): move it with `labelAt`, or route one of them apart;
+- crowding: two nodes closer than 8 units, and a node closer than 8 units to the border of the zone or lane it sits in (a chip inside a node is left alone);
+- avoidable crossings: two links that cross where a clear change would remove the crossing, which the message names. Either their ends on a side of a node they share are in the wrong order (`swap their ends on the right side of node s (up at 0.30, down at 0.70)`), or one end of one of them can move to another side of its node (`take hx out of the left side of node h instead of its right side`). The check reroutes the links with the change and names it only when the new routes run through no node and along no other wire and stay in the viewBox, and then: for a swap, cross neither each other nor more of the other links than before; for another side, cross no link at all, turn no more often and are at most 40 units longer. Fans, self-transitions, pairs kept `apart` and routes other than `ortho` are left alone.
+
+With `lib/edgesketch.js` on the page (`scripts/shot.sh --check` puts it there), the check adds `EdgeSketch.paint` (below): contrast in the light and the dark theme, a wire through a text that is not its own, and wires that run together. It looks at the figure as it is drawn when the check runs.
 
 In debug mode, the check runs once fonts have loaded. Each problem is outlined in red, logged with `console.warn`, and written to a hidden `<pre id="ed-issues">`; `EdgeDiagram.issues()` returns them all. `scripts/shot.sh --check page.html` reads that list and exits 1 if it is not empty.
 
@@ -284,7 +288,14 @@ Returns a list of problems in the figure's current state, whether it was drawn w
 - text running outside its box. A box is a `.sk-box` or a `[data-box]` element, and its frame is its `.sk-frame`, else its first rect. A text in no marked box takes the smallest painted rect beside it in the same group that holds its centre; rects that are transparent hit areas, and rects directly in an `<svg>`, where background bands live, are not boxes;
 - text on top of text, and an icon on top of text;
 - text partly on a box it does not belong to;
-- a wire that is slanted or curved. A wire is a `path`, `line` or `polyline` with an arrowhead marker, or with a class `wire`, `arrow`, `link` or `connector`, and no fill. A curve that turns one right angle within 40 units is a rounded corner and passes. A wire inside `[data-route="free"]`, or one with that attribute, is left alone. `EdgeSketch.wireShape(el)` returns `'slanted'`, `'curved'` or `null` for one element.
+- a wire that is slanted or curved. A wire is a `path`, `line` or `polyline` with an arrowhead marker, or with a class `wire`, `arrow`, `link` or `connector`, and no fill. A curve that turns one right angle within 40 units is a rounded corner and passes. A wire inside `[data-route="free"]`, or one with that attribute, is left alone. `EdgeSketch.wireShape(el)` returns `'slanted'`, `'curved'` or `null` for one element;
+- crowding: two boxes closer than 8 units, and a box closer than 8 units to the border of the `.sk-zone` it sits in (a box inside a box is left alone);
+- and everything `EdgeSketch.paint(svg)` finds.
+
+`EdgeSketch.paint(svg, name)` returns `{msg, box}` for the problems a reader sees in the figure as it is drawn, whatever drew it; EdgeDiagram, EdgeSequence, EdgeTimeline and EdgeMatrix add it to their own check when `lib/edgesketch.js` is on the page:
+- **contrast**, in the light and the dark theme: it sets `data-theme` on the root to `light`, then `dark`, and puts it back (with transitions off meanwhile). Each text, wire and icon (`use`) is measured against what is painted under it: the fills drawn before it in document order that hold the point, each with its fill opacity and every opacity above it (a soft tone, a translucent plate, `filter: opacity()`), over the backgrounds of the page around the svg. Text needs 4.5:1, or 3:1 when it is 18.66 px and bold (600 and up) or 24 px and up; wires and icons need 3:1. The message names what is behind, the theme and the ratio, rounded down. Colours that `rgb()` does not spell (`color-mix()`, `oklch()`) are read through a canvas pixel. Anything faded below half its opacity (a dimmed step, a focus fade) is taken as faded on purpose and left out;
+- **a wire through a text** that is not its own: any text (a node's title or sub, a link label, a zone label, free text) that a wire's line passes through. A wire drawn under the text with a solid fill between them (a label's plate, a node) does not count, so a label on a plate over its own wire passes; the last 10 units at an arrowhead, and 3 at a plain end, are left out, so an arrowhead may touch its target;
+- **wires that run together**: two wires whose straight runs are parallel, between 0.75 and 6 units apart, over 30 units or more; they read as one. Runs closer than 0.75 are one shared run, as in a fan, and pass.
 
 Hidden elements are skipped, and so is anything inside `[data-check="false"]`. Each problem is outlined in red. With `window.ED_DEBUG` set, every EdgeSketch figure and every `svg[data-check]` is checked once the fonts have loaded, and with `window.ED_DEBUG_ALL` every `svg[role="img"]` that is not an EdgeDiagram figure; the problems go into the same `<pre id="ed-issues">` as EdgeDiagram's. `scripts/shot.sh --check` sets both. `EdgeSketch.checkAll(all)` runs that pass by hand, `EdgeSketch.report(key, list)` adds a list to the `<pre>`, and `EdgeSketch.version` is the version.
 
@@ -321,7 +332,7 @@ The actors stand in equal columns across the viewBox's width, in the order they 
 
 `create` options: `width` (else the viewBox's), `row` (row height, 44), `boxH` (actor height, 56), `boxW` (actor width, at most the column), `margin` (16), `top` (14), `numbers: false` (no numbers), `debug`.
 
-The check finds text running out of an actor or a note, labels on top of each other, a message label wider than the gap between its lifelines, a self message's label across another lifeline, a frame's head under a label, and anything outside the viewBox. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers sequence figures; EdgeSketch's check leaves them alone. `EdgeSequence.version` is the version.
+The check finds text running out of an actor or a note, labels on top of each other, a message label wider than the gap between its lifelines, a self message's label across another lifeline, a frame's head under a label, and anything outside the viewBox, and with `lib/edgesketch.js` on the page adds `EdgeSketch.paint` (contrast, wires through text, wires run together). With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers sequence figures; EdgeSketch's check leaves them alone. `EdgeSequence.version` is the version.
 
 ## EdgeTimeline (`lib/edgetimeline.js`)
 
@@ -358,7 +369,7 @@ The lane titles take a column on the left (`labelW`) and the time axis the rest 
 
 Items with `info` are focusable. Hovering or focusing one dims the rest but its dependencies and their other ends (a phase keeps what it spans, a lane its items) and shows a tooltip with the info, the dates, the progress and what it waits for; `info` can be `{text, facts: [[key, value]]}`. A click, Enter or space pins it; Escape or a click elsewhere releases it. `EdgeTimeline.clearAll()` releases every tooltip; EdgeDeck calls it on every slide change.
 
-The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or crossing a bar, an item outside the time axis, a phase label wider than its phase, and text on text or outside the viewBox. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
+The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or crossing a bar, an item outside the time axis, a phase label wider than its phase, and text on text or outside the viewBox, and with `lib/edgesketch.js` on the page adds `EdgeSketch.paint` (contrast, wires through text, wires run together). With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
 ## EdgeMatrix (`lib/edgematrix.js`)
 
 Matrices and coverage maps: what covers what, in which state. `templates/matrix.html` is a complete example of both modes.
@@ -409,7 +420,7 @@ The library sets the viewBox to fit the content, and a `max-width` on the svg of
 | `keys: false` | The figure is not focusable. Otherwise it is, and the arrow keys move a cursor (PageUp/PageDown by ten rows, Home/End along the row, Escape clears); the cursor scrolls into view |
 | `marks: false`, `margin`, `icons`, `debug` | No marks; the outer margin (8); the sprite; the check on load |
 
-The check finds headers wider than the row header column or longer than the header band, column and row group labels wider than their span or taller than their rows, marks too large for their cell, totals that do not fit, item labels out of their box and items out of their cell, and text or legend entries outside the viewBox. Hidden rows of a step are checked too. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers matrix figures; EdgeSketch's check leaves them alone. `EdgeMatrix.version` is the version.
+The check finds headers wider than the row header column or longer than the header band, column and row group labels wider than their span or taller than their rows, marks too large for their cell, totals that do not fit, item labels out of their box and items out of their cell, and text or legend entries outside the viewBox. Hidden rows of a step are checked too. With `lib/edgesketch.js` on the page it adds `EdgeSketch.paint` (contrast, wires through text, wires run together) for what is shown. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers matrix figures; EdgeSketch's check leaves them alone. `EdgeMatrix.version` is the version.
 
 ## EdgeDeck (`lib/edgedeck.js`)
 

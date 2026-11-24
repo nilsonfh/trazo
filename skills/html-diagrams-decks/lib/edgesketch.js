@@ -28,7 +28,15 @@
  *   - text on top of other text, an icon on top of text;
  *   - text partly on a box it does not belong to;
  *   - a wire that is slanted or curved: a path, line or polyline with an arrowhead or a class
- *     wire/arrow/link/connector, unless it or a parent has data-route="free".
+ *     wire/arrow/link/connector, unless it or a parent has data-route="free";
+ *   - boxes closer than 8 units to each other, or to the border of the .sk-zone they sit in;
+ *   - and EdgeSketch.paint(svg), which EdgeDiagram, EdgeSequence, EdgeTimeline and EdgeMatrix also add to
+ *     their own check when this file is on the page: text under 4.5:1 (3:1 at 18.66 px bold or 24 px),
+ *     wires and icons under 3:1, against what is drawn behind them (fills, their opacity, the page), in
+ *     the light and the dark theme (data-theme on the root is switched and put back); a wire through a
+ *     text that is not its own (a label on a plate over its wire is fine, an arrowhead may touch its
+ *     target); two wires closer than 6 units over 30 or more, which read as one. Anything faded below
+ *     half its opacity is taken as faded on purpose.
  * Hidden elements are skipped, and so is anything inside [data-check="false"]. Each issue is
  * outlined in red and returned as a string. With window.ED_DEBUG set, every figure made with
  * create() and every svg[data-check] is checked once the fonts have loaded, and with
@@ -63,6 +71,7 @@
     '.sk-box.t-gap .sk-frame{fill:var(--_gap-soft);stroke:var(--_gap);stroke-width:1.4}.sk-box.t-gap use{color:var(--_gap)}',
     '.sk-box.t-p3 .sk-frame{fill:var(--_p3-soft);stroke:var(--_p3);stroke-width:1.4;stroke-dasharray:5 3}.sk-box.t-p3 use{color:var(--_p3)}',
     '.sk-box.t-muted .sk-frame{stroke:var(--_muted)}',
+    '.sk-box.t-accent .sk-s,.sk-box.t-add .sk-s,.sk-box.t-gap .sk-s,.sk-box.t-p3 .sk-s,.sk-root .sk-zone.t-accent text{fill:var(--_ink2)}',   // muted is too faint on a soft fill
     '.sk-box.t-ink .sk-frame{fill:var(--_ink);stroke:var(--_ink)}.sk-box.t-ink text,.sk-box.t-ink use{fill:var(--_surface);color:var(--_surface)}',
     '.sk-box.dashed .sk-frame{stroke-dasharray:5 3}',
     '.sk-box[tabindex]{cursor:help;outline:none}.sk-box[tabindex]:focus-visible .sk-frame{stroke-width:3}',
@@ -470,15 +479,28 @@
 
     // wires: at right angles, with no curve but a rounded corner
     [].forEach.call(svg.querySelectorAll('path, line, polyline'), function (w) {
-      if (w.closest('defs, marker, symbol, .sk-debug, .ed-root, [data-route="free"]') || !visible(w, svg)) return;
-      var cs = getComputedStyle(w), cls = w.getAttribute('class') || '';
-      if (!clear(cs.fill) && w.tagName !== 'line') return;   // a filled shape (an arrowhead), not a wire
-      var marked = (cs.markerEnd && cs.markerEnd !== 'none') || (cs.markerStart && cs.markerStart !== 'none') || w.hasAttribute('marker-end') || w.hasAttribute('marker-start');
-      if (!marked && !/(^|[\s_-])(wire|arrow|link|connector)s?($|[\s_-])/i.test(cls)) return;
+      if (w.closest('[data-route="free"]') || !isWire(w, svg)) return;
       var bad = wireShape(w); if (!bad) return;
-      var what = w.id ? '#' + w.id : w.tagName + (cls ? '.' + cls.trim().split(/\s+/)[0] : '');
-      add('wire ' + what + ' is ' + bad + ': draw it at right angles (s.arrow, s.connect, s.fan) or mark it data-route="free"', boxOf(w));
+      add(wireName(w) + ' is ' + bad + ': draw it at right angles (s.arrow, s.connect, s.fan) or mark it data-route="free"', boxOf(w));
     });
+
+    // boxes crowded: closer than 8 units to another box or to the border of the zone they sit in
+    var zoneRects = [].filter.call(svg.querySelectorAll('.sk-zone > rect'), function (z) { return visible(z, svg); })
+      .map(function (z) { return {b: boxOf(z)}; }).filter(function (z) { return z.b; });
+    function boxName(F) { var t = F.g.querySelector('text'); return t && t.textContent.trim() ? quote(t) : 'at ' + Math.round(F.b.x) + ',' + Math.round(F.b.y); }
+    frames.forEach(function (A, i) {
+      frames.slice(i + 1).forEach(function (B) {
+        var g = gapOf(A.b, B.b);
+        if (g != null && g < CROWD) add('boxes ' + boxName(A) + ' and ' + boxName(B) + ' are ' + round1(g) + ' units apart: keep ' + CROWD + ' or more between boxes', B.b);
+      });
+      zoneRects.forEach(function (Z) {
+        if (!contains(Z.b, A.b)) return;
+        var m = Math.min(A.b.x - Z.b.x, Z.b.x + Z.b.w - A.b.x - A.b.w, A.b.y - Z.b.y, Z.b.y + Z.b.h - A.b.y - A.b.h);
+        if (m < CROWD) add('box ' + boxName(A) + ' is ' + round1(m) + ' units from the border of its zone: keep ' + CROWD + ' or more', A.b);
+      });
+    });
+
+    paintIssues(svg).forEach(function (i) { add(i.msg, i.box); });
 
     var old = svg.querySelector('.sk-debug'); if (old) old.remove();
     if (out.length) {
@@ -489,9 +511,260 @@
     return out.map(function (i) { return i.msg; });
   }
 
+  /* a wire: a path, line or polyline with an arrowhead or a class wire/arrow/link/connector, not filled */
+  function isWire(w, svg) {
+    if (!/^(path|line|polyline)$/.test(w.tagName) || w.closest('defs, marker, symbol, [class*="-debug"]') || !visible(w, svg)) return false;
+    var cs = getComputedStyle(w), cls = w.getAttribute('class') || '';
+    if (!clear(cs.fill) && w.tagName !== 'line') return false;   // a filled shape (an arrowhead), not a wire
+    var marked = (cs.markerEnd && cs.markerEnd !== 'none') || (cs.markerStart && cs.markerStart !== 'none') || w.hasAttribute('marker-end') || w.hasAttribute('marker-start');
+    return !!marked || /(^|[\s_-])(wire|arrow|link|connector)s?($|[\s_-])/i.test(cls);
+  }
+  // what a reader would call an element: a library's item by its id, else its id or tag and class
+  function wireName(w) {
+    var g = w.closest('[data-id]'), id = g && g.getAttribute('data-id');
+    if (id && w.closest('.ed-link')) return 'link ' + id;
+    if (id && w.closest('.sq-msg')) return 'message ' + id;
+    if (id && w.closest('.tl-dep')) return 'dependency ' + id;
+    if (w.id) return 'wire #' + w.id;
+    try {   // where it starts and ends, in the figure's units
+      var M = w.ownerSVGElement.getScreenCTM().inverse().multiply(w.getScreenCTM()), L = w.getTotalLength();
+      var a = w.getPointAtLength(0).matrixTransform(M), b = w.getPointAtLength(L).matrixTransform(M);
+      return 'wire from ' + Math.round(a.x) + ',' + Math.round(a.y) + ' to ' + Math.round(b.x) + ',' + Math.round(b.y);
+    } catch (x) { return 'wire ' + w.tagName; }
+  }
+  function thingName(e) {
+    if (!e) return 'the page';
+    var g = e.closest('[data-id]'), id = g && g.getAttribute('data-id');
+    if (id) {
+      var k = e.closest('.ed-zone, .ed-node, .ed-lgroup, .sq-actor, .sq-note, .sq-frame, .sq-msg, .tl-bar, .tl-phase, .tl-band, .tl-lane');
+      var c = k ? k.getAttribute('class') : '';
+      if (/ed-lgroup/.test(c)) return 'the plate of the label of ' + id.replace(/\.label$/, '');
+      if (/sq-msg/.test(c)) return 'the plate of the label of ' + id;
+      return (/ed-zone|tl-band/.test(c) ? 'zone ' : /ed-node/.test(c) ? 'node ' : /sq-actor/.test(c) ? 'actor ' : /sq-note/.test(c) ? 'note ' :
+        /sq-frame/.test(c) ? 'frame ' : /tl-bar/.test(c) ? 'bar ' : /tl-phase/.test(c) ? 'phase ' : /tl-lane/.test(c) ? 'lane ' : '') + id;
+    }
+    if (e.id) return '#' + e.id;
+    var box = e.closest('.sk-box, [data-box]'), t = box && box.querySelector('text');
+    if (t && t.textContent.trim()) return 'box "' + t.textContent.trim().slice(0, 30) + '"';
+    if (e.closest('.sk-zone')) return 'a zone';
+    var named = e.closest('[class]'), cls = named && named.getAttribute('class').trim().split(/\s+/)[0];
+    return e.tagName + (cls ? ' in .' + cls : '');
+  }
+  var CROWD = 8, APART = 6, ALONG = 30;
+  function round1(v) { return Math.round(v * 10) / 10; }
+  // the gap between two boxes that neither overlap nor nest, else null
+  function gapOf(a, b) {
+    if (contains(a, b) || contains(b, a)) return null;
+    var gx = Math.max(b.x - a.x - a.w, a.x - b.x - b.w), gy = Math.max(b.y - a.y - a.h, a.y - b.y - b.h);
+    if (gx < -0.5 && gy < -0.5) return null;   // overlapping: reported elsewhere
+    return Math.max(0, Math.max(gx, gy));
+  }
+
+  /* ---------- paint: contrast in both themes, wires over text, wires run together ----------
+     paintIssues(svg) looks at the figure as it is drawn: the colour of each text, wire and icon, and of
+     what is painted under it (the fills before it in document order that hold the point, over the
+     page's background), with every opacity on the way; switching data-theme on the root to light and
+     to dark and back. Anything faded below half its opacity is taken as faded on purpose. */
+  var RGB = {}, ctx2d = null;
+  function rgba(c) {   // any CSS colour as [r, g, b, a]; a colour rgb() does not spell (color-mix, oklch) through a canvas pixel
+    if (RGB[c]) return RGB[c];
+    var m = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/.exec(c), v;
+    if (m) v = [+m[1], +m[2], +m[3], m[4] == null ? 1 : m[5] ? m[4] / 100 : +m[4]];
+    else {
+      if (!ctx2d) { var cv = document.createElement('canvas'); cv.width = cv.height = 1; ctx2d = cv.getContext('2d', {willReadFrequently: true}); }
+      ctx2d.clearRect(0, 0, 1, 1); ctx2d.fillStyle = 'rgba(0,0,0,0)'; ctx2d.fillStyle = c; ctx2d.fillRect(0, 0, 1, 1);
+      var d = ctx2d.getImageData(0, 0, 1, 1).data; v = [d[0], d[1], d[2], d[3] / 255];
+    }
+    return (RGB[c] = v);
+  }
+  function lum(c) {
+    function f(v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+  }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function over(c, a, bg) { return [c[0] * a + bg[0] * (1 - a), c[1] * a + bg[1] * (1 - a), c[2] * a + bg[2] * (1 - a)]; }
+  function opacityOf(e) {   // the element's opacity times every ancestor's, filter: opacity() included
+    var a = 1;
+    for (var n = e; n && n.nodeType === 1; n = n.parentNode) {
+      var cs = getComputedStyle(n), m = /opacity\(\s*([\d.]+)(%?)\s*\)/.exec(cs.filter || '');
+      a *= +cs.opacity; if (m) a *= m[2] ? m[1] / 100 : +m[1];
+    }
+    return a;
+  }
+  function pageColour(svg) {   // the backgrounds of the svg and its ancestors, over the canvas
+    var chain = [], dark = /dark/.test(getComputedStyle(document.documentElement).colorScheme || '');
+    for (var n = svg; n && n.nodeType === 1; n = n.parentNode) chain.unshift(n);
+    var bg = dark ? [18, 18, 18] : [255, 255, 255];
+    chain.forEach(function (n) { var c = rgba(getComputedStyle(n).backgroundColor); if (c[3]) bg = over(c, c[3], bg); });
+    return bg;
+  }
+  function paintIssues(svg, o) {
+    o = o || {};
+    var m = svg.getScreenCTM(); if (!m) return [];
+    var inv = m.inverse(), out = [], seen = {};
+    function add(msg, b) { if (seen[msg]) return; seen[msg] = 1; out.push({msg: msg, box: b}); }
+    function boxOf(e) {
+      var r = e.getBoundingClientRect(); if (!r.width && !r.height) return null;
+      var p = svg.createSVGPoint(), q = svg.createSVGPoint(); p.x = r.left; p.y = r.top; q.x = r.right; q.y = r.bottom;
+      p = p.matrixTransform(inv); q = q.matrixTransform(inv);
+      return {x: Math.min(p.x, q.x), y: Math.min(p.y, q.y), w: Math.abs(q.x - p.x), h: Math.abs(q.y - p.y)};
+    }
+    function quote(t) { var s = t.textContent.trim(); return '"' + (s.length > 40 ? s.slice(0, 39) + '…' : s) + '"'; }
+    function within(p, b) { return p[0] > b.x && p[0] < b.x + b.w && p[1] > b.y && p[1] < b.y + b.h; }
+    var all = [].slice.call(svg.querySelectorAll('*')), ord = new Map();
+    all.forEach(function (e, i) { ord.set(e, i); });
+    function left(e) { return e.closest('defs, marker, symbol, clipPath, mask, pattern, title, [class*="-debug"], [data-check="false"]'); }
+    var texts = all.filter(function (t) { return t.tagName === 'text' && t.textContent.trim() && !left(t) && visible(t, svg); }).map(function (t) {
+      var b = boxOf(t); if (!b || !b.w) return null;
+      var rot = /rotate\((-?90|270)/.test(t.getAttribute('transform') || ''), k = rot ? {x: b.x + b.w * 0.2, y: b.y, w: b.w * 0.6, h: b.h} : {x: b.x, y: b.y + b.h * 0.2, w: b.w, h: b.h * 0.6};
+      return {e: t, i: ord.get(t), b: b, k: k};
+    }).filter(Boolean);
+    var wires = all.filter(function (w) { return !left(w) && isWire(w, svg); }).map(function (w) {
+      var len = 0; try { len = w.getTotalLength(); } catch (x) {}
+      var b = boxOf(w); if (!b || !len) return null;
+      var M = inv.multiply(w.getScreenCTM()), pts = [], cs = getComputedStyle(w);
+      var e0 = cs.markerStart && cs.markerStart !== 'none' ? 10 : 3, e1 = cs.markerEnd && cs.markerEnd !== 'none' ? 10 : 3;   // an arrowhead touches its target
+      for (var s = e0; s <= len - e1; s += 3) { var p = w.getPointAtLength(s).matrixTransform(M); pts.push([p.x, p.y]); }
+      var segs = shape(w).segs.map(function (g) {
+        var a = svg.createSVGPoint(), c = svg.createSVGPoint(); a.x = g[0][0]; a.y = g[0][1]; c.x = g[1][0]; c.y = g[1][1];
+        a = a.matrixTransform(M); c = c.matrixTransform(M); return [[a.x, a.y], [c.x, c.y]];
+      });
+      return {e: w, i: ord.get(w), b: b, pts: pts, segs: segs, name: wireName(w)};
+    }).filter(Boolean);
+    var icons = all.filter(function (u) { return u.tagName === 'use' && !left(u) && visible(u, svg); }).map(function (u) {
+      var b = boxOf(u); return b && {e: u, i: ord.get(u), b: b};
+    }).filter(Boolean);
+    var shapes = all.filter(function (e) { return /^(rect|circle|ellipse|polygon|path)$/.test(e.tagName) && !left(e) && visible(e, svg); }).map(function (e) {
+      var b = boxOf(e); return b && {e: e, i: ord.get(e), b: b, toLocal: e.getScreenCTM().inverse().multiply(m)};
+    }).filter(Boolean);
+    var live = [], page = null;
+    function fills() {   // the shapes that paint a fill, with its colour and opacity, in this theme
+      live = shapes.map(function (P) {
+        var cs = getComputedStyle(P.e); if (clear(cs.fill) || /url\(/.test(cs.fill)) return null;
+        var c = rgba(cs.fill), a = c[3] * (+cs.fillOpacity) * opacityOf(P.e);
+        return a > 0.02 ? {e: P.e, i: P.i, b: P.b, toLocal: P.toLocal, c: c, a: a} : null;
+      }).filter(Boolean);
+      page = pageColour(svg);
+    }
+    function covers(P, p) {
+      if (!within(p, P.b)) return false;
+      if (P.e.tagName === 'rect' && !(+P.e.getAttribute('rx'))) return true;
+      var q = svg.createSVGPoint(); q.x = p[0]; q.y = p[1]; q = q.matrixTransform(P.toLocal);
+      try { return P.e.isPointInFill(q); } catch (x) { return true; }
+    }
+    function behind(p, k) {   // the colour under p of what is drawn before order k, and the topmost such shape
+      var c = page, top = null;
+      for (var i = 0; i < live.length && live[i].i < k; i++) if (covers(live[i], p)) { c = over(live[i].c, live[i].a, c); if (live[i].a > 0.3) top = live[i].e; }
+      return {c: c, top: top};
+    }
+    function hidden(p, lo, hi) {   // under a solid fill drawn between orders lo and hi
+      for (var i = 0; i < live.length; i++) { var P = live[i]; if (P.i > lo && P.i < hi && P.a >= 0.85 && covers(P, p)) return true; }
+      return false;
+    }
+
+    // contrast, in each theme
+    var root = document.documentElement, was = root.getAttribute('data-theme'), themes = o.themes || ['light', 'dark'], low = new Map();
+    var still = document.createElement('style'); still.textContent = '*,*::before,*::after{transition:none!important}';
+    (document.head || root).appendChild(still);
+    function note(e, r, need, th, bg, what, b) {
+      var w = low.get(e);
+      if (!w) low.set(e, w = {r: r, need: need, themes: [], bg: bg, what: what, b: b});
+      if (r < w.r) { w.r = r; w.bg = bg; }
+      if (w.themes.indexOf(th) < 0) w.themes.push(th);
+    }
+    try {
+      themes.forEach(function (th) {
+        root.setAttribute('data-theme', th);
+        fills();
+        texts.forEach(function (T) {
+          var cs = getComputedStyle(T.e); if (clear(cs.fill) || /url\(/.test(cs.fill)) return;
+          var op = opacityOf(T.e); if (op < 0.5) return;
+          var c = rgba(cs.fill), a = c[3] * (+cs.fillOpacity) * op, size = parseFloat(cs.fontSize), bold = (parseInt(cs.fontWeight, 10) || 400) >= 600;
+          var need = size >= 24 || (bold && size >= 18.66) ? 3 : 4.5, k = T.k, worst = null;
+          [[k.x + k.w / 2, k.y + k.h / 2], [k.x + k.w * 0.15, k.y + k.h / 2], [k.x + k.w * 0.85, k.y + k.h / 2]].forEach(function (p) {
+            var u = behind(p, T.i), r = ratio(over(c, a, u.c), u.c);
+            if (!worst || r < worst.r) worst = {r: r, top: u.top};
+          });
+          if (worst.r < need) note(T.e, worst.r, need, th, worst.top, 'text ' + quote(T.e), T.b);
+        });
+        wires.forEach(function (W) {
+          var cs = getComputedStyle(W.e); if (clear(cs.stroke) || /url\(/.test(cs.stroke)) return;
+          var op = opacityOf(W.e); if (op < 0.5) return;
+          var c = rgba(cs.stroke), a = c[3] * (+cs.strokeOpacity) * op, worst = null;
+          for (var q = 0; q < W.pts.length; q += 4) {
+            var p = W.pts[q]; if (hidden(p, W.i, Infinity)) continue;
+            var u = behind(p, W.i), r = ratio(over(c, a, u.c), u.c);
+            if (!worst || r < worst.r) worst = {r: r, top: u.top};
+          }
+          if (worst && worst.r < 3) note(W.e, worst.r, 3, th, worst.top, W.name, W.b);
+        });
+        icons.forEach(function (I) {
+          var cs = getComputedStyle(I.e), op = opacityOf(I.e); if (op < 0.5) return;
+          var c = rgba(cs.color), p = [I.b.x + I.b.w / 2, I.b.y + I.b.h / 2], u = behind(p, I.i), r = ratio(over(c, c[3] * op, u.c), u.c);
+          if (r < 3) note(I.e, r, 3, th, u.top, 'icon ' + (I.e.getAttribute('href') || I.e.getAttribute('xlink:href') || ''), I.b);
+        });
+      });
+    } finally {
+      if (was == null) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', was);
+      getComputedStyle(root).color; still.remove();
+    }
+    fills();
+    low.forEach(function (w) {
+      var th = w.themes.length > 1 ? 'the light and the dark theme' : 'the ' + w.themes[0] + ' theme';
+      add(w.what + ' has contrast ' + (Math.floor(w.r * 10) / 10).toFixed(1) + ':1 on ' + thingName(w.bg) + ' in ' + th + ' (needs ' + w.need + ':1): ' +
+        (/^text/.test(w.what) ? 'use a stronger ink, or a lighter fill under it' : 'use a stronger tone, or a lighter fill under it'), w.b);
+    });
+
+    // a wire through a text that is not its own: drawn above the text, or under it with no solid fill between
+    wires.forEach(function (W) {
+      texts.forEach(function (T) {
+        if (opacityOf(T.e) < 0.5 || W.b.x > T.k.x + T.k.w || W.b.x + W.b.w < T.k.x || W.b.y > T.k.y + T.k.h || W.b.y + W.b.h < T.k.y) return;
+        var k = {x: T.k.x + 1, y: T.k.y + 1, w: T.k.w - 2, h: T.k.h - 2};
+        for (var q = 0; q < W.pts.length; q++) {
+          var p = W.pts[q]; if (!within(p, k) || (W.i < T.i && hidden(p, W.i, T.i)) || hidden(p, Math.max(W.i, T.i), Infinity)) continue;
+          add(W.name + ' crosses text ' + quote(T.e) + ': move the text off the wire, or route the wire around it', T.b); break;
+        }
+      });
+    });
+
+    // two wires that run side by side closer than APART units over ALONG or more read as one
+    wires.forEach(function (A, i) {
+      wires.slice(i + 1).forEach(function (B) {
+        if (A.b.x > B.b.x + B.b.w + APART || B.b.x > A.b.x + A.b.w + APART || A.b.y > B.b.y + B.b.h + APART || B.b.y > A.b.y + A.b.h + APART) return;
+        for (var s = 0; s < A.segs.length; s++) for (var t = 0; t < B.segs.length; t++) {
+          var r = alongside(A.segs[s], B.segs[t]);
+          if (r) { add(A.name + ' and ' + B.name + ' run ' + round1(r.gap) + ' units apart for ' + Math.round(r.len) + ' units and read as one wire: keep them ' + APART + ' or more apart', r.box); return; }
+        }
+      });
+    });
+    return out;
+  }
+  // two axis-aligned runs in parallel, between 0.75 and APART apart (closer is one shared run, as in a fan), over ALONG or more
+  function alongside(a, b) {
+    var ha = Math.abs(a[0][1] - a[1][1]) < 0.5, hb = Math.abs(b[0][1] - b[1][1]) < 0.5;
+    var va = Math.abs(a[0][0] - a[1][0]) < 0.5, vb = Math.abs(b[0][0] - b[1][0]) < 0.5;
+    var ax = ha ? 0 : va ? 1 : -1; if (ax < 0 || !(ax === 0 ? hb : vb)) return null;
+    var c = 1 - ax, gap = Math.abs(a[0][c] - b[0][c]);
+    if (gap < 0.75 || gap >= APART) return null;
+    var lo = Math.max(Math.min(a[0][ax], a[1][ax]), Math.min(b[0][ax], b[1][ax])), hi = Math.min(Math.max(a[0][ax], a[1][ax]), Math.max(b[0][ax], b[1][ax]));
+    if (hi - lo < ALONG) return null;
+    var y0 = Math.min(a[0][c], b[0][c]);
+    return {gap: gap, len: hi - lo, box: ax === 0 ? {x: lo, y: y0, w: hi - lo, h: gap} : {x: y0, y: lo, w: gap, h: hi - lo}};
+  }
+
   /* 'slanted' or 'curved' for a wire that is either, else null. A curve that turns a right angle within
      40 units is a rounded corner. */
   function wireShape(w) {
+    var sh = shape(w);
+    if (sh.curved) return 'curved';
+    for (var j = 0; j < sh.segs.length; j++) {
+      var dx = Math.abs(sh.segs[j][1][0] - sh.segs[j][0][0]), dy = Math.abs(sh.segs[j][1][1] - sh.segs[j][0][1]);
+      if (dx > 1.5 && dy > 1.5) return 'slanted';
+    }
+    return null;
+  }
+  // a wire's straight runs, in its own coordinates, and whether it curves anywhere but a rounded corner
+  function shape(w) {
     var segs = [], curved = false, num = function (a) { return parseFloat(w.getAttribute(a)) || 0; };
     if (w.tagName === 'line') segs.push([[num('x1'), num('y1')], [num('x2'), num('y2')]]);
     else if (w.tagName === 'polyline') {
@@ -513,8 +786,8 @@
         if (C === 'Z') { segs.push([p, start]); p = start; continue; }
         if (C === 'M') { p = start = [o[0] + n(), o[1] + n()]; cmd = rel ? 'l' : 'L'; continue; }
         if (C === 'L' || C === 'T') { q = [o[0] + n(), o[1] + n()]; if (C === 'T') curved = true; else segs.push([p, q]); }
-        else if (C === 'H') q = [(rel ? p[0] : 0) + n(), p[1]];
-        else if (C === 'V') q = [p[0], (rel ? p[1] : 0) + n()];
+        else if (C === 'H') { q = [(rel ? p[0] : 0) + n(), p[1]]; segs.push([p, q]); }
+        else if (C === 'V') { q = [p[0], (rel ? p[1] : 0) + n()]; segs.push([p, q]); }
         else if (C === 'C') { var c1 = [o[0] + n(), o[1] + n()], c2 = [o[0] + n(), o[1] + n()]; q = [o[0] + n(), o[1] + n()]; if (!corner(p, c1, c2, q)) curved = true; }
         else if (C === 'Q') { var c = [o[0] + n(), o[1] + n()]; q = [o[0] + n(), o[1] + n()]; if (!corner(p, c, c, q)) curved = true; }
         else if (C === 'S') { n(); n(); q = [o[0] + n(), o[1] + n()]; curved = true; }
@@ -524,12 +797,7 @@
         p = q;
       }
     }
-    if (curved) return 'curved';
-    for (var j = 0; j < segs.length; j++) {
-      var dx = Math.abs(segs[j][1][0] - segs[j][0][0]), dy = Math.abs(segs[j][1][1] - segs[j][0][1]);
-      if (dx > 1.5 && dy > 1.5) return 'slanted';
-    }
-    return null;
+    return {segs: segs, curved: curved};
   }
 
   // the issues of every checked figure, in one hidden <pre> that scripts/shot.sh --check reads
@@ -557,5 +825,12 @@
     });
   }
 
-  global.EdgeSketch = {create: create, check: check, wireShape: wireShape, checkAll: checkAll, report: report, version: VERSION};
+    /* EdgeSketch.paint(svg): the contrast, wires-over-text and wires-run-together issues of any figure, as
+     {msg, box}; EdgeDiagram, EdgeSequence, EdgeTimeline and EdgeMatrix add them to their own check when this file is on the page */
+  function paint(svg, name) {
+    name = name || (svg.id ? '#' + svg.id : 'svg');
+    return paintIssues(svg).map(function (i) { return {msg: name + ': ' + i.msg, box: i.box}; });
+  }
+
+  global.EdgeSketch = {create: create, check: check, paint: paint, wireShape: wireShape, checkAll: checkAll, report: report, version: VERSION};
 })(window);

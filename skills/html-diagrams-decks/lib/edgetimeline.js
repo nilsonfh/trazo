@@ -26,6 +26,8 @@
  * bar or the chart, bars overlapping in a lane, dependencies pointing backward in time or crossing a
  * bar, items outside the axis, text on text. The issues go into the shared <pre id="ed-issues"> that
  * scripts/shot.sh --check reads.
+ * With lib/edgesketch.js on the page (shot.sh --check puts it there), check() adds EdgeSketch.paint:
+ * contrast in the light and the dark theme, wires through text, wires run together.
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-accent, ...), as in EdgeDiagram.
  */
@@ -683,6 +685,8 @@
         if (vb && !contains(vb, a.b)) issue('text "' + a.s + '" is outside the viewBox', a.b);
         texts.slice(i + 1).forEach(function (c) { if (c.b && inter(a.b, c.b, 1.5)) issue('texts "' + a.s + '" and "' + c.s + '" overlap', a.b); });
       });
+      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page
+      if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
       if (debug) {
         var g = api.layers.debug; while (g.firstChild) g.removeChild(g.firstChild);
         g.setAttribute('class', 'tl-debug'); g.setAttribute('aria-hidden', 'true');

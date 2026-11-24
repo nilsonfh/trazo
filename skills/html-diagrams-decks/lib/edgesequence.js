@@ -25,6 +25,8 @@
  * {debug: true} or window.ED_DEBUG checks the layout once fonts are loaded: labels on each other,
  * labels wider than the gap they span, text outside its box, anything outside the viewBox. The
  * issues go into the shared <pre id="ed-issues"> that scripts/shot.sh --check reads.
+ * With lib/edgesketch.js on the page (shot.sh --check puts it there), check() adds EdgeSketch.paint:
+ * contrast in the light and the dark theme, wires through text, wires run together.
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-accent, ...), as in EdgeDiagram.
  */
@@ -423,6 +425,8 @@
           labelled.forEach(function (e) { if (inter(b, e.lbox, 1)) add('the head of frame ' + f.id + ' is under the label of ' + e.id, b); });
         });
       });
+      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page
+      if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
       if (debug) {
         var old = svg.querySelector('.sq-debug'); if (old) old.remove();
         var g = el('g', {'class': 'sq-debug', 'aria-hidden': 'true'}, svg);

@@ -27,6 +27,8 @@
  * their band, group labels wider than their span, marks too large for their cell, item labels out
  * of their box, anything outside the viewBox. The issues go into the shared <pre id="ed-issues">
  * that scripts/shot.sh --check reads.
+ * With lib/edgesketch.js on the page (shot.sh --check puts it there), check() adds EdgeSketch.paint:
+ * contrast in the light and the dark theme, wires through text, wires run together.
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-add, ...), as in EdgeDiagram; the tone bad
  * reads --ed-bad, else the page's --bad.
@@ -808,6 +810,8 @@
         if (x.t) { var tb = bbox(x.t); if (tb && (tb.x + tb.w > b.x + b.w - 2 || tb.x < b.x)) add('label of item ' + x.it.id + ' runs out of its box', tb); }
       });
       view.lg.forEach(function (e) { var b = {x: e.x, y: e.y, w: e.w, h: 18}; if (!inside(b)) add('legend entry "' + e.s.label + '" is outside the viewBox', b); });
+      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page
+      if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
       if (debug) {
         var old = svg.querySelector('.em-debug'); if (old) old.remove();
         var g = el('g', {'class': 'em-debug', 'aria-hidden': 'true'}, svg);

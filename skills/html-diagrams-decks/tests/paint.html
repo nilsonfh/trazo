@@ -1,0 +1,109 @@
+<!-- The paint checks of lib/edgesketch.js (EdgeSketch.paint, and EdgeDiagram's check with it on the page): contrast in the light and the dark theme, a wire through a text that is not its own, two wires that run together. Run with scripts/test.sh. -->
+<style>
+:root{--ed-ink:#15201d;--ed-ink2:#3f4f4a;--ed-muted:#5f6e68;--ed-surface:#fff;--ed-layer:#e9eeec;--ed-accent:#2456a4;--ed-accent-soft:#e3ebf6}
+:root[data-theme="dark"]{--ed-ink:#e6ece9;--ed-ink2:#bac6c1;--ed-muted:#8c9a95;--ed-surface:#17211d;--ed-layer:#1b2421;--ed-accent:#7ea8ea;--ed-accent-soft:#1b2940}
+:root[data-theme="dark"] body{background:#070b0a}
+body{background:#fff}
+.sk-root text.faint{fill:#c9d1ce}.sk-root text.dusk{fill:#3f4f4a}.ed-root .ed-text.faint{fill:#cfd6d3}#qbad .sq-msg[data-id="m2"] .sq-label,#tbad .tl-bar[data-id="b2"] text{fill:#d5dbd8}.night,.sk-root text.night{fill:var(--ed-ink)}
+.pale{stroke:#d6dcda!important}
+</style>
+<svg id="cok" viewBox="0 0 600 200" role="img"></svg>
+<svg id="cbad" viewBox="0 0 600 200" role="img"></svg>
+<svg id="dok" viewBox="0 0 600 240"></svg>
+<svg id="dbad" viewBox="0 0 600 300"></svg>
+<svg id="dslide" viewBox="0 0 600 200"></svg>
+<svg id="qok" viewBox="0 0 500 200" role="img" aria-label="clean"></svg>
+<svg id="qbad" viewBox="0 0 500 200" role="img" aria-label="a faint label"></svg>
+<svg id="tbad" viewBox="0 0 600 120" role="img" aria-label="a faint bar"></svg>
+<pre id="out"></pre>
+<script>window.onerror = function (m, u, l) { document.getElementById("out").textContent = "error: " + m + " line " + l; };</script>
+<script src="../lib/edgesketch.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script src="../lib/edgetimeline.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function none(list, what) { if (list.length) bad.push(what + ': ' + list.join(' / ')); }
+var NS = 'http://www.w3.org/2000/svg';
+function add(svg, tag, a, text) { var e = document.createElementNS(NS, tag); for (var k in a) e.setAttribute(k, a[k]); if (text) e.textContent = text; svg.appendChild(e); return e; }
+
+// a clean hand-drawn figure: a box with a label, a wire beside the label, a label on a plate over a wire
+var s = EdgeSketch.create(document.getElementById('cok'));
+s.zone(10, 10, 580, 180, {label: 'ZONE'});
+s.box(40, 60, 160, 56, {title: 'Gateway', sub: 'reads every 2 s', tone: 'accent'});
+s.box(400, 60, 160, 56, {title: 'Broker', sub: 'one topic'});
+s.connect([40, 60, 160, 56], 'right', [400, 60, 160, 56], 'left', {label: 'publish'});
+s.arrow(120, 150, 480, 150, {label: 'replay', tone: 'neutral'});
+s.arrow(120, 170, 480, 170, {tone: 'neutral'});
+none(EdgeSketch.check(document.getElementById('cok')), 'clean sketch');
+
+// a broken one: faint text, a pale wire, a wire across free text, two wires 3 units apart
+var c = document.getElementById('cbad'), k = EdgeSketch.create(c);
+k.box(40, 40, 160, 56, {title: 'Edge node'});
+k.text(300, 40, 'faint words', {cls: 'faint'});
+k.el('rect', {x: 260, y: 120, width: 200, height: 40, 'class': 'night'}, k.layers.zones);
+k.text(270, 145, 'on a dark band', {cls: 'night'});
+k.text(300, 80, 'crossed label');
+k.text(420, 20, 'only at night', {cls: 'dusk'});
+k.arrow(340, 60, 340, 110, {tone: 'neutral'});
+var pale = k.arrow(220, 175, 560, 175, {tone: 'neutral'}); pale.classList.add('pale');
+k.arrow(20, 186, 200, 186, {tone: 'neutral'}); k.arrow(20, 190, 200, 190, {tone: 'neutral'});
+var issues = EdgeSketch.check(c);
+expect(issues, ['text "faint words" has contrast', 'needs 4.5:1', 'text "on a dark band" has contrast', 'in the light and the dark theme', 'text "only at night" has contrast 2.2:1 on the page in the dark theme',
+  'has contrast', 'needs 3:1', 'crosses text "crossed label"', 'run 4 units apart for 180 units'], 'broken sketch');
+if (document.documentElement.hasAttribute('data-theme')) bad.push('data-theme was not restored');
+if (!issues.some(function (m) { return /wire from 220,175 to 560,175 has contrast .*on the page/.test(m); })) bad.push('pale wire not reported on the page: ' + JSON.stringify(issues));
+
+// EdgeDiagram with EdgeSketch on the page: a clean figure, labels on plates over their own wires
+var d = EdgeDiagram.create(document.getElementById('dok'));
+d.zone('z', {x: 10, y: 10, w: 580, h: 220, label: 'SITE'})
+ .node('a', {x: 40, y: 60, w: 140, h: 60, title: 'Gateway', sub: 'every 2 s', tone: 'accent'})
+ .node('b', {x: 420, y: 60, w: 140, h: 60, title: 'Broker', sub: 'one topic'})
+ .link('ab', {from: ['a', 'right'], to: ['b', 'left'], label: 'MQTT', arrow: 'end'})
+ .link('ba', {from: ['b', 'bottom'], to: ['a', 'bottom'], label: 'replay', tone: 'muted', arrow: 'end'})
+ .text('t', {x: 300, y: 210, text: 'nothing crosses this', anchor: 'middle'});
+none(d.check(), 'clean diagram');
+
+// and a broken one
+var e = EdgeDiagram.create(document.getElementById('dbad'));
+e.node('a', {x: 20, y: 20, w: 120, h: 50, title: 'A'}).node('b', {x: 460, y: 20, w: 120, h: 50, title: 'B'})
+ .link('ab', {from: ['a', 'right'], to: ['b', 'left']})
+ .text('t', {x: 300, y: 50, text: 'crossed text', anchor: 'middle'})
+ .node('r1', {x: 20, y: 100, w: 120, h: 40, title: 'R1'}).node('r2', {x: 460, y: 100, w: 120, h: 40, title: 'R2'})
+ .link('k1', {from: ['r1', 'right', 0.4], to: ['r2', 'left', 0.4]}).link('k2', {from: ['r1', 'right', 0.5], to: ['r2', 'left', 0.5]})
+ .node('p', {x: 270, y: 150, w: 60, h: 30, title: 'P'}).node('q', {x: 270, y: 255, w: 60, h: 30, title: 'Q'})
+ .link('pq', {from: ['p', 'bottom'], to: ['q', 'top']})
+ .node('c', {x: 20, y: 190, w: 120, h: 50, title: 'C'}).node('d', {x: 460, y: 190, w: 120, h: 50, title: 'D'})
+ .link('cd', {from: ['c', 'right'], to: ['d', 'left'], label: 'cd label', labelAt: 0.5, labelFixed: true})
+ .text('f', {x: 20, y: 290, text: 'faint note', cls: 'faint'});
+expect(e.check(), ['link ab crosses text "crossed text"', 'link k1 and link k2 run 4 units apart', 'label of link cd lies on link pq',
+  'text "faint note" has contrast'], 'broken diagram');
+// a label left to place itself slides off the other wire
+var g = EdgeDiagram.create(document.getElementById('dslide'));
+g.node('p', {x: 270, y: 10, w: 60, h: 30, title: 'P'}).node('q', {x: 270, y: 150, w: 60, h: 30, title: 'Q'})
+ .link('pq', {from: ['p', 'bottom'], to: ['q', 'top']})
+ .node('c', {x: 20, y: 70, w: 120, h: 50, title: 'C'}).node('d', {x: 460, y: 70, w: 120, h: 50, title: 'D'})
+ .link('cd', {from: ['c', 'right'], to: ['d', 'left'], label: 'cd label'});
+none(g.check(), 'a label that slid off a wire');
+
+// EdgeSequence and EdgeTimeline add the paint checks to their own
+['qok', 'qbad'].forEach(function (id) {
+  var q = EdgeSequence.create(document.getElementById(id));
+  q.actor('a', {title: 'Client'}).actor('b', {title: 'Server'});
+  q.msg('m1', {from: 'a', to: 'b', label: 'request'}).msg('m2', {from: 'b', to: 'a', label: 'faint reply', reply: true});
+  q.steps(null, {start: 'end'});
+  if (id === 'qok') none(q.check(), 'clean sequence');
+  else expect(q.check(), ['faint reply" has contrast 1.4:1 on the plate of the label of m2'], 'faint sequence');
+});
+var tl = EdgeTimeline.create(document.getElementById('tbad'), {start: 0, end: 10, unit: 'week'});
+tl.lane('x', {title: 'Team'}).bar('b1', {lane: 'x', start: 0, end: 4, label: 'First'}).bar('b2', {lane: 'x', start: 5, end: 9, label: 'Faint'});
+tl.render();
+var ti = tl.check();
+expect(ti, ['#tbad: text "Faint" has contrast'], 'faint timeline');
+if (ti.some(function (m) { return /"First"/.test(m); })) bad.push('timeline: a clean bar reported: ' + ti.join(' / '));
+
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

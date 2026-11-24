@@ -1,6 +1,10 @@
-<!-- EdgeDiagram's layout check finds overlaps, overflowing text and links through nodes, and an ortho route goes around a node in its way. Run with scripts/test.sh. -->
+<!-- EdgeDiagram's layout check finds overlaps, overflowing text, links through nodes, crowded nodes and crossings with a clear fix, and an ortho route goes around a node in its way. Run with scripts/test.sh. -->
 <svg id="ok" viewBox="0 0 600 220"></svg>
 <svg id="bad" viewBox="0 0 600 220"></svg>
+<svg id="crowd" viewBox="0 0 600 220"></svg>
+<svg id="cross" viewBox="0 0 600 300"></svg>
+<svg id="side" viewBox="0 0 600 300"></svg>
+<svg id="need" viewBox="0 0 600 300"></svg>
 <pre id="out"></pre>
 <script src="../lib/edgediagram.js"></script>
 <script>
@@ -27,6 +31,34 @@ e.node('a', {x: 20, y: 20, w: 120, h: 50, title: 'A title much too long for its 
  .node('far', {x: 560, y: 10, w: 100, h: 40, title: 'F'})
  .link('cx', {from: ['c', 'right'], to: ['x', 'left'], route: 'straight'});
 expect(e.check(), ['nodes a and b overlap', 'runs', 'link cx crosses node m', 'node far is outside the viewBox'], 'broken figure');
+
+// crowding: nodes closer than 8 to each other or to their zone's border; 8 and more is fine
+var c = EdgeDiagram.create(document.getElementById('crowd'));
+c.zone('z', {x: 10, y: 10, w: 580, h: 200, label: 'ZONE'})
+ .node('a', {x: 40, y: 60, w: 100, h: 50, title: 'A'}).node('b', {x: 144, y: 60, w: 100, h: 50, title: 'B'})
+ .node('c', {x: 300, y: 60, w: 100, h: 50, title: 'C'}).node('d', {x: 408, y: 60, w: 100, h: 50, title: 'D'})
+ .node('e', {x: 300, y: 156, w: 100, h: 50, title: 'E'});
+var ci = c.check();
+expect(ci, ['nodes a and b are 4 units apart: keep 8 or more', 'node e is 4 units from the border of zone z'], 'crowded figure');
+if (ci.some(function (m) { return /nodes c and d|node [abcd] is/.test(m); })) bad.push('crowded figure: 8 units reported: ' + ci.join(' / '));
+
+// crossings: two ends in the wrong order on a shared side, an end on the far side; one that no change removes
+var x = EdgeDiagram.create(document.getElementById('cross'));
+x.node('s', {x: 20, y: 100, w: 120, h: 80, title: 'S'})
+ .node('hi', {x: 420, y: 20, w: 120, h: 50, title: 'HI'}).node('lo', {x: 420, y: 210, w: 120, h: 50, title: 'LO'})
+ .link('up', {from: ['s', 'right', 0.7], to: ['hi', 'left']}).link('down', {from: ['s', 'right', 0.3], to: ['lo', 'left']});
+expect(x.check(), ['links up and down cross where they need not: swap their ends on the right side of node s (up at 0.30, down at 0.70)'], 'swapped ends');
+var y = EdgeDiagram.create(document.getElementById('side'));
+y.node('h', {x: 250, y: 20, w: 100, h: 40, title: 'H'}).node('x', {x: 20, y: 200, w: 100, h: 40, title: 'X'}).node('y', {x: 450, y: 200, w: 100, h: 40, title: 'Y'})
+ .link('hx', {from: ['h', 'right'], to: ['x', 'top']}).link('hy', {from: ['h', 'bottom'], to: ['y', 'top']});
+expect(y.check(), ['links hx and hy cross where they need not: take hx out of the left side of node h instead of its right side'], 'far side');
+var w = EdgeDiagram.create(document.getElementById('need'));
+w.node('a', {x: 20, y: 120, w: 100, h: 40, title: 'A'}).node('b', {x: 460, y: 120, w: 100, h: 40, title: 'B'})
+ .node('u', {x: 250, y: 20, w: 100, h: 40, title: 'U'}).node('v', {x: 250, y: 230, w: 100, h: 40, title: 'V'})
+ .link('ab', {from: ['a', 'right'], to: ['b', 'left']}).link('uv', {from: ['u', 'bottom'], to: ['v', 'top']})
+ .link('ub', {from: ['u', 'right'], to: ['b', 'top']}).link('au', {from: ['a', 'top'], to: ['u', 'left']});
+var wi = w.check();
+if (wi.length) bad.push('a crossing nothing removes: ' + wi.join(' / '));
 if (!EdgeDiagram.version) bad.push('no EdgeDiagram.version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>
