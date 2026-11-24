@@ -37,6 +37,9 @@
  * scripts/shot.sh --check reads.
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-accent, --ed-p3, ...), as in EdgeDiagram.
+ *
+ * s.describe(), or EdgeSketch.describe(svg) for any figure, reads a text description from the drawing
+ * (zones in reading order with their boxes, arrows between boxes); the svg points aria-describedby at it.
  */
 (function (global) {
   'use strict';
@@ -159,6 +162,184 @@
     }
     var last = pts[pts.length - 1];
     return d + ' L' + last[0] + ' ' + last[1];
+  }
+
+  /* ---------- accessibility: a figure's text description, made from its model, the ARIA that points
+     to it, and a live region that reads each step. The same block is in every figure library; the
+     first one loaded defines window.TrazoA11y and the others use it. ---------- */
+  var A11Y = global.TrazoA11y || (global.TrazoA11y = (function () {
+    var HIDE = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap';
+    function uid(base) { var id = base, k = 1; while (document.getElementById(id)) id = base + '-' + (++k); return id; }
+    function plain(s) {   // a caption or a title may hold markup; a middle dot reads as a comma
+      if (s == null) return '';
+      if (Array.isArray(s)) s = s.join(', ');
+      var d = document.createElement('div'); d.innerHTML = String(s);
+      return d.textContent.replace(/\s*·\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    }
+    function and(a) { a = a.filter(Boolean); return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+    function stop(s) { s = plain(s); return s && !/[.!?:…]$/.test(s) ? s + '.' : s; }
+    // blocks: a string is a paragraph, {head, items} a lead-in and its list
+    function text(blocks) {
+      return blocks.map(function (b) {
+        return typeof b === 'string' ? b : [b.head].concat(b.items.map(function (i) { return '- ' + i; })).join('\n');
+      }).join('\n');
+    }
+    function fill(box, blocks) {
+      box.textContent = '';
+      blocks.forEach(function (b) {
+        var p = document.createElement('p'); p.textContent = typeof b === 'string' ? b : b.head; box.appendChild(p);
+        if (typeof b === 'string' || !b.items.length) return;
+        var ul = document.createElement('ul');
+        b.items.forEach(function (i) { var li = document.createElement('li'); li.textContent = i; ul.appendChild(li); });
+        box.appendChild(ul);
+      });
+    }
+    function after(e, ref) { if (ref.parentNode && e.parentNode !== ref.parentNode) ref.parentNode.insertBefore(e, ref.nextSibling); }
+    /* attach(svg, options, kind, model): model() returns the blocks. The svg gets a name (its aria-label,
+       its <title>, options.title or its figure's figcaption), role img (group when it holds focusable
+       items) and aria-describedby on a visually hidden element after it (or the page's own
+       [data-describe="<svg id>"]). options.describe === false leaves the figure alone. */
+    function attach(svg, o, kind, model) {
+      var off = o.describe === false, box = null, live = null, queued = false, busy = false;
+      var deck = !!(svg.closest && svg.closest('#stage .slide'));   // EdgeDeck reads a slide's steps itself
+      if (!off && !svg.getAttribute('aria-label') && !svg.getAttribute('aria-labelledby')) {
+        var t = svg.querySelector('title'), fig = svg.closest && svg.closest('figure'), cap = fig && fig.querySelector('figcaption');
+        if (o.title || (t && t.textContent.trim())) svg.setAttribute('aria-label', o.title || t.textContent.trim());
+        else if (cap) { if (!cap.id) cap.id = uid((svg.id || 'trazo-fig') + '-cap'); svg.setAttribute('aria-labelledby', cap.id); }
+        else svg.setAttribute('aria-label', kind);
+      }
+      function wire(blocks) {
+        if (!box) {
+          box = (svg.id && document.querySelector('[data-describe="' + svg.id + '"]')) || null;
+          if (!box) { box = document.createElement('div'); box.className = 'trazo-desc'; box.style.cssText = HIDE; }
+          if (!box.id) box.id = uid((svg.id || 'trazo-fig') + '-desc');
+        }
+        if (!box.parentNode) after(box, svg);
+        fill(box, blocks);
+        var ids = (svg.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(box.id) < 0) svg.setAttribute('aria-describedby', ids.concat([box.id]).join(' '));
+        var r = svg.getAttribute('role');
+        if (!r || r === 'img' || r === 'group') {   // focusable items inside an img would be hidden from a screen reader
+          var group = !!svg.querySelector('[tabindex]');
+          svg.setAttribute('role', group ? 'group' : 'img');
+          if (group) svg.setAttribute('aria-roledescription', kind.toLowerCase()); else svg.removeAttribute('aria-roledescription');
+        }
+      }
+      var h = {
+        box: function () { return box; },
+        describe: function () {   // the text, and the figure's description brought up to date
+          busy = true;
+          try { var b = model(); if (!off) wire(b); return text(b); } finally { busy = false; }
+        },
+        touch: function () {   // after a change to the model: describe again once the page's script is done
+          if (off || queued || busy) return; queued = true;
+          Promise.resolve().then(function () {
+            queued = false;
+            try { h.describe(); } catch (e) { if (global.console) console.warn('[trazo] describe: ' + e.message); }
+          });
+        },
+        prepare: function () {   // a live region present before its first message, so that it is heard
+          if (off || deck || o.live === false || live) return;
+          live = document.createElement('div'); live.className = 'trazo-live'; live.setAttribute('aria-live', 'polite');
+          live.style.cssText = HIDE; after(live, box && box.parentNode ? box : svg);
+        },
+        say: function (s) { if (live) { if (!live.parentNode) after(live, svg); live.textContent = plain(s); } },
+        step: function (k, n, caption, fallback) {
+          var c = plain(caption) || plain(fallback);
+          h.say('Step ' + (k + 1) + ' of ' + n + (c ? ': ' + c : ''));
+        },
+        live: function () { return live; }
+      };
+      return h;
+    }
+    // calls to the model-building methods describe the figure again (once, after the page's script)
+    function watch(api, names, h) {
+      names.forEach(function (k) {
+        var f = api[k]; if (typeof f !== 'function') return;
+        api[k] = function () { var r = f.apply(this, arguments); h.touch(); return r; };
+      });
+    }
+    return {attach: attach, watch: watch, text: text, plain: plain, and: and, stop: stop, uid: uid, HIDE: HIDE};
+  })());
+
+  /* ---------- a text description read from the DOM, for any figure (best effort): zones in reading
+     order with their boxes, the arrows between boxes, fans as one sentence, and the free labels ---------- */
+  function attrNum(e, a) { return parseFloat(e.getAttribute(a)) || 0; }
+  function boxRect(g) {
+    if (g.skRect) return g.skRect;
+    var d = (g.getAttribute('data-box') || '').trim().split(/[\s,]+/).map(Number);
+    if (d.length === 4 && d.every(isFinite)) return {x: d[0], y: d[1], w: d[2], h: d[3]};
+    var r = g.querySelector('.sk-frame') || g.querySelector('rect');
+    return r ? {x: attrNum(r, 'x'), y: attrNum(r, 'y'), w: attrNum(r, 'width'), h: attrNum(r, 'height')} : null;
+  }
+  function wireEnds(p) {
+    if (p.tagName === 'line') return [[attrNum(p, 'x1'), attrNum(p, 'y1')], [attrNum(p, 'x2'), attrNum(p, 'y2')]];
+    try { var len = p.getTotalLength(), a = p.getPointAtLength(0), b = p.getPointAtLength(len); return [[a.x, a.y], [b.x, b.y]]; } catch (e) {}
+    var n = (p.getAttribute('d') || p.getAttribute('points') || '').match(/-?\d*\.?\d+/g);
+    return n && n.length >= 4 ? [[+n[0], +n[1]], [+n[n.length - 2], +n[n.length - 1]]] : null;
+  }
+  function reading(a, b) { return Math.abs(a.r.y - b.r.y) > 20 ? a.r.y - b.r.y : a.r.x - b.r.x; }
+  function within(r, x, y, pad) { return x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad; }
+  function describeSvg(svg) {
+    var P = A11Y.plain, skip = function (e) { return e.closest('defs, marker, .sk-debug, .ed-debug, [aria-hidden="true"]'); };
+    var boxes = [].filter.call(svg.querySelectorAll('.sk-box, [data-box]'), function (g) { return !skip(g); }).map(function (g) {
+      var ts = [].map.call(g.querySelectorAll('text'), function (t) { return P(t.textContent); }).filter(Boolean);
+      var tt = g.querySelector('.sk-t'), title = tt ? P(tt.textContent) : ts[0] || '', subs = ts.filter(function (t) { return t !== title; });
+      var lab = g.getAttribute('aria-label') || '', info = title && lab.indexOf(title + '. ') === 0 ? lab.slice(title.length + 2) : lab;
+      return {g: g, r: boxRect(g), name: title || info || 'a box', subs: subs, info: P(info)};
+    }).filter(function (b) { return b.r; });
+    var used = [];
+    var zones = [].filter.call(svg.querySelectorAll('.sk-zone'), function (g) { return !skip(g); }).map(function (g) {
+      var r = g.querySelector('rect'), t = g.querySelector('text');
+      if (t) used.push(t);
+      return {g: g, r: {x: attrNum(r, 'x'), y: attrNum(r, 'y'), w: attrNum(r, 'width'), h: attrNum(r, 'height')}, name: t ? P(t.textContent) : '', boxes: []};
+    }).sort(reading);
+    var free = [].filter.call(svg.querySelectorAll('text'), function (t) {
+      return !skip(t) && !t.closest('.sk-box, [data-box], .sk-zone') && !t.hasAttribute('data-wire') && P(t.textContent);
+    });
+    zones.forEach(function (z) {   // a zone without a label takes the first free text inside it, a head first
+      if (z.name) return;
+      var t = free.filter(function (t) { return used.indexOf(t) < 0 && within(z.r, attrNum(t, 'x'), attrNum(t, 'y'), 0); })
+        .sort(function (a, b) { return (b.classList.contains('head') ? 1 : 0) - (a.classList.contains('head') ? 1 : 0) || attrNum(a, 'y') - attrNum(b, 'y'); })[0];
+      if (t) { z.name = P(t.textContent); used.push(t); }
+    });
+    var loose = [];
+    boxes.sort(reading).forEach(function (b) {
+      var cx = b.r.x + b.r.w / 2, cy = b.r.y + b.r.h / 2;
+      var z = zones.filter(function (z) { return within(z.r, cx, cy, 0); }).sort(function (p, q) { return p.r.w * p.r.h - q.r.w * q.r.h; })[0];
+      (z ? z.boxes : loose).push(b);
+    });
+    function at(p) {   // the smallest box an end touches
+      var hit = boxes.filter(function (b) { return within(b.r, p[0], p[1], 12); }).sort(function (a, b) { return a.r.w * a.r.h - b.r.w * b.r.h; })[0];
+      return hit ? hit.name : null;
+    }
+    function lab(e) { var l = e.getAttribute('data-label'); return l ? ' (' + P(l) + ')' : ''; }
+    var lines = [], done = [];
+    [].forEach.call(svg.querySelectorAll('.sk-fan'), function (g) {   // one sentence per fan
+      var ws = [].filter.call(g.querySelectorAll('path, line'), function (p) { done.push(p); return p.hasAttribute('marker-end') || p.hasAttribute('marker-start') || p.classList.contains('sk-wire'); });
+      var es = ws.map(wireEnds).filter(Boolean); if (!es.length) return;
+      var same = function (k) { return es.every(function (e) { return Math.abs(e[k][0] - es[0][k][0]) < 1 && Math.abs(e[k][1] - es[0][k][1]) < 1; }); };
+      var into = !same(0) && same(1), one = at(es[0][into ? 1 : 0]);
+      var many = es.map(function (e) { return at(e[into ? 0 : 1]); }).filter(Boolean);
+      if (one && many.length) lines.push((into ? A11Y.and(many) + ' feed ' + one : one + ' feeds ' + A11Y.and(many)) + lab(g) + '.');
+    });
+    [].forEach.call(svg.querySelectorAll('.sk-wire, path[marker-end], path[marker-start], line[marker-end], line[marker-start], polyline[marker-end]'), function (p) {
+      if (done.indexOf(p) >= 0 || skip(p)) return;
+      var e = wireEnds(p), a = e && at(e[0]), b = e && at(e[1]);
+      if (!a || !b || a === b) return;
+      var me = p.hasAttribute('marker-end'), ms = p.hasAttribute('marker-start');
+      var s = me && ms ? a + ' and ' + b + ', both ways' : me ? a + ' to ' + b : ms ? b + ' to ' + a : a + ' and ' + b + ' are joined';
+      s += lab(p) + '.';
+      if (lines.indexOf(s) < 0) lines.push(s);
+    });
+    function item(b) { return b.name + (b.subs.length ? ' (' + b.subs.join(', ') + ')' : '') + (b.info && b.info !== b.name ? ': ' + A11Y.stop(b.info) : '.'); }
+    var out = ['A figure of ' + boxes.length + ' boxes' + (zones.length ? ' in ' + zones.length + ' zones' : '') + (lines.length ? ', with ' + lines.length + ' arrows' : '') + '.'];
+    zones.forEach(function (z, i) { if (z.boxes.length || z.name) out.push({head: (z.name || 'Zone ' + (i + 1)) + ':', items: z.boxes.map(item)}); });
+    if (loose.length) out.push({head: zones.length ? 'Other boxes:' : 'Boxes:', items: loose.map(item)});
+    if (lines.length) out.push({head: 'Arrows:', items: lines});
+    var notes = free.filter(function (t) { return used.indexOf(t) < 0; }).map(function (t) { return P(t.textContent); });
+    if (notes.length) out.push({head: 'Labels:', items: notes});
+    return out;
   }
 
   /* ---------- figures ---------- */
@@ -291,7 +472,8 @@
         } else { var lj = 0; segs.forEach(function (l, j) { if (l > segs[lj]) lj = j; }); at = {i: lj, f: 0.5}; }
         var A = pts[at.i], B = pts[at.i + 1], mx = A[0] + (B[0] - A[0]) * at.f, my = A[1] + (B[1] - A[1]) * at.f;
         var vert = same(A[0], B[0]) && !same(A[1], B[1]);
-        api.text(vert ? mx + 6 : mx, vert ? my + 3 : my - 6, o.label, {cls: 'tag', anchor: vert ? 'start' : 'middle', size: o.labelSize || 9.5});
+        api.text(vert ? mx + 6 : mx, vert ? my + 3 : my - 6, o.label, {cls: 'tag', anchor: vert ? 'start' : 'middle', size: o.labelSize || 9.5}).setAttribute('data-wire', '');
+        p.setAttribute('data-label', o.label);   // for the description
       }
       return p;
     };
@@ -371,13 +553,18 @@
       if (o.dot !== false) dots.forEach(function (p) { el('circle', {cx: p[0], cy: p[1], r: o.dotSize || 3, 'class': 'sk-dot t-' + tone}, g); });
       if (o.label) {   // beside the trunk
         var m = P(uS, (wS + bus) / 2);
-        api.text(v ? m[0] + 6 : m[0], v ? m[1] + 3 : m[1] - 6, o.label, {cls: 'tag', anchor: v ? 'start' : 'middle', size: o.labelSize || 9.5});
+        api.text(v ? m[0] + 6 : m[0], v ? m[1] + 3 : m[1] - 6, o.label, {cls: 'tag', anchor: v ? 'start' : 'middle', size: o.labelSize || 9.5}).setAttribute('data-wire', '');
+        g.setAttribute('data-label', o.label);
       }
       return g;
     };
     function applyFit(f) { if (f[0]) fit(f[0], f[1], f[2], f[3]); else f[1](); }
     api.layout = function () { fits.forEach(applyFit); };
     api.check = function () { api.layout(); return check(svg); };
+    // the text description, read from what was drawn; the figure is described again after each call
+    var DESC = A11Y.attach(svg, options, 'Figure', function () { return describeSvg(svg); });
+    api.describe = function () { return DESC.describe(); };
+    A11Y.watch(api, ['zone', 'box', 'arrow', 'connect', 'fan', 'text', 'el'], DESC);
     api.layout();
     var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
     ready.then(api.layout);
@@ -557,5 +744,5 @@
     });
   }
 
-  global.EdgeSketch = {create: create, check: check, wireShape: wireShape, checkAll: checkAll, report: report, version: VERSION};
+  global.EdgeSketch = {create: create, check: check, describe: function (svg) { return A11Y.text(describeSvg(svg)); }, wireShape: wireShape, checkAll: checkAll, report: report, version: VERSION};
 })(window);

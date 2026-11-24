@@ -24,6 +24,10 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
 .dots{display:flex;gap:6px;margin-left:auto}
 .dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
 .dots i.on{background:var(--accent)}
+/* a skip link past the figure's focusable items, shown when it has focus */
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
 </style>
 
 <div class="wrap">
@@ -31,12 +35,13 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
   <h1>How a write reaches the database</h1>
   <div class="body">
     <div>
-      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="cap" id="cap"></p>
       <p class="hint">Hover or tap a component for details; tap again or press Esc to release it. Arrow keys step.</p>
     </div>
+    <a class="skip" href="#controls">Skip the figure</a>
     <div class="stage"><svg id="rq" viewBox="0 0 1000 560" role="img" aria-label="A browser sends a write through the API, which queues it; a worker drains the queue into the database, so the API answers without waiting for the database."></svg></div>
   </div>
-  <div class="controls">
+  <div class="controls" id="controls" tabindex="-1">
     <button type="button" id="prev">Previous</button>
     <button type="button" id="next">Next</button>
     <button type="button" id="restart">Restart</button>

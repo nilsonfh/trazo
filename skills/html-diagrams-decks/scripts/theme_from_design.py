@@ -42,8 +42,8 @@ MONO = 'ui-monospace,SFMono-Regular,Menlo,monospace'
 # the print block every theme ends with (see themes/engineering.css)
 PRINT = ('/* print: colours as on screen, and a figure on one page and within its width, a table or a heading\'s first lines never cut */\n'
          '@media print{ html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}\n'
-         '  svg[role="img"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}\n'
-         '  .pane,.stage,.fig{overflow:visible} svg[role="img"]{min-width:0!important;max-width:100%} }')
+         '  svg[role="img"],svg[role="group"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}\n'
+         '  .pane,.stage,.fig{overflow:visible} svg[role="img"],svg[role="group"]{min-width:0!important;max-width:100%} }')
 
 
 # ---------- front matter ----------

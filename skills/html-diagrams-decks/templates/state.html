@@ -25,6 +25,10 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
 .dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
 .dots i.on{background:var(--accent)}
 #lc{--ed-plate:var(--card)}   /* label plates outside the composite take the card's colour */
+/* a skip link past the figure's focusable items, shown when it has focus */
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
 </style>
 
 <div class="wrap">
@@ -32,12 +36,13 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
   <h1>The life of an edge node, from enrolment to quarantine</h1>
   <div class="body">
     <div>
-      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="cap" id="cap"></p>
       <p class="hint">Each step fires one transition: the ring shows the state the node is in. Hover a state for details. Arrow keys step.</p>
     </div>
+    <a class="skip" href="#controls">Skip the figure</a>
     <div class="stage"><svg id="lc" viewBox="0 0 1020 560" role="img" aria-label="An edge node is registered, attested and then trusted while its quotes hold; a failed quote makes it untrusted, three failures quarantine it, and a reimaged node is attested again only if its measurements match the golden values."></svg></div>
   </div>
-  <div class="controls">
+  <div class="controls" id="controls" tabindex="-1">
     <button type="button" id="prev">Previous</button>
     <button type="button" id="next">Next</button>
     <button type="button" id="restart">Restart</button>

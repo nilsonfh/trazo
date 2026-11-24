@@ -27,12 +27,17 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
 .dots{display:flex;gap:6px;margin-left:auto}
 .dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
 .dots i.on{background:var(--accent)}
+/* a skip link past the figure's focusable items, shown when it has focus */
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
 </style>
 
 <div class="wrap">
   <p class="eyebrow">Template · roadmap</p>
   <h1>A customer portal, from design to general availability</h1>
-  <p class="cap" id="cap" aria-live="polite"></p>
+  <p class="cap" id="cap"></p>
+  <a class="skip" href="#controls">Skip the figure</a>
   <div class="stage"><svg id="rm" viewBox="0 0 1100 500" role="img" aria-label="A 2027 roadmap in three phases. Design runs from January to March, build from April to July with a beta in June, launch from August to October with general availability in September. The API's schema comes first; the web and mobile apps start when it is done; the data migration and a security review must finish before general availability."></svg></div>
   <ul class="legend" aria-hidden="true">
     <li><i class="done"></i>done so far</li>
@@ -40,7 +45,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
     <li><i class="ms"></i>milestone</li>
   </ul>
   <p class="hint">Each step adds one phase. Hover a bar, a milestone or a phase for details. Arrow keys step.</p>
-  <div class="controls">
+  <div class="controls" id="controls" tabindex="-1">
     <button type="button" id="prev">Previous</button>
     <button type="button" id="next">Next</button>
     <button type="button" id="restart">Walk through</button>

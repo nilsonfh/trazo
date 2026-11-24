@@ -22,6 +22,10 @@ figcaption{font-size:13.5px;color:var(--muted);max-width:86ch}
 .legend i.acc{background:var(--accent-soft);border-color:var(--accent)}
 .legend i.add{background:var(--ok-soft);border-color:var(--ok)}
 .legend i.p3{background:var(--p3-soft);border-color:var(--p3);border-style:dashed}
+/* a skip link past the figure's focusable items, shown when it has focus */
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
 </style>
 
 <div class="wrap">
@@ -29,9 +33,10 @@ figcaption{font-size:13.5px;color:var(--muted);max-width:86ch}
   <h1>A message platform, left to right</h1>
   <p class="lede">Producers on the left, the platform in the middle, the consumers on the right. Every arrow has two heads because every path is used both ways: events travel right, acknowledgements and commands come back left.</p>
   <figure>
+    <a class="skip" href="#mp-cap">Skip the figure</a>
     <div class="pane"><svg id="mp" viewBox="0 0 1000 440" role="img" aria-label="Three zones left to right. Producers: a web shop, a mobile app and a partner feed. The platform: four columns a message crosses, ingress, schema check, topics and access rules, then three services facing right, subscriptions, storage and actions. Consumers: billing, analytics, and a planned recommendation service."></svg></div>
     <div class="legend"><span><i class="acc"></i>the platform</span><span><i class="add"></i>consumers in production</span><span><i class="p3"></i>planned</span><span><i></i>producers</span></div>
-    <figcaption>Hover a box for what it does. Replace the content, keep the grid: equal box sizes, equal gaps, arrows from edge to edge.</figcaption>
+    <figcaption id="mp-cap" tabindex="-1">Hover a box for what it does. Replace the content, keep the grid: equal box sizes, equal gaps, arrows from edge to edge.</figcaption>
   </figure>
 </div>
 

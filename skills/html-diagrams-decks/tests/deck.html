@@ -21,9 +21,15 @@ function at(slide, step, what) {
   if (s.slide !== slide || s.step !== step) bad.push(what + ': at ' + s.slide + '.' + s.step + ', want ' + slide + '.' + step);
 }
 at(0, 0, 'start');
+// a screen reader hears each step and slide: a live region, and slides named as groups
+var lv = document.querySelector('.ed-live[aria-live="polite"]'), s0 = document.querySelector('.slide');
+if (!lv || lv.textContent !== '') bad.push('live region: missing, or not empty at the start');
+if (s0.getAttribute('role') !== 'group' || s0.getAttribute('aria-roledescription') !== 'slide' || s0.getAttribute('aria-label') !== 'One') bad.push('slide: role, roledescription or name');
 key('ArrowRight'); at(0, 1, 'right steps');
+if (lv && lv.textContent !== 'b') bad.push('live region on a step: ' + lv.textContent);
 key('ArrowDown'); at(0, 2, 'down steps');
 key(' '); at(1, 0, 'space past the last step turns the page');
+if (lv && lv.textContent !== 'Slide 2 of 3: Two.') bad.push('live region on a new slide: ' + lv.textContent);
 key('ArrowLeft'); at(0, 2, 'left comes back to the last step');
 key(' ', {shift: true}); at(0, 1, 'shift+space goes back');
 key('PageDown'); key('PageDown'); at(1, 0, 'a clicker\'s PageDown');

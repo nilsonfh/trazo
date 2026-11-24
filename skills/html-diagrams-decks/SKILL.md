@@ -79,6 +79,7 @@ Wires are what a reader follows, so they must look deliberate:
 
 - Do not use other libraries. GSAP 3 from cdnjs is optional: without it, every step shows its final state.
 - Every colour comes from a token, so components never contain literal colours.
-- Every node, box or link that has `info` is keyboard-focusable. The SVG has `role="img"` and an `aria-label` that states what the figure claims.
+- Every node, box or link that has `info` is keyboard-focusable. The SVG has an `aria-label` that states what the figure claims; the library sets its role.
+- Figures carry their description: each library writes a text description from the model (parts, links as sentences, transitions, lanes, messages, dates, a matrix's gaps), points `aria-describedby` at it and reads each step in a live region (`references/api.md`, **Accessibility**). It is made from your words, so write meaningful titles, subs, `info` texts, link labels and step captions; never leave a node named by its id. Leave `describe: false` to figures the page describes itself.
 - A figure wider than a phone scrolls inside its own `overflow-x: auto` container, never the page.
 - Keep internal names, customer names and addresses out of pages that will be shared.

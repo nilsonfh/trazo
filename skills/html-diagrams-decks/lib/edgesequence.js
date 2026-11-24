@@ -27,6 +27,9 @@
  * issues go into the shared <pre id="ed-issues"> that scripts/shot.sh --check reads.
  *
  * Colours come from the theme's tokens (--ed-ink, --ed-accent, ...), as in EdgeDiagram.
+ *
+ * q.describe() returns a text description (actors, numbered messages in order, frames with what they
+ * hold, captions); the svg points aria-describedby at it, and a live region reads each step.
  */
 (function (global) {
   'use strict';
@@ -108,6 +111,104 @@
   function bbox(e) { try { var b = e.getBBox(); return {x: b.x, y: b.y, w: b.width, h: b.height}; } catch (x) { return null; } }
   function inter(a, b, pad) { return a.x < b.x + b.w - pad && b.x < a.x + a.w - pad && a.y < b.y + b.h - pad && b.y < a.y + a.h - pad; }
   function contains(a, b) { return b.x >= a.x - 0.5 && b.y >= a.y - 0.5 && b.x + b.w <= a.x + a.w + 0.5 && b.y + b.h <= a.y + a.h + 0.5; }
+
+  /* ---------- accessibility: a figure's text description, made from its model, the ARIA that points
+     to it, and a live region that reads each step. The same block is in every figure library; the
+     first one loaded defines window.TrazoA11y and the others use it. ---------- */
+  var A11Y = global.TrazoA11y || (global.TrazoA11y = (function () {
+    var HIDE = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap';
+    function uid(base) { var id = base, k = 1; while (document.getElementById(id)) id = base + '-' + (++k); return id; }
+    function plain(s) {   // a caption or a title may hold markup; a middle dot reads as a comma
+      if (s == null) return '';
+      if (Array.isArray(s)) s = s.join(', ');
+      var d = document.createElement('div'); d.innerHTML = String(s);
+      return d.textContent.replace(/\s*·\s*/g, ', ').replace(/\s+/g, ' ').trim();
+    }
+    function and(a) { a = a.filter(Boolean); return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+    function stop(s) { s = plain(s); return s && !/[.!?:…]$/.test(s) ? s + '.' : s; }
+    // blocks: a string is a paragraph, {head, items} a lead-in and its list
+    function text(blocks) {
+      return blocks.map(function (b) {
+        return typeof b === 'string' ? b : [b.head].concat(b.items.map(function (i) { return '- ' + i; })).join('\n');
+      }).join('\n');
+    }
+    function fill(box, blocks) {
+      box.textContent = '';
+      blocks.forEach(function (b) {
+        var p = document.createElement('p'); p.textContent = typeof b === 'string' ? b : b.head; box.appendChild(p);
+        if (typeof b === 'string' || !b.items.length) return;
+        var ul = document.createElement('ul');
+        b.items.forEach(function (i) { var li = document.createElement('li'); li.textContent = i; ul.appendChild(li); });
+        box.appendChild(ul);
+      });
+    }
+    function after(e, ref) { if (ref.parentNode && e.parentNode !== ref.parentNode) ref.parentNode.insertBefore(e, ref.nextSibling); }
+    /* attach(svg, options, kind, model): model() returns the blocks. The svg gets a name (its aria-label,
+       its <title>, options.title or its figure's figcaption), role img (group when it holds focusable
+       items) and aria-describedby on a visually hidden element after it (or the page's own
+       [data-describe="<svg id>"]). options.describe === false leaves the figure alone. */
+    function attach(svg, o, kind, model) {
+      var off = o.describe === false, box = null, live = null, queued = false, busy = false;
+      var deck = !!(svg.closest && svg.closest('#stage .slide'));   // EdgeDeck reads a slide's steps itself
+      if (!off && !svg.getAttribute('aria-label') && !svg.getAttribute('aria-labelledby')) {
+        var t = svg.querySelector('title'), fig = svg.closest && svg.closest('figure'), cap = fig && fig.querySelector('figcaption');
+        if (o.title || (t && t.textContent.trim())) svg.setAttribute('aria-label', o.title || t.textContent.trim());
+        else if (cap) { if (!cap.id) cap.id = uid((svg.id || 'trazo-fig') + '-cap'); svg.setAttribute('aria-labelledby', cap.id); }
+        else svg.setAttribute('aria-label', kind);
+      }
+      function wire(blocks) {
+        if (!box) {
+          box = (svg.id && document.querySelector('[data-describe="' + svg.id + '"]')) || null;
+          if (!box) { box = document.createElement('div'); box.className = 'trazo-desc'; box.style.cssText = HIDE; }
+          if (!box.id) box.id = uid((svg.id || 'trazo-fig') + '-desc');
+        }
+        if (!box.parentNode) after(box, svg);
+        fill(box, blocks);
+        var ids = (svg.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        if (ids.indexOf(box.id) < 0) svg.setAttribute('aria-describedby', ids.concat([box.id]).join(' '));
+        var r = svg.getAttribute('role');
+        if (!r || r === 'img' || r === 'group') {   // focusable items inside an img would be hidden from a screen reader
+          var group = !!svg.querySelector('[tabindex]');
+          svg.setAttribute('role', group ? 'group' : 'img');
+          if (group) svg.setAttribute('aria-roledescription', kind.toLowerCase()); else svg.removeAttribute('aria-roledescription');
+        }
+      }
+      var h = {
+        box: function () { return box; },
+        describe: function () {   // the text, and the figure's description brought up to date
+          busy = true;
+          try { var b = model(); if (!off) wire(b); return text(b); } finally { busy = false; }
+        },
+        touch: function () {   // after a change to the model: describe again once the page's script is done
+          if (off || queued || busy) return; queued = true;
+          Promise.resolve().then(function () {
+            queued = false;
+            try { h.describe(); } catch (e) { if (global.console) console.warn('[trazo] describe: ' + e.message); }
+          });
+        },
+        prepare: function () {   // a live region present before its first message, so that it is heard
+          if (off || deck || o.live === false || live) return;
+          live = document.createElement('div'); live.className = 'trazo-live'; live.setAttribute('aria-live', 'polite');
+          live.style.cssText = HIDE; after(live, box && box.parentNode ? box : svg);
+        },
+        say: function (s) { if (live) { if (!live.parentNode) after(live, svg); live.textContent = plain(s); } },
+        step: function (k, n, caption, fallback) {
+          var c = plain(caption) || plain(fallback);
+          h.say('Step ' + (k + 1) + ' of ' + n + (c ? ': ' + c : ''));
+        },
+        live: function () { return live; }
+      };
+      return h;
+    }
+    // calls to the model-building methods describe the figure again (once, after the page's script)
+    function watch(api, names, h) {
+      names.forEach(function (k) {
+        var f = api[k]; if (typeof f !== 'function') return;
+        api[k] = function () { var r = f.apply(this, arguments); h.touch(); return r; };
+      });
+    }
+    return {attach: attach, watch: watch, text: text, plain: plain, and: and, stop: stop, uid: uid, HIDE: HIDE};
+  })());
 
   function create(svg, options) {
     options = options || {};
@@ -264,7 +365,7 @@
         if (opt.numbers) el('tspan', {'class': 'sq-n'}, t, e.n + '  ');
         el('tspan', {}, t, o.label || '');
         e.plate = pl; e.text = t; e.path = p; e.g = g2;
-        if (o.info) tip(g2, o.label || e.id, o.info);
+        if (o.info) tip(g2, entryText(Object.assign({}, e, {o: Object.assign({}, o, {info: null})}), numbers()), o.info);
         items[e.id] = {el: g2, kind: 'msg', e: e};
       });
       placeLabels();   // measured first, so that a frame spans its self messages' labels
@@ -337,7 +438,8 @@
       var at = {};
       list.forEach(function (s, k) { (s.show || []).forEach(function (id) { if (!items[id]) throw new Error('EdgeSequence: unknown item ' + id); if (at[id] == null) at[id] = k; }); });
       Object.keys(items).forEach(function (id) { if (at[id] == null) at[id] = 0; });
-      var cur = -1;
+      var cur = -1, told = false;
+      stepCaps = list; DESC.prepare();
       function apply(k, animate) {
         if (still != null) k = still === 'end' ? list.length - 1 : still;
         k = Math.max(0, Math.min(list.length - 1, k));
@@ -371,6 +473,7 @@
         if (pkts.length && !running) { running = true; global.requestAnimationFrame(loop); }
         cur = k;
         if (o.onStep) o.onStep(k, list[k], ctl);   // ctl: the first call comes before steps() returns
+        if (told) DESC.step(k, list.length, list[k].caption, shownText(list[k]));   // the live region reads it
       }
       var G = global.gsap, tl = null;
       if (G) {   // labels s0..sN for EdgeDeck, which calls onStep on every step
@@ -388,8 +491,61 @@
       };
       api.stepSets = list.map(function (s, k) { return Object.keys(items).filter(function (id) { return at[id] <= k; }); });
       apply(o.start === 'end' ? list.length - 1 : o.start || 0, false);
+      told = true;
       return ctl;
     };
+
+    /* ---------- the text description: the actors, then the numbered messages in order, each frame
+       with what it holds ('loop every 200 ms: ...'), and the steps' captions ---------- */
+    var DESC = A11Y.attach(svg, options, 'Sequence diagram', describeBlocks), stepCaps = null;
+    function who(id) { return A[id] ? A11Y.plain(A[id].o.title) || id : id; }
+    function numbers() {   // as render numbers them: messages and self calls, not notes
+      var k = 0, out = {}; entries.forEach(function (e) { if (e.kind !== 'note') out[e.id] = ++k; }); return out;
+    }
+    function entryText(e, num) {
+      var o = e.o, lab = A11Y.plain(o.label), info = A11Y.plain(o.info);
+      if (e.kind === 'note') return 'Note over ' + A11Y.and(o.over.map(who)) + ': ' + A11Y.stop(o.text);
+      var s = (opt.numbers ? num[e.id] + '. ' : '') + (e.kind === 'self' ? who(o.at) + ' to itself' : who(o.from) + (o.reply ? ' replies to ' : ' to ') + who(o.to)) + (lab ? ': ' + lab : '');
+      return s + (info ? ' (' + info.replace(/\.$/, '') + ')' : '');
+    }
+    function run(i0, i1, open, num) {   // the entries from i0 to i1, a frame that starts there as one item
+      var out = [], at = function (id) { return entries.indexOf(E[id]); };
+      for (var i = i0; i <= i1; i++) {
+        var f = frames.filter(function (f) { return open.indexOf(f) < 0 && at(f.o.from) === i && at(f.o.to || f.o.from) <= i1; })
+          .sort(function (a, b) { return at(b.o.to || b.o.from) - at(a.o.to || a.o.from); })[0];
+        if (!f) { out.push(entryText(entries[i], num)); continue; }
+        var j = at(f.o.to || f.o.from), cuts = (f.o.else || []).map(function (c) { return {i: at(c.at), label: c.label}; })
+          .filter(function (c) { return c.i > i && c.i <= j; }).sort(function (a, b) { return a.i - b.i; });
+        var parts = [], from = i;
+        cuts.concat([{i: j + 1}]).forEach(function (c, n) {
+          var head = n ? 'else' + (cuts[n - 1].label ? ' ' + A11Y.plain(cuts[n - 1].label) : '') + ': ' : '';
+          parts.push(head + run(from, c.i - 1, open.concat([f]), num).join('; '));
+          from = c.i;
+        });
+        out.push((f.o.kind || 'frame') + (f.o.label ? ' ' + A11Y.plain(f.o.label) : '') + ': ' + parts.join('; ') + '; end of ' + (f.o.kind || 'frame'));
+        i = j;
+      }
+      return out;
+    }
+    function describeBlocks() {
+      var out = [], num = numbers(), nm = entries.filter(function (e) { return e.kind !== 'note'; }).length;
+      out.push('A sequence of ' + nm + ' messages between ' + actors.length + ' actors.');
+      out.push({head: 'Actors, left to right:', items: actors.map(function (a) {
+        var sub = A11Y.plain(a.o.sub), info = A11Y.plain(a.o.info);
+        return who(a.id) + (sub ? ' (' + sub + ')' : '') + (info ? ': ' + A11Y.stop(info) : '.');
+      })});
+      if (groups.length) out.push({head: 'Groups:', items: groups.map(function (g) { return A11Y.plain(g.label) + ': ' + A11Y.and(g.ids.map(who)) + '.'; })});
+      if (entries.length) out.push({head: 'Messages in order:', items: run(0, entries.length - 1, [], num)});
+      var caps = (stepCaps || []).map(function (s) { return A11Y.plain(s.caption); });
+      if (caps.some(Boolean)) out.push({head: 'In ' + caps.length + ' steps:', items: caps.map(function (c, k) { return (k + 1) + '. ' + (c || '…'); })});
+      return out;
+    }
+    function shownText(s) {   // a step without a caption reads its messages
+      var num = numbers();
+      return (s.show || []).filter(function (id) { return E[id]; }).map(function (id) { return entryText(E[id], num); }).join('; ');
+    }
+    api.describe = function () { return DESC.describe(); };
+    A11Y.watch(api, ['actor', 'group', 'msg', 'self', 'note', 'frame', 'steps'], DESC);
 
     /* ---------- check ---------- */
     api.check = function () {

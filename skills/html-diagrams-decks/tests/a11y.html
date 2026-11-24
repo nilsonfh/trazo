@@ -1,0 +1,190 @@
+<!-- Accessibility: every library describes its figure from its model, names it, points aria-describedby at the
+     description, reads each step in a live region, leaves a figure alone with describe: false, and makes no
+     duplicate ids; EdgeMatrix adds a real table. Run with scripts/test.sh. -->
+<svg id="dg" viewBox="0 0 900 300" role="img" aria-label="Readings flow from the field to the cloud"></svg>
+<svg id="st" viewBox="0 0 700 200"></svg>
+<svg id="ln" viewBox="0 0 900 300" role="img" aria-label="onboarding"></svg>
+<svg id="held" viewBox="0 0 600 300" role="img" aria-label="laid out later"></svg>
+<svg id="off" viewBox="0 0 400 200" role="img" aria-label="no description"></svg>
+<figure><svg id="cap" viewBox="0 0 400 200"></svg><figcaption>A captioned figure</figcaption></figure>
+<svg id="sq" viewBox="0 0 800 400" role="img" aria-label="a write"></svg>
+<svg id="tl" viewBox="0 0 900 300" role="img" aria-label="a roadmap"></svg>
+<svg id="mx" viewBox="0 0 800 400" role="img" aria-label="coverage"></svg>
+<svg id="sk" viewBox="0 0 600 200" role="img" aria-label="a platform"></svg>
+<div data-describe="sk2" id="own"></div>
+<svg id="sk2" viewBox="0 0 600 200" role="img" aria-label="a sketch with its own description element"></svg>
+<pre id="out"></pre>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgelayout.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script src="../lib/edgetimeline.js"></script>
+<script src="../lib/edgematrix.js"></script>
+<script src="../lib/edgesketch.js"></script>
+<script>
+var bad = [];
+function has(text, want, what) {
+  want.forEach(function (w) { if (text.indexOf(w) < 0) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(text)); });
+}
+function wired(id, role) {   // name, role, aria-describedby on an element that holds the description
+  var svg = document.getElementById(id), d = svg.getAttribute('aria-describedby'), box = d && document.getElementById(d);
+  if (!svg.getAttribute('aria-label') && !svg.getAttribute('aria-labelledby')) bad.push(id + ': no accessible name');
+  if (svg.getAttribute('role') !== role) bad.push(id + ': role ' + svg.getAttribute('role') + ', want ' + role);
+  if (!box) { bad.push(id + ': aria-describedby points nowhere'); return null; }
+  if (box.textContent.length < 20) bad.push(id + ': empty description');
+  if (box.getBoundingClientRect().width > 1) bad.push(id + ': the description is visible');
+  return box;
+}
+function after(id, cls) {   // what the library put after the svg
+  for (var e = document.getElementById(id).nextElementSibling; e && e.tagName.toLowerCase() !== 'svg'; e = e.nextElementSibling) if (e.classList.contains(cls)) return e;
+  return null;
+}
+function live(id) { var e = after(id, 'trazo-live'); return e ? e.textContent : null; }
+
+// EdgeDiagram: zones, nodes, links as sentences, a fan, steps with captions
+var d = EdgeDiagram.create(document.getElementById('dg'));
+d.zone('edge', {x: 10, y: 10, w: 420, h: 280, label: 'EDGE'}).zone('cloud', {x: 470, y: 10, w: 420, h: 280, label: 'CLOUD'});
+d.node('gw', {x: 30, y: 40, w: 160, h: 60, title: 'Gateway', sub: 'polls · converts', info: 'Polls the meters.'})
+ .node('buf', {x: 250, y: 40, w: 160, h: 60, title: 'Buffer', info: 'Stores and forwards.'})
+ .node('a', {x: 500, y: 40, w: 160, h: 60, title: 'Ingest'})
+ .node('b', {x: 500, y: 200, w: 160, h: 60, title: 'Alarms'}).node('c', {x: 700, y: 200, w: 160, h: 60, title: 'Archive'});
+d.link('pub', {from: ['gw', 'right'], to: ['buf', 'left'], arrow: 'end', label: 'publish', info: 'Readings, every second.'})
+ .link('up', {from: ['buf', 'right'], to: ['a', 'left'], arrow: 'both'});
+d.fan('out', {from: ['a', 'bottom'], to: ['b', 'c'], arrow: 'end'});
+d.bindFocus();
+var ctl = d.steps([{show: ['edge', 'gw'], caption: 'The gateway polls.'}, {show: ['buf', 'pub'], caption: 'It <b>publishes</b> to the buffer.'},
+  {show: ['cloud', 'a', 'b', 'c', 'up', 'out']}]);
+var text = d.describe();
+has(text, ['EDGE holds Gateway and Buffer.', 'CLOUD holds Ingest, Alarms and Archive.', 'Gateway (polls, converts): Polls the meters.',
+  'Gateway sends to Buffer (publish): Readings, every second.', 'Buffer and Ingest exchange', 'Ingest feeds Alarms and Archive.',
+  '2. It publishes to the buffer.'], 'diagram');
+if (/Ingest sends to Alarms/.test(text)) bad.push('diagram: a fan\'s branches are listed one by one');
+var lk = document.querySelector('#dg [data-id="pub"]');
+if (lk.getAttribute('aria-label').indexOf('Gateway sends to Buffer (publish)') !== 0) bad.push('diagram: link name ' + lk.getAttribute('aria-label'));
+ctl.next();
+if (live('dg') !== 'Step 2 of 3: It publishes to the buffer.') bad.push('diagram live: ' + live('dg'));
+ctl.next();
+if (live('dg') !== 'Step 3 of 3: shows Ingest, Alarms and Archive') bad.push('diagram live without a caption: ' + live('dg'));
+
+// a state machine: transitions as sentences
+var s = EdgeDiagram.create(document.getElementById('st'));
+s.node('i', {x: 10, y: 90, w: 20, h: 20, shape: 'initial'})
+ .node('t', {x: 100, y: 70, w: 160, h: 60, shape: 'state', title: 'Trusted'})
+ .node('u', {x: 440, y: 70, w: 160, h: 60, shape: 'state', title: 'Untrusted'});
+s.transition('go', {from: ['i', 'right'], to: ['t', 'left']})
+ .transition('fail', {from: ['t', 'right'], to: ['u', 'left'], event: 'quote fails', action: 'stop workloads'})
+ .transition('beat', {from: 't', to: 't', side: 'top', event: 'quote ok'});
+has(s.describe(), ['A state machine of 2 states', 'From the start, to Trusted.', 'From Trusted, on quote fails, to Untrusted (stop workloads).',
+  'In Trusted, on quote ok, it stays in Trusted.'], 'state machine');
+
+// lanes: who does what, in order
+var l = EdgeDiagram.create(document.getElementById('ln'));
+l.lanes('ls', {x: 0, y: 0, w: 900, lanes: [{id: 'op', title: 'Operator'}, {id: 'hub', title: 'Hub'}]});
+l.node('reg', {lane: 'op', x: 160, w: 140, h: 50, shape: 'task', title: 'Register'})
+ .node('inv', {lane: 'op', x: 600, w: 140, h: 50, shape: 'task', title: 'Investigate'})
+ .node('tok', {lane: 'hub', x: 380, w: 140, h: 50, shape: 'task', title: 'Issue token'});
+l.link('a', {from: ['reg', 'auto'], to: ['tok', 'auto'], arrow: 'end'});
+has(l.describe(), ['Lanes, who does what in order:', 'Operator: Register, then Investigate.', 'Hub: Issue token.'], 'lanes');
+
+// a figure held for EdgeLayout is described from its calls, and describing it does not lay it out
+var h = EdgeDiagram.create(document.getElementById('held'));
+h.zone('z', {label: 'EDGE'}).node('p', {zone: 'z', title: 'Poller'}).node('q', {zone: 'z', title: 'Queue'}).link('pq', {from: ['p'], to: ['q'], arrow: 'end'});
+has(h.describe(), ['EDGE holds Poller and Queue.', 'Poller sends to Queue.'], 'held');
+if (document.querySelector('#held .ed-node')) bad.push('held: describing it laid it out');
+h.layout({dir: 'LR'});
+
+// describe: false leaves the figure alone; a figure in a <figure> is named by its caption
+var o = EdgeDiagram.create(document.getElementById('off'), {describe: false});
+o.node('n', {x: 10, y: 10, w: 100, h: 50, title: 'N', info: 'i'}).steps([{show: ['n']}, {show: []}]).next();
+var c2 = EdgeDiagram.create(document.getElementById('cap'));
+c2.node('n', {x: 10, y: 10, w: 100, h: 50, title: 'Only'});
+
+// EdgeSequence: numbered messages in order, a frame with what it holds
+var q = EdgeSequence.create(document.getElementById('sq'));
+q.actor('web', {title: 'Browser'}).actor('api', {title: 'API', info: 'Answers at once.'}).actor('db', {title: 'Database'});
+q.msg('m1', {from: 'web', to: 'api', label: 'POST /orders', caption: 'The browser sends a write.'})
+ .msg('m2', {from: 'api', to: 'db', label: 'INSERT', info: 'one row'})
+ .msg('m3', {from: 'db', to: 'api', label: 'ok', reply: true})
+ .note('n1', {over: ['web', 'api'], text: 'never waits'})
+ .frame('f', {kind: 'loop', label: 'every 200 ms', from: 'm2', to: 'm3'});
+var qc = q.steps();
+has(q.describe(), ['Actors, left to right:', 'API: Answers at once.', '1. Browser to API: POST /orders',
+  'loop every 200 ms: 2. API to Database: INSERT (one row); 3. Database replies to API: ok; end of loop', 'Note over Browser and API: never waits.'], 'sequence');
+qc.next();
+if (live('sq') !== 'Step 2 of 5: The browser sends a write.') bad.push('sequence live: ' + live('sq'));
+qc.next();
+if (live('sq') !== 'Step 3 of 5: 2. API to Database: INSERT (one row)') bad.push('sequence live without a caption: ' + live('sq'));
+
+// EdgeTimeline: lanes with bars and dates, milestones, dependencies, phases, today
+var t = EdgeTimeline.create(document.getElementById('tl'), {start: '2027-01-01', end: '2027-06-30', unit: 'month', today: '2027-02-15'});
+t.band('b', {title: 'BUILD'}).lane('x', {title: 'Service', band: 'b'}).lane('y', {title: 'Client', band: 'b'});
+t.phase('p1', {start: '2027-01-01', end: '2027-03-31', label: 'Design', caption: 'Design first.'})
+ .phase('p2', {start: '2027-04-01', end: '2027-06-30', label: 'Build', caption: 'Then build.'});
+t.bar('a1', {lane: 'x', start: '2027-01-04', end: '2027-02-26', label: 'Schema', progress: 0.5})
+ .bar('b1', {lane: 'y', start: '2027-04-05', end: '2027-05-28', label: 'Screens', planned: true})
+ .milestone('m1', {lane: 'y', at: '2027-06-07', label: 'Go', line: true});
+t.dep('d1', {from: 'a1', to: 'b1'});
+var tc = t.steps();
+has(t.describe(), ['A timeline from 1 Jan 2027 to 30 Jun 2027', 'Today is 15 Feb 2027.', 'Design, 1 Jan 2027 – 31 Mar 2027: Design first.',
+  'BUILD:', 'Service: Schema, 4 Jan 2027 – 26 Feb 2027, 50% done.', 'Screens, 5 Apr 2027 – 28 May 2027, planned; gate Go, 7 Jun 2027.',
+  'Screens starts after Schema ends.'], 'timeline');
+tc.next();
+if (live('tl') !== 'Step 2 of 3: Design first.') bad.push('timeline live: ' + live('tl'));
+
+// EdgeMatrix: counts per state, then the gaps, and a real table
+var m = EdgeMatrix.create(document.getElementById('mx'));
+m.col('lab', {label: 'Lab'}).col('field', {label: 'Field'});
+m.rowGroup('g', {label: 'Safety', caption: 'The safety rows.'}).row('r1', {code: 'R-01', label: 'Stops', group: 'g'}).row('r2', {code: 'R-02', label: 'Logs', group: 'g'});
+m.cells({r1: 'FF', r2: 'FN'});
+m.cell('r2', 'lab', {state: 'part', mark: '2'});
+var mc = m.steps();
+has(m.describe(), ['A matrix of 2 rows by 2 columns.', 'Covered: 2, Partly covered: 1, Not covered: 1', 'Rows with gaps (1 of 2):',
+  'R-02 Logs: partly covered in Lab, not covered in Field.', 'Field: 1 gap.', 'A table with every cell follows.'], 'matrix');
+var tw = after('mx', 'trazo-table'), tb = tw && tw.querySelector('table');
+if (!tb) bad.push('matrix: no table');
+else {
+  if (tb.querySelectorAll('tbody tr').length !== 2 || tb.querySelectorAll('thead th[scope="col"]').length !== 2) bad.push('matrix table: rows or columns');
+  if (tb.querySelector('tbody tr:nth-child(2) td').textContent !== 'Partly covered, 2') bad.push('matrix table: cell ' + tb.querySelector('tbody tr:nth-child(2) td').textContent);
+  if (tw.getBoundingClientRect().width > 1) bad.push('matrix table: visible');
+}
+mc.next();
+if (live('mx') !== 'Step 2 of 2: The safety rows.') bad.push('matrix live: ' + live('mx'));
+
+// EdgeSketch: boxes by zone in reading order, arrows between them, from the DOM
+var k = EdgeSketch.create(document.getElementById('sk'));
+k.zone(0, 0, 200, 200, {}); k.zone(200, 0, 400, 200, {});
+k.text(100, 24, 'Producers', {cls: 'head', anchor: 'middle'}); k.text(400, 24, 'Platform', {cls: 'head', anchor: 'middle'});
+var w = k.box(20, 60, 160, 50, {title: 'Web shop', sub: 'orders', info: 'Publishes orders.'});
+var ig = k.box(240, 60, 140, 50, {title: 'Ingress'}), st2 = k.box(420, 140, 140, 40, {title: 'Storage'}), sb = k.box(420, 60, 140, 40, {title: 'Topics'});
+k.connect(w, 'right', ig, 'left', {heads: 'both', label: 'HTTP'});
+k.fan(ig, 'right', [[sb, 'left'], [st2, 'left']]);
+has(k.describe(), ['Producers:', 'Web shop (orders): Publishes orders.', 'Platform:', 'Web shop and Ingress, both ways (HTTP).', 'Ingress feeds Topics and Storage.'], 'sketch');
+var plat = k.describe().split('Platform:')[1] || '';
+if (!(plat.indexOf('Ingress') < plat.indexOf('Topics') && plat.indexOf('Topics') < plat.indexOf('Storage'))) bad.push('sketch: reading order ' + plat);
+has(EdgeSketch.describe(document.getElementById('sk')), ['Web shop'], 'EdgeSketch.describe(svg)');
+var k2 = EdgeSketch.create(document.getElementById('sk2'));
+k2.box(20, 20, 160, 50, {title: 'Alone'});
+
+setTimeout(function () {   // the descriptions are written once the page's script is done
+  var dg = wired('dg', 'group');
+  if (dg && dg.textContent.indexOf('Ingest feeds Alarms and Archive.') < 0) bad.push('dg: element text');
+  if (dg && dg.querySelectorAll('li').length < 5) bad.push('dg: the description is not a list');
+  if (document.getElementById('dg').getAttribute('aria-roledescription') !== 'diagram') bad.push('dg: roledescription');
+  wired('st', 'img'); wired('ln', 'img'); wired('sq', 'group'); wired('tl', 'img'); wired('mx', 'group'); wired('sk', 'group');
+  if (document.getElementById('st').getAttribute('aria-label') !== 'Diagram') bad.push('st: a figure without a name gets one: ' + document.getElementById('st').getAttribute('aria-label'));
+  var cap = document.getElementById('cap'), lb = document.getElementById(cap.getAttribute('aria-labelledby') || 'x');
+  if (!lb || lb.textContent !== 'A captioned figure') bad.push('cap: not named by its figcaption');
+  var off = document.getElementById('off');
+  if (off.hasAttribute('aria-describedby') || after('off', 'trazo-desc') || after('off', 'trazo-live')) bad.push('off: describe: false still describes');
+  if (off.getAttribute('role') !== 'img') bad.push('off: role changed');
+  var own = document.getElementById('own');
+  if (document.getElementById('sk2').getAttribute('aria-describedby') !== 'own' || own.textContent.indexOf('Alone') < 0) bad.push('sk2: the page\'s data-describe element is not used');
+  if (document.querySelector('#held .ed-node') == null) bad.push('held: not laid out after layout()');
+  else has(document.getElementById(document.getElementById('held').getAttribute('aria-describedby')).textContent, ['Poller sends to Queue.'], 'held after layout');
+  [].forEach.call(document.querySelectorAll('[tabindex]'), function (e) {
+    if (!e.getAttribute('aria-label') && !e.getAttribute('aria-labelledby')) bad.push('focusable without a name: ' + (e.id || e.getAttribute('data-id') || e.tagName));
+  });
+  var ids = {};
+  [].forEach.call(document.querySelectorAll('[id]'), function (e) { if (ids[e.id]) bad.push('id ' + e.id + ' twice'); ids[e.id] = 1; });
+  document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+}, 0);
+</script>

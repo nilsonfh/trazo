@@ -39,10 +39,16 @@ p{margin:0}
 .bar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .progress{flex:1;height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+@media (prefers-reduced-motion:reduce){.progress i{transition:none}}
 .count{min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
 @media (max-width:620px){ .hint{display:none} }
+/* a skip link past the figure's focusable items, shown when it has focus */
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
 </style>
 
+<a class="skip" href="#controls">Skip to the slide controls</a>
 <div class="viewport" id="viewport">
 <div class="stage" id="stage">
 
@@ -76,7 +82,7 @@ p{margin:0}
 </div>
 </div>
 
-<nav class="bar" aria-label="Slide controls">
+<nav class="bar" id="controls" tabindex="-1" aria-label="Slide controls">
   <button type="button" id="b-prev" aria-label="Previous">‹</button>
   <button type="button" id="b-next" aria-label="Next">›</button>
   <div class="progress" aria-hidden="true"><i id="prog"></i></div>
