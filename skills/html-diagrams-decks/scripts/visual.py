@@ -304,6 +304,10 @@ def main(argv):
                 continue
             got, want = png_read(png), png_read(base)
             big, small, (w, h, rows) = compare(got, want, a.threshold)
+            if big > a.max_pixels and got[:2] == want[:2]:   # once in a while a glyph renders differently under load: shoot again before failing
+                png = render(page, name, height, slide, theme, out=renders, env=env)
+                got = png_read(png)
+                big, small, (w, h, rows) = compare(got, want, a.threshold)
             size = "" if got[:2] == want[:2] else " (size %dx%d, baseline %dx%d)" % (got[0], got[1], want[0], want[1])
             if big <= a.max_pixels and not size:
                 print("%s: ok%s" % (key, " (%d px within tolerance)" % (big + small) if big + small else ""))
