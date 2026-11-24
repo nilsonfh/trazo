@@ -217,7 +217,7 @@ What it does, in order (a layered, Sugiyama-style layout written for the ortho r
 6. **Position along the ranks.** Each rank is as deep as its deepest node; boxes of one rank get the same depth (width in LR, height in TB) unless they gave it, so columns are even. The gaps leave room for zone pads and labels, link labels and the lanes of bent wires.
 7. **Ends.** Every link without a side gets the side facing its next rank (a long link whose lane runs beside its end, with nothing between, leaves by that side). Ends that share a side are placed across from what they join, in order, apart by 24 or by their labels; a pair a few units out of line is moved into line, or far enough apart to turn on purpose. A side or a `t` given by hand is kept.
 
-Then the viewBox is fitted to the figure (`fit: false` keeps it).
+Then the viewBox is fitted to the figure (`fit: false` keeps it), and grown to hold any wire or label drawn past the boxes, such as a self-loop's label. In TB, a zone whose label (top-left) would be crossed by a wire entering it from above gets room on its left, so the label sits beside the wire.
 
 | Option of `d.layout` | Meaning |
 | --- | --- |
@@ -421,6 +421,97 @@ The library sets the viewBox to fit the content, and a `max-width` on the svg of
 | `marks: false`, `margin`, `icons`, `debug` | No marks; the outer margin (8); the sprite; the check on load |
 
 The check finds headers wider than the row header column or longer than the header band, column and row group labels wider than their span or taller than their rows, marks too large for their cell, totals that do not fit, item labels out of their box and items out of their cell, and text or legend entries outside the viewBox. Hidden rows of a step are checked too. With `lib/edgesketch.js` on the page it adds `EdgeSketch.paint` (contrast, wires through text, wires run together) for what is shown. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers matrix figures; EdgeSketch's check leaves them alone. `EdgeMatrix.version` is the version.
+
+## EdgeText (`lib/edgetext.js`)
+
+Figures written as a few lines of text, Mermaid-like, drawn by the libraries above: a quick figure without writing JS. `templates/text.html` has one of each kind. Load `edgetext.js` after the libraries it uses: `flow` and `state` need `edgediagram.js` and `edgelayout.js`, `sequence` `edgesequence.js`, `timeline` `edgetimeline.js`, `matrix` `edgematrix.js` (and `icons.js` for icons).
+
+```html
+<svg id="f" role="img" aria-label="What the figure claims"></svg>
+<p id="cap"></p>
+<script type="text/trazo" data-target="#f" data-caption="#cap">
+flow LR
+zone FIELD { meter[Meter | Modbus] {icon: meter} relay[Recloser | DNP3] }
+gw[Gateway | polls · converts] {icon: rtu, tone: accent}
+meter, relay -> gw: poll
+gw -> cloud[Ingest]: forward {tone: add}
+step: meter relay | Field devices speak their own protocols.
+step: gw cloud | A gateway polls them and forwards every reading.
+</script>
+```
+
+| Call | What it does |
+| --- | --- |
+| `EdgeText.render(svg or selector, source, opts)` | Parses the text and draws it into the svg. Returns `{kind, model, svg, figure, ctl, steps, errors, check()}`: `figure` is the library's object (`d`, `q`, `t` or `m`), `ctl` its `steps()` controller, `steps` the step list given to EdgeDiagram (flow, state), `check()` the library's layout check. `opts`: `caption` (an element or selector that gets each step's caption), `onStep(k, step, ctl)`, `start` (a step number or `'end'`), `maxScale` (a flow or state figure's svg gets a `max-width` of its viewBox's width times this, 1.15 by default, so it is not blown up; `0` for none), `icons`, `debug` |
+| `EdgeText.parse(source)` | The model alone, with `errors: [{line, message}]` (empty when the text is fine); for tests |
+| `EdgeText.auto()` | Renders every `script[type="text/trazo"]` and `pre.trazo` not rendered yet and returns all results, in page order. It runs by itself once the page has loaded. A block's `data-target` is its svg (else an svg is made in its place, with the block's `data-id` as its id; a `pre` is hidden); `data-caption` and `data-start` are as in `opts` |
+
+**Errors.** Parsing stops at the first error. `render` draws the error in the figure's place (the message, the line number and the line), returns it in `errors`, and reports it into the shared `<pre id="ed-issues">`, so `shot.sh --check` fails on it. An error the library raises while drawing (an axis that ends before it starts) gets the number of the line that made the call.
+
+**Common to every kind.** The first line names the kind. `%%` (also at the end of a line) and `#` (at the start) begin comments. `title: text` sets the svg's `aria-label` if it has none, and the first caption of a sequence, timeline or matrix. Options in braces at the end of a line, `{icon: server, tone: accent, info: 'Polls, then converts.'}`, pass straight to the library call that the line makes, so every option in this reference works; values are numbers, `true`, `false`, quoted text or bare text (which may hold commas). Options on the header line go to the layout (flow, state) or to `create` (the others). A name is letters, digits, `_` and inner `-`.
+
+### `flow LR` or `flow TB`: EdgeDiagram, placed by EdgeLayout
+
+| Line | Meaning |
+| --- | --- |
+| `A[Title \| sub] {opts}` | A node: a box with a title and a sub (more `\|` give more sub lines). `A(Title)` is a pill. A name used without brackets is its own title. Declaring a node again adds to it |
+| `A -> B: label {opts}` | A link. `-->` dashed, `<->` arrows at both ends, `<-->` both and dashed, `--` no arrow. A chain `A -> B -> C: label` puts the label on its last link; the options go on every link of the line |
+| `A -> B, C, D` / `A, B -> C` | A fan out of A, or into C (`&` works as the comma) |
+| `zone NAME { A B }`, or `zone NAME {` … `}` | A zone holding those nodes; in the block form, every node first named inside it. Zones do not nest. With zones, the layout puts each in its own ranks (`bands: true`); `flow LR {bands: false}` lets them sit side by side |
+| `step: A B zoneName A->B \| caption` | A step showing those items. A zone shows with its first node and a link once all its ends are shown, unless a step names them; a node no step names shows from the start. The first step line is step 0. A link with an arrow carries packets in the step it appears in, `{flow: true}` in every step, `{flow: false}` never |
+
+### `state` (top to bottom by default, or `state LR`): EdgeDiagram state shapes, placed by EdgeLayout
+
+TB keeps a machine of any length readable: in LR a chain of states becomes a strip too thin for its labels. Put the figure beside its caption (`templates/text.html` does) rather than across the page.
+
+| Line | Meaning |
+| --- | --- |
+| `[*] -> Registered` / `Done -> [*]` | The start (a filled dot) and an end (a ringed dot) of the machine, or of the composite state the line is in |
+| `Registered -> Attested: quote [EK valid] / store` | A transition: `event [guard] / action`, each part optional; `-->` dashes it. `A -> A: tick` is a self-transition |
+| `Registered[Registered \| identity issued] {tone: add}` | A state; `Registered: identity issued` gives just the sub. `state X <<choice>>` (or `{shape: choice}`) is a choice diamond |
+| `state InService[In service] {` … `}` | A composite state, drawn as a zone around its states. A transition to it enters at its `[*]` (else its first state), one from it leaves from its end (else its first state). Composites do not nest |
+| `step: State \| caption` | The walk: each step names the state reached, by a transition from the state before (`d.walk`); the first is where it starts (`[*]` for the start). `walk: A B C` is the same without captions |
+
+### `sequence`: EdgeSequence
+
+| Line | Meaning |
+| --- | --- |
+| `participant api[API \| sub] {icon: server, tone: accent}` | A participant (`actor` is the same, `participant api as API` too). Participants named only in messages are added in the order they appear |
+| `group SERVICE { api db }` | A band behind those columns |
+| `A -> B: label \| caption {opts}` | A message; `-->` is a reply (dashed). `->>` and `-->>` are read as `->` and `-->`. `A -> A: label` is a self call. `{with: true}` shows it in the same step as the one before |
+| `note over A, B: text` | A note over those columns (`left of`, `right of` mean over) |
+| `alt cond` … `else cond` … `end` | A frame; also `opt`, `loop`, `par` (with `and`), `critical`, `break`. Frames nest |
+
+Without a viewBox, the svg is 190 units per participant wide (560 to 1200).
+
+### `timeline`: EdgeTimeline
+
+| Line | Meaning |
+| --- | --- |
+| `axis 2027-01 .. 2027-12 month` | The time axis (required): dates or plain numbers, and a unit |
+| `today 2027-04-19` | The today line (or `{today: ...}` on the header) |
+| `band PRODUCT` | The lanes after it are in this band |
+| `lane API`, or `lane api[API \| platform team] {opts}` | A lane; the bars and milestones after it are on it |
+| `bar Schema 2027-01-15 .. 2027-03-10 {progress: 1}` | A bar; its label is everything before the dates. `bar id[Label] ...` gives it an id |
+| `milestone Beta 2027-07-20 {tone: gap, line: true}` | A milestone |
+| `phase Design 2027-01 .. 2027-03 \| caption {tone: accent}` | A phase; the default steps go phase by phase (`timeline {by: item}`: item by item) |
+| `Schema -> Endpoints, Screens` | Dependencies, by label or id, after the items they join |
+
+### `matrix`: EdgeMatrix
+
+```
+matrix {totals: true, corner: REQ \ TEST}
+| Power cut | Disk full | Link down
+group UPDATES | Updates first.
+[U-01] Applies atomically | F P N
+Rolls back | F | P3 | .
+```
+
+The first row names the columns (its first cell, before the first `|`, is the corner). Each row after it is a label (`[code] label` gives a code), then its cells, one per column: separated by `|`, or by spaces after a single `|`. A cell is a legend key (`F` full, `P` partly, `N` not, `X` not applicable), a key and a mark (`P3`), or `.` (empty). `group NAME | caption` starts a row group; the default steps reveal the groups, then the totals. `state K Label {tone: add, style: solid, gap: true}` lines replace the legend with your own states.
+
+### Text or JS
+
+Prefer the text for a quick figure: a flow of a dozen boxes, a sequence, a lifecycle, a plan, a small matrix. Use the JS API when the figure needs what the text does not say: a hand composition (coordinates, `d.lanes`, EdgeSketch), steps that dim, hide or fire particular links, packets in chosen directions, a fan's own branch labels, column groups, plane matrices, `d.text` labels, or anything driven by code. The two meet: `EdgeText.render` returns the library's object, so a page can add to `r.figure` or drive `r.ctl`.
 
 ## EdgeDeck (`lib/edgedeck.js`)
 

@@ -130,10 +130,13 @@
     }
     function end(e) { return typeof e === 'string' ? [e] : (e || []).slice(); }
     calls.forEach(function (c) {
-      if (c.kind === 'link') {
+      if (c.kind === 'link' || c.kind === 'transition') {
         c.o.from = end(c.o.from); c.o.to = end(c.o.to);
         var u = nodeOf(c.o.from[0], 'link ' + c.id), v = nodeOf(c.o.to[0], 'link ' + c.id);
-        if (u !== v) E.push({idx: E.length, u: u, v: v, o: c.o, ends: [c.o.from, c.o.to]});
+        var lo = c.o;   // a transition's label is made of its event, guard and action: room for that
+        if (c.kind === 'transition' && !c.o.label && (c.o.event || c.o.guard || c.o.action))
+          lo = Object.assign({}, c.o, {label: [c.o.event, c.o.guard && '[' + c.o.guard + ']', c.o.action && '/ ' + c.o.action].filter(Boolean).join(' ')});
+        if (u !== v) E.push({idx: E.length, u: u, v: v, o: lo, ends: [c.o.from, c.o.to]});
       } else if (c.kind === 'fan') {
         var into = Array.isArray(c.o.from[0]), sh = end(into ? c.o.to : c.o.from), many = (into ? c.o.from : c.o.to).map(end);
         if (into) { c.o.to = sh; c.o.from = many; } else { c.o.from = sh; c.o.to = many; }
@@ -383,6 +386,16 @@
       // across: before (the label's side in LR) and after; along the ranks: before (the label's side in TB) and after
       if (lr) { z.xb = pad + (z.o.label ? LABEL : 0); z.xa = pad; z.mb = z.ma = wide(span); }
       else { z.xb = z.xa = wide(row); z.mb = pad + (z.o.label ? LABEL : 0); z.ma = pad; }
+    });
+    if (!lr) Z.forEach(function (z) {   // TB: a wire entering the zone from above stays clear of its label (top-left)
+      if (!z.o.label || z.o.labelPos) return;
+      var tw = measure(d.svg, z.o.label, z.o.labelSize || 11, 'ed-zlabel'), at = 0, prev = null;
+      layers[z.r0].filter(function (v) { return v.zone === z; }).forEach(function (v) {
+        at += prev ? gap(prev, v) : 0; prev = v;
+        var ins = v.up.filter(function (w) { return w.zone !== z; }).length;
+        if (ins) z.xb = Math.max(z.xb, Math.ceil(18 + tw + 12 - (at + (ins > 1 ? v.cs / 4 : v.cs / 2))));   // the label starts 18 in
+        at += v.cs;
+      });
     });
     function gap(p, q) {   // between neighbours p and q (p first) in a rank, edge to edge
       if (p.zone === q.zone) return (!p.real && !q.real) ? Math.max(14, nodeSep / 3) : (!p.real || !q.real) ? nodeSep / 2 : nodeSep;

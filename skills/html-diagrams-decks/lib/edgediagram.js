@@ -948,6 +948,18 @@
         global.EdgeLayout.place(api, calls, opts || {});
         if (vbv && vbv.width) vb = {x: vbv.x, y: vbv.y, w: vbv.width, h: vbv.height};   // it may fit the viewBox
         calls.forEach(function (c) { api[c.kind](c.id, c.o); });
+        dirty = true; relayout();
+        // the fitted viewBox holds the boxes; grow it to hold the wires and labels drawn past them (a self-loop's label)
+        var b = [layers.links, layers.labels].map(bboxOf).filter(function (r) { return r && r.w; });
+        if ((!opts || opts.fit !== false) && vb && b.length) {
+          var x0 = Math.min.apply(null, b.map(function (r) { return r.x - 8; }).concat(vb.x)), y0 = Math.min.apply(null, b.map(function (r) { return r.y - 8; }).concat(vb.y));
+          var x1 = Math.max.apply(null, b.map(function (r) { return r.x + r.w + 8; }).concat(vb.x + vb.w)), y1 = Math.max.apply(null, b.map(function (r) { return r.y + r.h + 8; }).concat(vb.y + vb.h));
+          if (x0 < vb.x || y0 < vb.y || x1 > vb.x + vb.w || y1 > vb.y + vb.h) {
+            vb = {x: Math.floor(x0), y: Math.floor(y0), w: Math.ceil(x1 - Math.floor(x0)), h: Math.ceil(y1 - Math.floor(y0))};
+            svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+          }
+        }
+        return api;
       }
       dirty = true; relayout(); return api;
     };
@@ -957,6 +969,7 @@
        loop on o.side (default right), o.span wide and o.loop deep, its label beside it. Ink by default,
        with an arrowhead and a packet that runs while a step fires it. */
     api.transition = function (id, o) {
+      if (hold('transition', id, o)) return api;
       function end(e) { return typeof e === 'string' ? [e, 'auto'] : e; }
       var from = end(o.from), to = end(o.to), parts = [];
       if (from[0] === to[0] && o.side) { from = [from[0], o.side, from[2]]; to = [to[0], o.side, to[2]]; }
@@ -1571,6 +1584,8 @@
           Object.keys(links).forEach(function (lid) {
             var L = links[lid];
             if (V[lid] && checked(lid) && L.lbox && inter(lb, L.lbox, 1)) add('zone label ' + id + ' is under the label of link ' + lid, lb, step);
+            if (V[lid] && checked(lid) && samples(L).some(function (p) { return p[0] > lb.x + 1 && p[0] < lb.x + lb.w - 1 && p[1] > lb.y + 1 && p[1] < lb.y + lb.h - 1; }))
+              add('link ' + lid + ' runs through zone label ' + id, lb, step);
           });
         });
         var ns = Object.keys(nodes).filter(function (id) { return V[id] && !nodes[id].o.ghost && checked(id); });

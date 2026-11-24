@@ -1,0 +1,218 @@
+<title>Figures From Text</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.wrap+.wrap{margin-top:24px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1,h2{font-family:var(--display);font-weight:700;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,4vw,44px)}h2{font-size:clamp(22px,2.6vw,28px)}
+.lede{font-size:17px;line-height:1.5;margin:0;max-width:70ch;color:var(--ink2)}
+.lede code,.hint code{font-family:var(--mono);font-size:.9em}
+.cap{font-size:17px;line-height:1.5;min-height:3em;margin:0;max-width:70ch}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto;margin-inline:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side{display:grid;gap:18px}.side>*{min-width:0}
+@media (min-width:980px){.side{grid-template-columns:300px 1fr;align-items:start}.side .cap{min-height:6em;margin-bottom:14px}}
+/* a state machine runs top to bottom: beside its caption, the column is not stretched */
+.side .stage svg{min-width:0}
+.controls .count{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto}
+details{border-top:1px solid var(--rule);padding-top:12px}
+summary{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+details pre{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--bg);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;margin:12px 0 0;overflow-x:auto;color:var(--ink)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · text input</p>
+  <h1>Five figures, each written in a few lines of text</h1>
+  <p class="lede">Each figure below is a <code>&lt;script type="text/trazo"&gt;</code> block: a header line picks the kind, the lines after it say what is in the figure, and <code>lib/edgetext.js</code> hands it to the library that draws that kind. Open “Source” under a figure to read its text.</p>
+</div>
+
+<!-- flow: laid out by EdgeLayout, no coordinates -->
+<section class="wrap fig">
+  <p class="eyebrow">flow LR</p>
+  <h2>How a field reading reaches the cloud</h2>
+  <p class="cap" aria-live="polite"></p>
+  <div class="stage"><svg id="t-flow" role="img" aria-label="Field devices are polled by an edge gateway, which buffers readings and forwards them to the cloud, where they are stored and raise alarms."></svg></div>
+  <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+  <script type="text/trazo" data-target="#t-flow" data-start="end">
+flow LR
+zone FIELD { meter[Meter | Modbus TCP] {icon: meter} recloser[Recloser | DNP3] {icon: recloser} }
+zone EDGE {
+  gw[Gateway | polls · converts] {icon: rtu, tone: accent, info: Polls each device in its own protocol.}
+  buffer[Buffer | store and forward] {icon: database, tone: add}
+}
+zone CLOUD {
+  ingest[Ingest | validates · dedups] {icon: cloud}
+  tsdb[Time series] {icon: database}
+  alarms[Alarms] {icon: fault, tone: gap}
+}
+meter, recloser -> gw: poll
+gw -> buffer
+buffer -> ingest: forward {tone: add}
+ingest -> tsdb, alarms
+step: meter recloser | Field devices each speak their own protocol.
+step: gw buffer | An edge gateway polls them and buffers every reading on site.
+step: ingest tsdb alarms | The buffer forwards readings to the cloud, which stores them and raises alarms.
+  </script>
+</section>
+
+<!-- sequence: EdgeSequence, one message per step -->
+<section class="wrap fig">
+  <p class="eyebrow">sequence</p>
+  <h2>A write that never waits for the database</h2>
+  <p class="cap" aria-live="polite"></p>
+  <div class="stage"><svg id="t-seq" viewBox="0 0 920 300" role="img" aria-label="The browser posts a write; the API validates and queues it and answers 202 at once; a worker later takes batches from the queue and writes them to the database."></svg></div>
+  <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+  <script type="text/trazo" data-target="#t-seq" data-start="end">
+sequence
+title: Five parts take part in a write.
+participant web[Browser] {icon: desktop}
+participant api[API] {icon: server, tone: accent}
+participant queue[Queue] {icon: broker}
+participant worker[Worker] {icon: container, tone: add}
+participant db[Database] {icon: database}
+web -> api: POST /orders | The browser sends a write.
+api -> api: validate | The API checks it…
+api -> queue: enqueue | …queues it…
+queue --> api: stored {with: true}
+api --> web: 202 Accepted | …and answers at once.
+loop every 200 ms
+  worker -> queue: take batch | A worker takes a batch…
+  queue --> worker: batch {with: true}
+  worker -> db: INSERT batch | …and writes it in one transaction.
+  db --> worker: commit {with: true}
+end
+  </script>
+</section>
+
+<!-- state: EdgeDiagram's state shapes and transitions, laid out by EdgeLayout -->
+<section class="wrap fig">
+  <p class="eyebrow">state</p>
+  <h2>The life of an edge node</h2>
+  <div class="side">
+    <div>
+      <p class="cap" aria-live="polite"></p>
+      <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+    </div>
+    <div class="stage"><svg id="t-state" role="img" aria-label="An edge node is registered, attested and admitted to service, where it is trusted while its quotes hold and untrusted when one fails; three failures quarantine it."></svg></div>
+  </div>
+  <script type="text/trazo" data-target="#t-state" data-start="end">
+state
+[*] -> Registered: enrol / issue identity
+Registered[Registered | identity issued]
+Registered -> Attested: quote [EK valid] / store PCRs
+Attested -> InService: policy ok
+state InService[In service] {
+  [*] -> Trusted
+  Trusted[Trusted | runs workloads] {tone: add}
+  Untrusted[Untrusted | work stopped] {tone: gap}
+  Trusted -> Untrusted: quote fails
+  Untrusted -> Trusted: quote ok [3 in a row]
+}
+Untrusted -> Quarantined: timeout [3 failures]
+Quarantined {tone: gap}
+Quarantined -> Registered: reimage / re-enrol
+step: [*] | A new node starts outside the fleet.
+step: Registered | It enrols: the hub issues it an identity bound to its TPM.
+step: Attested | Its first quote checks out; the PCR values are stored.
+step: InService | Policy admits it to service.
+step: Trusted | Inside, it starts trusted: placement may schedule work on it.
+step: Untrusted | A quote fails: its workloads stop.
+step: Quarantined | Three failures in a row: it is quarantined.
+step: Registered | Reimaged from a signed image, it enrols again.
+  </script>
+</section>
+
+<!-- timeline: EdgeTimeline, a step per phase -->
+<section class="wrap fig">
+  <p class="eyebrow">timeline</p>
+  <h2>A customer portal in 2027</h2>
+  <p class="cap" aria-live="polite"></p>
+  <div class="stage"><svg id="t-time" viewBox="0 0 1000 300" role="img" aria-label="The API schema comes first; both the endpoints and the web app build on it, a beta follows in July, and general availability waits for the security review."></svg></div>
+  <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+  <script type="text/trazo" data-target="#t-time" data-start="end">
+timeline {today: 2027-04-19}
+title: Three teams over 2027. Step through the phases.
+axis 2027-01 .. 2027-12 month
+band PRODUCT
+lane API
+bar Schema 2027-01-11 .. 2027-03-05 {tone: accent, progress: 1}
+bar Endpoints 2027-03-15 .. 2027-06-25 {tone: accent, progress: 0.3}
+lane Web app
+bar Screens and flows 2027-03-15 .. 2027-07-02 {tone: add, progress: 0.2}
+milestone Beta 2027-07-23 {tone: gap}
+band READINESS
+lane Security
+bar Review 2027-07-05 .. 2027-08-20 {tone: gap}
+milestone General availability 2027-09-13 {tone: gap, line: true}
+phase Design 2027-01 .. 2027-03 | Design: the API schema comes first. {tone: accent}
+phase Build 2027-04 .. 2027-07 | Build: both the endpoints and the screens rest on the schema. {tone: add}
+phase Launch 2027-08 .. 2027-10 | Launch: general availability waits for the review. {tone: p3}
+Schema -> Endpoints, Screens and flows
+Screens and flows -> Beta
+Review -> General availability
+  </script>
+</section>
+
+<!-- matrix: EdgeMatrix, a step per row group -->
+<section class="wrap fig">
+  <p class="eyebrow">matrix</p>
+  <h2>Which test campaign covers which requirement</h2>
+  <p class="cap" aria-live="polite"></p>
+  <div class="stage"><svg id="t-matrix" role="img" aria-label="Updates are covered in every campaign but the field pilot; recovery is partly covered in staging and not in the pilot."></svg></div>
+  <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+  <script type="text/trazo" data-target="#t-matrix" data-start="end">
+matrix {totals: true, corner: REQ \ TEST}
+title: Four requirements in three campaigns.
+| Power cut | Disk full | Link down | Field pilot
+group UPDATES | Updates are covered everywhere but the pilot.
+[U-01] Applies atomically | F F F P
+[U-02] Rolls back on failure | F F P N
+group RECOVERY | Recovery has gaps.
+[R-01] Restarts its services | F P2 F N
+[R-02] Rebuilds from the image | F X . N
+  </script>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgelayout.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script src="../lib/edgetimeline.js"></script>
+<script src="../lib/edgematrix.js"></script>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgetext.js"></script>
+<script>
+(function () {
+  /* Every text/trazo block renders by itself once the page has loaded. Here each section also gets
+     its caption, Previous/Next and a "Source" box with the block's text. */
+  function wire() {
+    EdgeText.auto().forEach(function (r) {
+      var sec = r.svg.closest('.fig'), block = sec.querySelector('script[type="text/trazo"]');
+      var det = document.createElement('details'), pre = document.createElement('pre'), sum = document.createElement('summary');
+      sum.textContent = 'Source'; pre.textContent = block.textContent.replace(/^\n+|\s+$/g, '');
+      det.appendChild(sum); det.appendChild(pre); sec.appendChild(det);
+      if (!r.ctl) return;
+      var cap = sec.querySelector('.cap'), count = sec.querySelector('.count');
+      function show() {
+        var s = r.ctl.steps ? r.ctl.steps[r.ctl.step] : r.steps && r.steps[r.ctl.step];
+        cap.textContent = (s && s.caption) || '';
+        count.textContent = (r.ctl.step + 1) + ' / ' + r.ctl.count;
+      }
+      sec.querySelector('.next').addEventListener('click', function () { r.ctl.next(); show(); });
+      sec.querySelector('.prev').addEventListener('click', function () { r.ctl.prev(); show(); });
+      show();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+})();
+</script>

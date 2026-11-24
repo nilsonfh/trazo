@@ -5,6 +5,7 @@
 <svg id="cross" viewBox="0 0 600 300"></svg>
 <svg id="side" viewBox="0 0 600 300"></svg>
 <svg id="need" viewBox="0 0 600 300"></svg>
+<svg id="zl" viewBox="0 0 400 300"></svg>
 <pre id="out"></pre>
 <script src="../lib/edgediagram.js"></script>
 <script>
@@ -59,6 +60,12 @@ w.node('a', {x: 20, y: 120, w: 100, h: 40, title: 'A'}).node('b', {x: 460, y: 12
  .link('ub', {from: ['u', 'right'], to: ['b', 'top']}).link('au', {from: ['a', 'top'], to: ['u', 'left']});
 var wi = w.check();
 if (wi.length) bad.push('a crossing nothing removes: ' + wi.join(' / '));
+// a wire into a zone through its label
+var z = EdgeDiagram.create(document.getElementById('zl'));
+z.zone('box', {x: 40, y: 100, w: 300, h: 160, label: 'IN SERVICE'})
+ .node('top', {x: 40, y: 10, w: 100, h: 40, title: 'T'}).node('in', {x: 40, y: 180, w: 100, h: 40, title: 'I'})
+ .link('down', {from: ['top', 'bottom'], to: ['in', 'top']});
+expect(z.check(), ['link down runs through zone label box.label'], 'a wire through a zone label');
 if (!EdgeDiagram.version) bad.push('no EdgeDiagram.version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>
