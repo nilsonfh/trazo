@@ -1,0 +1,122 @@
+<!-- EdgeMatrix: sizes from data, compact mode on a large matrix, steps, filter, highlight, keys, plane, and its layout check. Run with scripts/test.sh. -->
+<svg id="big" viewBox="0 0 800 400" role="img" aria-label="a large matrix"></svg>
+<svg id="small" viewBox="0 0 800 400" role="img" aria-label="a small matrix"></svg>
+<svg id="pl" viewBox="0 0 800 400" role="img" aria-label="a plane"></svg>
+<svg id="bad" viewBox="0 0 400 300" role="img" aria-label="broken"></svg>
+<svg id="clip" viewBox="0 0 400 300" role="img" aria-label="clipped"></svg>
+<p id="st"></p>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgematrix.js"></script>
+<script>
+var bad = [];
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function off(svg, sel) { return [].filter.call(svg.querySelectorAll(sel), function (e) { return e.classList.contains('em-off'); }).length; }
+try {
+  /* 160 rows x 40 columns: compact, fast, nothing to report */
+  var t0 = performance.now(), B = document.getElementById('big');
+  var b = EdgeMatrix.create(B, {totals: true});
+  for (var j = 0; j < 40; j++) b.col('c' + j, {label: 'Scenario ' + (j + 1), group: 'g' + (j >> 3)});
+  for (var g = 0; g < 5; g++) b.colGroup('g' + g, {label: 'SET ' + (g + 1)});
+  var keys = 'FFFPNX.';
+  for (var i = 0; i < 160; i++) {
+    b.row('r' + i, {code: 'R-' + (i + 1), label: 'Requirement number ' + (i + 1), group: 'h' + (i >> 5)});
+    var s = ''; for (j = 0; j < 40; j++) s += keys[(i * 7 + j * 3) % keys.length];
+    var o = {}; o['r' + i] = s; b.cells(o);
+  }
+  for (g = 0; g < 5; g++) b.rowGroup('h' + g, {label: 'Area ' + (g + 1)});
+  b.cell('r3', 'c3', {state: 'part', mark: '4'});
+  b.render();
+  var ms = performance.now() - t0;
+  if (ms > 2500) bad.push('160 x 40 took ' + Math.round(ms) + ' ms');
+  var cell = B.querySelector('.em-c[data-r="r0"][data-c="c0"]');
+  if (+cell.getAttribute('width') !== 14) bad.push('compact cells: want width 14, got ' + cell.getAttribute('width'));
+  if (B.querySelectorAll('.em-c[data-r]').length !== 6400) bad.push('6400 cells, got ' + B.querySelectorAll('.em-c[data-r]').length);
+  var vb = B.viewBox.baseVal;
+  if (vb.width > 1200) bad.push('the compact matrix is too wide: ' + vb.width);
+  if (!B.querySelector('text.em-h[transform^="rotate(-90"]')) bad.push('long column headers turn');
+  var bc = b.check();
+  if (bc.length) bad.push('large matrix: ' + bc.slice(0, 4).join(' / '));
+  var cnt = b.counts('r0'), sum = 0; Object.keys(cnt).forEach(function (k) { sum += cnt[k]; });
+  if (sum > 40 || !cnt.full) bad.push('counts of r0: ' + JSON.stringify(cnt));
+  var nRows = B.querySelectorAll('g[data-r] > text.em-h').length;
+  b.filter('gaps');
+  var nGaps = B.querySelectorAll('g[data-r] > text.em-h').length;
+  if (!(nGaps > 0 && nGaps <= nRows)) bad.push('filter gaps: ' + nRows + ' -> ' + nGaps);
+  b.filter({rows: ['r1', 'r2']});
+  if (B.querySelectorAll('g[data-r] > text.em-h').length !== 2) bad.push('filter by row ids');
+  b.filter(null);
+
+  /* a small one: sizes, steps, highlight, legend, keys, status */
+  var S = document.getElementById('small'), st = document.getElementById('st');
+  var m = EdgeMatrix.create(S, {status: st, totals: {cols: false}});
+  m.rowGroup('a', {label: 'A', caption: 'first'}).rowGroup('b', {label: 'B', caption: 'second'});
+  m.cols([{id: 'x', label: 'X'}, {id: 'y', label: 'Y'}, {id: 'z', label: 'Z'}]);
+  m.rows([{id: 'r1', label: 'One', group: 'a'}, {id: 'r2', label: 'Two', group: 'a'}, {id: 'r3', label: 'Three', group: 'b'}]);
+  m.cells({r1: 'FPN', r2: 'FFF', r3: 'X.F'});
+  m.cell('r1', 'y', {state: 'part', mark: '12', info: 'twelve of them'});
+  var ctl = m.steps();
+  if (ctl.count !== 4) bad.push('steps: want 4 (headers, a, b, totals), got ' + ctl.count);
+  if (off(S, '.em-c[data-r]') !== 9) bad.push('step 0 hides every cell, hid ' + off(S, '.em-c[data-r]'));
+  ctl.next();
+  if (off(S, '.em-c[data-r]') !== 3) bad.push('step 1 shows group a, hid ' + off(S, '.em-c[data-r]'));
+  ctl.end();
+  if (off(S, '.em-c[data-r]') !== 0) bad.push('the last step shows everything');
+  if (+S.querySelector('.em-c[data-r]').getAttribute('width') !== 26) bad.push('normal cells are 26 wide');
+  if (S.querySelector('text.em-h[transform]')) bad.push('short headers stay across');
+  if (S.querySelectorAll('.em-th').length !== 4) bad.push('row totals only: want 4 total headers, got ' + S.querySelectorAll('.em-th').length);
+  m.highlight({states: ['none']});
+  var dim = S.querySelectorAll('.em-c[data-r].em-dim').length;
+  if (dim !== 8) bad.push('highlight none: want 8 of 9 cells dimmed, got ' + dim);
+  m.highlight(null);
+  if (S.querySelectorAll('.em-dim').length) bad.push('highlight(null) clears');
+  S.querySelector('.em-lg[data-state="full"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+  if (!S.querySelector('.em-lg.on') || !S.querySelectorAll('.em-c[data-r].em-dim').length) bad.push('a click on a legend entry highlights its state');
+  S.querySelector('.em-lg[data-state="full"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+  if (S.querySelectorAll('.em-dim').length) bad.push('a second click clears it');
+  S.focus();
+  S.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true}));
+  if (st.textContent.indexOf('One · Y · Partly covered · 12 · twelve of them') !== 0) bad.push('keys and status: ' + st.textContent);
+  S.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true}));
+  if (st.textContent.indexOf('Two · Y') !== 0) bad.push('arrow down: ' + st.textContent);
+  if (S.querySelector('.em-cursor').getAttribute('display') === 'none') bad.push('the cursor shows');
+  S.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}));
+  var mc = m.check();
+  if (mc.length) bad.push('small matrix: ' + mc.join(' / '));
+
+  /* a plane */
+  var p = EdgeMatrix.create(document.getElementById('pl'), {mode: 'plane', icons: window.EDGE_ICONS, axes: {x: 'DOMAINS', y: 'ZONES'}});
+  p.cols([{id: 'd1', label: 'Distribution'}, {id: 'd2', label: 'Customer premises'}]).rows([{id: 'z1', label: 'Station'}, {id: 'z2', label: 'Field'}]);
+  p.item('a', {row: 'z1', col: 'd1', icon: 'substation', label: 'Substation', info: 'steps down'})
+   .item('b', {row: 'z1', col: 'd1', icon: 'rtu', label: 'RTU'}).item('c', {row: 'z2', col: 'd2', icon: 'meter'});
+  p.render();
+  var P = document.getElementById('pl');
+  if (P.querySelectorAll('.em-item').length !== 3) bad.push('plane: 3 items');
+  if (!P.querySelector('.em-item[tabindex] title')) bad.push('an item with info is focusable with a title');
+  if (P.querySelectorAll('path.em-axis').length !== 2) bad.push('plane: two axes');
+  P.querySelectorAll('path.em-axis').forEach(function (a) { if (!/^M[\d.]+ [\d.]+ [HV][\d.]+$/.test(a.getAttribute('d'))) bad.push('axis not at a right angle: ' + a.getAttribute('d')); });
+  if (P.querySelector('.em-lg')) bad.push('a plane without states has no legend');
+  var pc = p.check();
+  if (pc.length) bad.push('plane: ' + pc.join(' / '));
+
+  /* the check finds what overflows */
+  var r = EdgeMatrix.create(document.getElementById('bad'), {rotate: true, colH: 40, rowMax: 60});
+  r.col('c', {label: 'A column header far too long for a band forty high'}).col('d', {label: 'D'});
+  r.row('x', {label: 'A row label much longer than sixty'});
+  r.cell('x', 'c', {state: 'full', mark: 'WIDE MARK'});
+  r.colGroup('g', {label: 'A GROUP LABEL WIDER THAN TWO CELLS'}); r.col('e', {label: 'E', group: 'g'}); r.col('f', {label: 'F', group: 'g'});
+  r.render();
+  expect(r.check(), ['longer than the header band', 'row header "A row label', 'mark "WIDE MARK"', 'column group label'], 'broken matrix');
+  var k = EdgeMatrix.create(document.getElementById('clip'), {rotate: true, colH: 60, rowMax: 80, clip: true});
+  k.col('c', {label: 'A column header far too long for a band'}).row('x', {label: 'A row label much longer than eighty'});
+  k.cell('x', 'c', 'part'); k.render();
+  var kc = k.check();
+  if (kc.length) bad.push('clip leaves nothing to report: ' + kc.join(' / '));
+  if (document.querySelector('#clip text.em-h').textContent.slice(-1) !== '…') bad.push('a clipped header ends with an ellipsis');
+  try { k.cells({x: 'Q'}); bad.push('an unknown key throws'); } catch (e) {}
+  if (EdgeMatrix.version !== '1.3.1') bad.push('version');
+} catch (e) { bad.push('threw: ' + (e && e.stack || e)); }
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

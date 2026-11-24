@@ -15,7 +15,7 @@ class ToDrawio(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp(dir=os.path.join(ROOT, "tests"))   # beside the tests, so file:// pages load
-        for name in ("diagram", "sketch", "timeline"):
+        for name in ("diagram", "sketch", "timeline", "matrix"):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "inline.py"), os.path.join(ROOT, "templates", name + ".html")],
                                  capture_output=True, text=True, check=True).stdout
             with open(os.path.join(cls.dir, name + ".html"), "w", encoding="utf-8") as f:
@@ -81,6 +81,23 @@ class ToDrawio(unittest.TestCase):
         self.assertGreaterEqual(len([s for s in styles if "endArrow=block" in s]), 6, "the dependencies")
         self.assertTrue(any("dashed=1" in s and s.startswith("rounded=1") for s in styles), "the planned bar")
         self.assertNotIn("not exported", r.stderr)
+
+    def test_a_matrix_keeps_its_cells_turned_headers_and_plane_icons(self):
+        r, out = self.export(os.path.join(self.dir, "matrix.html"), "cov")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("kind svg", r.stdout)
+        cells = self.cells(out)
+        styles = [c.get("style") or "" for c in cells]
+        values = [c.get("value") or "" for c in cells]
+        self.assertIn("Rolling update", values)
+        self.assertTrue(any("UPDATES" in v for v in values), "the row group labels")
+        self.assertTrue(any("rotation=-90" in s for s in styles), "the turned column headers")
+        self.assertGreaterEqual(values.count(""), 154, "a box per cell")
+        r, out = self.export(os.path.join(self.dir, "matrix.html"), "plane")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        styles = [c.get("style") or "" for c in self.cells(out)]
+        self.assertTrue(any("stencil(" in s for s in styles), "icons in the plane")
+        self.assertTrue(any("endArrow=block" in s for s in styles), "the axes")
 
     def test_an_html_figure(self):
         r, out = self.export(os.path.join(self.dir, "sketch.html"), ".legend")

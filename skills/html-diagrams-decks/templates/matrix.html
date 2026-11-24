@@ -1,0 +1,130 @@
+<title>Coverage Matrix</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.wrap+.wrap{margin-top:24px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1,h2{font-family:var(--display);font-weight:700;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(30px,4vw,44px)}h2{font-size:clamp(24px,3vw,32px)}
+.cap{font-size:18px;line-height:1.5;min-height:3.2em;margin:0;max-width:70ch}
+.cap b{font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-right:10px;letter-spacing:.06em}
+.status{font-family:var(--mono);font-size:13px;color:var(--ink2);min-height:1.5em;margin:0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto;margin-inline:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:13px;color:var(--muted);margin:0}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · coverage matrix</p>
+  <h1>Which test campaign covers which requirement</h1>
+  <p class="cap" id="cap" aria-live="polite"></p>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="walk">Walk through</button>
+    <button type="button" id="gaps" aria-pressed="false">Only rows with gaps</button>
+  </div>
+  <p class="status" id="status" aria-live="polite">Hover a cell, or focus the matrix and use the arrow keys. Click a legend entry to highlight its state.</p>
+  <div class="stage"><svg id="cov" viewBox="0 0 900 600" role="img" aria-label="Coverage of fourteen requirements by eleven test campaigns in three settings: updates and security are covered in the lab and in staging, observability has gaps in the field pilot."></svg></div>
+</div>
+
+<div class="wrap">
+  <p class="eyebrow">Template · plane</p>
+  <h2>Where each part of a feeder sits, by domain and zone</h2>
+  <p class="status" id="pstatus" aria-live="polite">Hover a cell or a box for details.</p>
+  <div class="stage"><svg id="plane" viewBox="0 0 900 600" role="img" aria-label="A plane of grid domains by zones: field devices in distribution and customer premises, station equipment, operation and enterprise systems above them."></svg></div>
+</div>
+
+<script src="../lib/edgematrix.js"></script>
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  /* A coverage matrix: requirements down, test campaigns across, one state per cell from the legend
+     (Covered, Partly covered, Not covered, Not applicable), a short mark where it helps, totals.
+     cells() takes one legend key per column: F P N X, '.' for an empty cell. */
+  var m = EdgeMatrix.create(document.getElementById('cov'), {status: '#status', totals: true, corner: 'REQ \\ CAMPAIGN'});
+  m.colGroup('lab', {label: 'LAB BENCH'}).colGroup('stg', {label: 'STAGING'}).colGroup('fld', {label: 'FIELD PILOT'});
+  m.cols([
+    {id: 'l1', label: 'Power cut', group: 'lab'}, {id: 'l2', label: 'Clock skew', group: 'lab'}, {id: 'l3', label: 'Disk full', group: 'lab'},
+    {id: 'l4', label: 'Bad image', group: 'lab'},
+    {id: 's1', label: 'Rolling update', group: 'stg'}, {id: 's2', label: 'Key rotation', group: 'stg'}, {id: 's3', label: 'Link loss', group: 'stg'},
+    {id: 's4', label: 'Load spike', group: 'stg'},
+    {id: 'f1', label: 'Ten sites', group: 'fld'}, {id: 'f2', label: 'Cellular only', group: 'fld'}, {id: 'f3', label: 'Winter week', group: 'fld'}
+  ]);
+  m.rowGroup('upd', {label: 'UPDATES', caption: 'Updates: every requirement is covered in the lab and in staging.'})
+   .rowGroup('sec', {label: 'SECURITY', caption: 'Security: covered, except that a revoked key is only partly tested in the field.'})
+   .rowGroup('obs', {label: 'OBSERVABILITY', caption: 'Observability: the gaps are here, in the field pilot.'});
+  m.rows([
+    {id: 'u1', code: 'U-01', label: 'An update applies atomically', group: 'upd'},
+    {id: 'u2', code: 'U-02', label: 'A failed update rolls back', group: 'upd'},
+    {id: 'u3', code: 'U-03', label: 'Updates resume after a power cut', group: 'upd'},
+    {id: 'u4', code: 'U-04', label: 'A device reports its version', group: 'upd'},
+    {id: 'u5', code: 'U-05', label: 'Waves of 10 % at most', group: 'upd'},
+    {id: 'k1', code: 'S-01', label: 'Images are signed and verified', group: 'sec'},
+    {id: 'k2', code: 'S-02', label: 'A revoked key is refused', group: 'sec'},
+    {id: 'k3', code: 'S-03', label: 'No inbound port is open', group: 'sec'},
+    {id: 'k4', code: 'S-04', label: 'Secrets never leave the device', group: 'sec'},
+    {id: 'o1', code: 'O-01', label: 'Metrics every 30 s', group: 'obs'},
+    {id: 'o2', code: 'O-02', label: 'Logs survive a link loss', group: 'obs'},
+    {id: 'o3', code: 'O-03', label: 'An alarm within 60 s', group: 'obs'},
+    {id: 'o4', code: 'O-04', label: 'Clock drift is reported', group: 'obs'},
+    {id: 'o5', code: 'O-05', label: 'Health page per site', group: 'obs'}
+  ]);
+  m.cells({
+    u1: 'FXXFFXXXFFF', u2: 'FXFFFXXXFFP', u3: 'FXXXFXFXFFF', u4: 'XXXXFXXXFFF', u5: 'XXXXFXXFFXX',
+    k1: 'XXXFFFXXFFF', k2: 'XXXFXFXXPPN', k3: 'XXXXFXXXFFF', k4: 'XXXXXFXXFXF',
+    o1: 'XXXXFXXFFNP', o2: 'XXXXXXFXPNN', o3: 'FXXXFXFFPNN', o4: 'XFXXXXXXNXP', o5: 'XXXXFXXXPXN'
+  });
+  m.cell('k2', 'f1', {state: 'part', mark: '2', info: 'Two of ten sites refused the revoked key; the others were offline.'});
+  m.cell('o3', 'f1', {state: 'part', mark: '7', info: 'Seven of ten sites alarmed within 60 s.'});
+  m.cell('o2', 'f2', {state: 'none', info: 'No cellular site kept its logs over a 6-hour outage.'});
+
+  var cap = document.getElementById('cap'), ctl;
+  ctl = m.steps(null, {caption0: 'Fourteen requirements, eleven test campaigns in three settings. Step through it.',
+    captionTotals: 'The totals count each state per requirement and per campaign.',
+    start: 'end', onStep: function (k, s, c) {
+      cap.innerHTML = '<b>' + (k + 1) + ' / ' + c.count + '</b>';
+      cap.appendChild(document.createTextNode(s.caption || ''));
+    }});
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('walk').addEventListener('click', function () { ctl.go(0); });
+  var gaps = document.getElementById('gaps');
+  gaps.addEventListener('click', function () {
+    var on = gaps.getAttribute('aria-pressed') !== 'true';
+    gaps.setAttribute('aria-pressed', on ? 'true' : 'false');
+    m.filter(on ? 'gaps' : null);
+  });
+
+  /* A plane: domains across, zones up, small boxes in the cells. */
+  var p = EdgeMatrix.create(document.getElementById('plane'), {mode: 'plane', icons: window.EDGE_ICONS, status: '#pstatus',
+    axes: {x: 'DOMAINS', y: 'ZONES'}});
+  p.cols([{id: 'gen', label: 'Generation'}, {id: 'tra', label: 'Transmission'}, {id: 'dis', label: 'Distribution'},
+          {id: 'der', label: 'DER'}, {id: 'cus', label: 'Customer premises'}]);
+  p.rows([{id: 'ent', label: 'Enterprise'}, {id: 'ope', label: 'Operation'}, {id: 'sta', label: 'Station'},
+          {id: 'fie', label: 'Field'}, {id: 'pro', label: 'Process'}]);
+  p.item('erp', {row: 'ent', col: 'dis', icon: 'server', label: 'Asset register', info: 'Keeps the record of every device on the feeder.'})
+   .item('ops', {row: 'ope', col: 'dis', icon: 'desktop', label: 'Control room', tone: 'accent', info: 'Supervises the feeder and sends set points.'})
+   .item('agg', {row: 'ope', col: 'der', icon: 'cloud', label: 'Aggregator', info: 'Pools small generators into one schedule.'})
+   .item('sub', {row: 'sta', col: 'dis', icon: 'substation', label: 'Substation', info: 'Steps the voltage down for the feeder.'})
+   .item('rtu', {row: 'sta', col: 'dis', icon: 'rtu', label: 'RTU', info: 'Collects the station measurements.'})
+   .item('gw', {row: 'sta', col: 'der', icon: 'chip', label: 'Edge node', tone: 'add', info: 'Runs local control for a group of generators.'})
+   .item('rec', {row: 'fie', col: 'dis', icon: 'recloser', label: 'Recloser', info: 'Opens on a fault and tries to close again.'})
+   .item('inv', {row: 'fie', col: 'der', icon: 'pv', label: 'Inverter', info: 'Follows the set points it receives.'})
+   .item('mtr', {row: 'fie', col: 'cus', icon: 'meter', label: 'Meter', info: 'Measures what the premises take and give.'})
+   .item('ev', {row: 'pro', col: 'cus', icon: 'ev', label: 'Charger', tone: 'p3', info: 'Planned: a charger that follows a schedule.'})
+   .item('line', {row: 'pro', col: 'dis', icon: 'transformer', label: 'Feeder', info: 'The lines and transformers themselves.'})
+   .item('pv', {row: 'pro', col: 'der', icon: 'pv', label: 'PV array'});
+  p.render();
+})();
+</script>

@@ -242,6 +242,57 @@ The lane titles take a column on the left (`labelW`) and the time axis the rest 
 Items with `info` are focusable. Hovering or focusing one dims the rest but its dependencies and their other ends (a phase keeps what it spans, a lane its items) and shows a tooltip with the info, the dates, the progress and what it waits for; `info` can be `{text, facts: [[key, value]]}`. A click, Enter or space pins it; Escape or a click elsewhere releases it. `EdgeTimeline.clearAll()` releases every tooltip; EdgeDeck calls it on every slide change.
 
 The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or crossing a bar, an item outside the time axis, a phase label wider than its phase, and text on text or outside the viewBox. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
+## EdgeMatrix (`lib/edgematrix.js`)
+
+Matrices and coverage maps: what covers what, in which state. `templates/matrix.html` is a complete example of both modes.
+
+```js
+var m = EdgeMatrix.create(svgElement, {status: '#status', totals: true});
+m.colGroup('lab', {label: 'LAB'}).cols([{id: 'c1', label: 'Power cut', group: 'lab'}, {id: 'c2', label: 'Disk full', group: 'lab'}]);
+m.rowGroup('upd', {label: 'UPDATES', caption: 'Updates first.'});
+m.rows([{id: 'r1', code: 'U-01', label: 'Applies atomically', group: 'upd'}, {id: 'r2', code: 'U-02', label: 'Rolls back', group: 'upd'}]);
+m.cells({r1: 'FP', r2: 'N.'});                              // one legend key per column; '.' is an empty cell
+m.cell('r2', 'c2', {state: 'part', mark: '3', info: 'three of ten sites'});
+var ctl = m.steps();                                         // one step per row group, then the totals
+```
+
+The library sets the viewBox to fit the content, and a `max-width` on the svg of 1.15 times its width (`maxScale`, `0` for none), so a small matrix is not blown up. Everything is drawn when `render`, `steps` or `check` is first called, and again when a web font loads.
+
+| Call | What it does |
+| --- | --- |
+| `m.row(id, o)`, `m.rows([o])` | A row: `label`, `code` (a mono column before the labels), `group`, `info` (shown on hover of its header) |
+| `m.col(id, o)`, `m.cols([o])` | A column: `label`, `code` (shown before the label unless `colCodes: false`), `group`, `info` |
+| `m.rowGroup(id, o)`, `m.colGroup(id, o)` | `label`, `caption` (for the default steps). Keep a group's rows (or columns) together: each run of them gets one band |
+| `m.cell(row, col, v)` | `v` is a state id, `[state, mark, info]` or `{state, mark, info}`. A mark is a short text in the cell (two or three characters) |
+| `m.cells(map)` | `{rowId: 'FPN.X'}`, one legend `key` per column in order, or `{rowId: {colId: v}}` |
+| `m.item(id, {row, col, label, icon, tone, info})` | A small box in a cell (plane mode, or any matrix): `icon` is a sprite id without `i-`; without `label` it is an icon square. `tone` as in the other libraries; `p3` and `muted` are dashed |
+| `m.get(row, col)`, `m.counts(id)` | A cell's value; the counts per state of a row (over the visible columns) or a column (over the visible rows) |
+| `m.filter(spec)` | Draws only some rows or columns: `'gaps'` (rows with a cell in a state with `gap: true`), `{states: [...]}`, `{rows: [ids or group ids] or fn(row, counts)}`, `{cols: [...] or fn(col)}`; `null` for all. Totals follow the filter |
+| `m.highlight(spec)` | Dims all but the matching cells and their headers: `{states}`, `{rows}`, `{cols}`, `{groups}` (combined with and), or `fn(row, col, value)`; `null` clears. A click on a legend entry does `{states: [its id]}` and a second click clears it |
+| `m.focus(row, col)` | Puts the cursor on a cell and shows its info; `m.focus(null)` clears |
+| `m.steps(list, o)` returns `ctl` | With no list: step 0 shows the headers, each later step a row group (else a column group) with its `caption`, and a last step the totals when there are any (`o.captionTotals`). A list is `[{show: [ids], caption, highlight}]`, where ids are rows, columns, their groups, items or `'totals'`; a row or column no step names shows from step 0. The rows of the current step have bold headers. `o.onStep(k, step, ctl)`, `o.start` (a number or `'end'`), `o.caption0`. `ctl` has `next`, `prev`, `go(k)`, `end`, `step`, `count`, `steps` and `timeline` (with GSAP: labels `s0..sN` and `onStep`, for EdgeDeck) |
+| `m.render()`, `m.redraw()`, `m.check()` | Draw if needed; draw again; the layout check, returning the problems |
+
+`create` options:
+
+| Option | Meaning |
+| --- | --- |
+| `legend` | The states, in order: `[{id, label, key, tone, style, gap}]`. `tone`: `add`, `gap`, `bad` (red, from `--ed-bad`, else the page's `--bad`), `accent`, `p3`, `muted`, `ink`, `neutral`. `style`: `solid` (filled; a mark is drawn in the surface colour), `soft` (the tone's soft fill), `outline`, `blank` (dashed, no fill). `gap: true` marks a state as a gap for `filter('gaps')`. The default is `EdgeMatrix.legend`: `full` (F, add, solid), `part` (P, gap, soft, a gap), `none` (N, bad, outline, a gap), `na` (X, muted, blank). `legend: false` keeps the states but draws no legend |
+| `totals` | `true`, or `{rows, cols, states}`: a column per state with each row's counts, and a row per state with each column's counts. Counts too wide for a compact column are turned |
+| `compact` | `'auto'` (default: over 60 rows or 900 cells), `true` or `false`. Compact cells are 14 units, normal ones 26 × 22 |
+| `rotate` | `'auto'` (default: when a header would make the cells much wider), `true`, `false` (the cells widen to the headers) |
+| `clip` | Ends a header that does not fit its room with an ellipsis; the full text is in its tooltip |
+| `cw`, `ch`, `gap`, `fs`, `ms`, `rowMax`, `colH` | The cell's width and height, the gap, the header and mark font sizes, the widest row header (300, compact 240), the tallest turned header band (170, compact 130). A mark widens its column up to twice `cw` |
+| `rowGroups` | `'side'` (default, a band beside the rows, its label wrapped to `groupW`, 130) or `'head'` (a band above each group's rows, for groups of one or two rows) |
+| `corner` | A short text above the row headers, such as `REQ \ TEST` |
+| `mode: 'plane'` | Wide cells (128 × 50 at least) that grow to hold their items, headers that wrap, no legend unless a cell has a state |
+| `axes` | `{x, y, yDir}`: labelled arrows along the bottom and the left (`yDir: 'down'` points the left one down) |
+| `status` | An element or selector that receives the info of the cell under the pointer or the cursor as one line; its own text comes back when the pointer leaves. Without it, a tooltip shows the info (`tooltip: false` for none) |
+| `describe(row, col, value, items)` | Returns `{title, lines}` to replace the default info: the row, the column, the state and mark, the items, the cell's `info` |
+| `keys: false` | The figure is not focusable. Otherwise it is, and the arrow keys move a cursor (PageUp/PageDown by ten rows, Home/End along the row, Escape clears); the cursor scrolls into view |
+| `marks: false`, `margin`, `icons`, `debug` | No marks; the outer margin (8); the sprite; the check on load |
+
+The check finds headers wider than the row header column or longer than the header band, column and row group labels wider than their span or taller than their rows, marks too large for their cell, totals that do not fit, item labels out of their box and items out of their cell, and text or legend entries outside the viewBox. Hidden rows of a step are checked too. With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers matrix figures; EdgeSketch's check leaves them alone. `EdgeMatrix.version` is the version.
 
 ## EdgeDeck (`lib/edgedeck.js`)
 

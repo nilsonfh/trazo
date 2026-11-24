@@ -546,7 +546,7 @@
   function checkAll(all) {
     var sel = 'svg.sk-root, svg[data-check]:not([data-check="false"])' + (all ? ', svg[role="img"]' : '');
     [].forEach.call(document.querySelectorAll(sel), function (svg, i) {
-      if (svg.classList.contains('ed-root') || svg.classList.contains('sq-root') || svg.classList.contains('tl-root') || svg.getAttribute('data-check') === 'false') return;   // those check themselves
+      if (svg.classList.contains('ed-root') || svg.classList.contains('sq-root') || svg.classList.contains('tl-root') || svg.classList.contains('em-root') || svg.getAttribute('data-check') === 'false') return;   // those check themselves
       report('sketch:' + (svg.id || i), check(svg));
     });
   }
