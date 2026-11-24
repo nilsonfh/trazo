@@ -15,7 +15,7 @@
  *   var m = EdgeText.parse(source);                              // the model, with m.errors
  *
  * A header line picks the kind, and the rest maps onto a library: flow (EdgeDiagram laid out by
- * EdgeLayout), state (EdgeDiagram's state shapes and transitions, laid out too), sequence
+ * EdgeLayout), state (EdgeDiagram's state shapes, top to bottom by default and transitions, laid out too), sequence
  * (EdgeSequence), timeline (EdgeTimeline) and matrix (EdgeMatrix). This file only reads the text;
  * the libraries draw, step and check. Options in braces at the end of a line ({icon: server,
  * tone: accent}) pass straight to the library call the line makes. Lines starting with %% or #
@@ -313,7 +313,7 @@
   function parseState(L, M) {
     var states = [], S = {}, comps = [], C = {}, trans = [], used = {}, scope = null, rawSteps = [], walk = null;
     var hd = M.header.split(/\s+/);
-    M.dir = 'LR';
+    M.dir = 'TB';   // a column: an LR machine of any length is a thin strip
     if (hd[0]) { if (!/^(LR|TB|TD)$/i.test(hd[0])) throw Err(M.headerLine, 'a state machine runs LR or TB, not ' + hd[0]); M.dir = /^LR$/i.test(hd[0]) ? 'LR' : 'TB'; }
     function pseudo(kind, line) {   // [*] in this scope: its start, or its end
       var id = (kind === 'initial' ? '_start' : '_end') + (scope ? '_' + scope.id : '');
@@ -751,6 +751,8 @@
           if (opts.onStep) opts.onStep(k, s, c || res.ctl);
         }};
         if (opts.start != null) so.start = opts.start === 'end' && B.list ? B.list.length - 1 : opts.start;   // EdgeDiagram takes a number
+        var ms = opts.maxScale != null ? opts.maxScale : 1.15, vw = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width;
+        if (B.list && ms && vw) svg.style.maxWidth = Math.round(vw * ms) + 'px';   // a laid-out figure is not blown up past its size
         res.steps = B.list || null;   // flow and state: the steps given to EdgeDiagram
         res.ctl = B.steps(so);
       } catch (e) {

@@ -2,6 +2,7 @@
 <svg id="flow" role="img" aria-label="flow"></svg>
 <svg id="seq" role="img" aria-label="sequence"></svg>
 <svg id="st" role="img" aria-label="state"></svg>
+<svg id="st-tb" role="img" aria-label="state top to bottom"></svg>
 <svg id="tl" role="img" aria-label="timeline"></svg>
 <svg id="mx" role="img" aria-label="matrix"></svg>
 <svg id="bad" role="img" aria-label="error"></svg>
@@ -145,9 +146,11 @@ eq([reg.o.event, reg.o.guard, reg.o.action], ['quote', 'EK valid', 'store PCRs']
 eq(stm.transitions.filter(function (t) { return t.o.event === 'policy ok'; })[0].to, '_start_InService', 'a transition into a composite enters at its start');
 eq(stm.states.filter(function (s) { return s.comp === 'InService'; }).map(function (s) { return s.id; }), ['_start_InService', 'Trusted', 'Untrusted'], 'states in the composite');
 eq(stm.walk, ['_start', '_start-Registered', 'Registered', 'Registered-Attested', 'Attested', 'Attested-InService', '_start_InService', '_start_InService-Trusted', 'Trusted'], 'the walk');
+eq(EdgeText.parse('state\nA -> B').dir, 'TB', 'a state machine runs top to bottom by default');
 var str = EdgeText.render('#st', ST);
 clean(str, 'state');
 eq(str.ctl.count, 5, 'state steps');
+clean(EdgeText.render('#st-tb', ST.replace('state LR', 'state')), 'state, top to bottom: the wire into the composite clears its label');
 ok(document.querySelector('#st .ed-zone') && document.querySelector('#st .ed-tguard'), 'a composite zone and a styled guard');
 
 /* ---------- timeline ---------- */

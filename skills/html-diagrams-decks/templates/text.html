@@ -20,6 +20,10 @@ h1{font-size:clamp(30px,4vw,44px)}h2{font-size:clamp(22px,2.6vw,28px)}
 .controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
 .controls button:hover{border-color:var(--accent)}
 .controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.side{display:grid;gap:18px}.side>*{min-width:0}
+@media (min-width:980px){.side{grid-template-columns:300px 1fr;align-items:start}.side .cap{min-height:6em;margin-bottom:14px}}
+/* a state machine runs top to bottom: beside its caption, the column is not stretched */
+.side .stage svg{min-width:0}
 .controls .count{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto}
 details{border-top:1px solid var(--rule);padding-top:12px}
 summary{cursor:pointer;font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -94,11 +98,15 @@ end
 <section class="wrap fig">
   <p class="eyebrow">state</p>
   <h2>The life of an edge node</h2>
-  <p class="cap" aria-live="polite"></p>
-  <div class="stage"><svg id="t-state" role="img" aria-label="An edge node is registered, attested and admitted to service, where it is trusted while its quotes hold and untrusted when one fails; three failures quarantine it."></svg></div>
-  <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+  <div class="side">
+    <div>
+      <p class="cap" aria-live="polite"></p>
+      <div class="controls"><button type="button" class="prev">Previous</button><button type="button" class="next">Next</button><span class="count"></span></div>
+    </div>
+    <div class="stage"><svg id="t-state" role="img" aria-label="An edge node is registered, attested and admitted to service, where it is trusted while its quotes hold and untrusted when one fails; three failures quarantine it."></svg></div>
+  </div>
   <script type="text/trazo" data-target="#t-state" data-start="end">
-state LR
+state
 [*] -> Registered: enrol / issue identity
 Registered[Registered | identity issued]
 Registered -> Attested: quote [EK valid] / store PCRs

@@ -213,7 +213,7 @@ What it does, in order (a layered, Sugiyama-style layout written for the ortho r
 6. **Position along the ranks.** Each rank is as deep as its deepest node; boxes of one rank get the same depth (width in LR, height in TB) unless they gave it, so columns are even. The gaps leave room for zone pads and labels, link labels and the lanes of bent wires.
 7. **Ends.** Every link without a side gets the side facing its next rank (a long link whose lane runs beside its end, with nothing between, leaves by that side). Ends that share a side are placed across from what they join, in order, apart by 24 or by their labels; a pair a few units out of line is moved into line, or far enough apart to turn on purpose. A side or a `t` given by hand is kept.
 
-Then the viewBox is fitted to the figure (`fit: false` keeps it).
+Then the viewBox is fitted to the figure (`fit: false` keeps it), and grown to hold any wire or label drawn past the boxes, such as a self-loop's label. In TB, a zone whose label (top-left) would be crossed by a wire entering it from above gets room on its left, so the label sits beside the wire.
 
 | Option of `d.layout` | Meaning |
 | --- | --- |
@@ -431,7 +431,7 @@ step: gw cloud | A gateway polls them and forwards every reading.
 
 | Call | What it does |
 | --- | --- |
-| `EdgeText.render(svg or selector, source, opts)` | Parses the text and draws it into the svg. Returns `{kind, model, svg, figure, ctl, steps, errors, check()}`: `figure` is the library's object (`d`, `q`, `t` or `m`), `ctl` its `steps()` controller, `steps` the step list given to EdgeDiagram (flow, state), `check()` the library's layout check. `opts`: `caption` (an element or selector that gets each step's caption), `onStep(k, step, ctl)`, `start` (a step number or `'end'`), `icons`, `debug` |
+| `EdgeText.render(svg or selector, source, opts)` | Parses the text and draws it into the svg. Returns `{kind, model, svg, figure, ctl, steps, errors, check()}`: `figure` is the library's object (`d`, `q`, `t` or `m`), `ctl` its `steps()` controller, `steps` the step list given to EdgeDiagram (flow, state), `check()` the library's layout check. `opts`: `caption` (an element or selector that gets each step's caption), `onStep(k, step, ctl)`, `start` (a step number or `'end'`), `maxScale` (a flow or state figure's svg gets a `max-width` of its viewBox's width times this, 1.15 by default, so it is not blown up; `0` for none), `icons`, `debug` |
 | `EdgeText.parse(source)` | The model alone, with `errors: [{line, message}]` (empty when the text is fine); for tests |
 | `EdgeText.auto()` | Renders every `script[type="text/trazo"]` and `pre.trazo` not rendered yet and returns all results, in page order. It runs by itself once the page has loaded. A block's `data-target` is its svg (else an svg is made in its place, with the block's `data-id` as its id; a `pre` is hidden); `data-caption` and `data-start` are as in `opts` |
 
@@ -449,7 +449,9 @@ step: gw cloud | A gateway polls them and forwards every reading.
 | `zone NAME { A B }`, or `zone NAME {` … `}` | A zone holding those nodes; in the block form, every node first named inside it. Zones do not nest. With zones, the layout puts each in its own ranks (`bands: true`); `flow LR {bands: false}` lets them sit side by side |
 | `step: A B zoneName A->B \| caption` | A step showing those items. A zone shows with its first node and a link once all its ends are shown, unless a step names them; a node no step names shows from the start. The first step line is step 0. A link with an arrow carries packets in the step it appears in, `{flow: true}` in every step, `{flow: false}` never |
 
-### `state` (LR by default, or `state TB`): EdgeDiagram state shapes, placed by EdgeLayout
+### `state` (top to bottom by default, or `state LR`): EdgeDiagram state shapes, placed by EdgeLayout
+
+TB keeps a machine of any length readable: in LR a chain of states becomes a strip too thin for its labels. Put the figure beside its caption (`templates/text.html` does) rather than across the page.
 
 | Line | Meaning |
 | --- | --- |
