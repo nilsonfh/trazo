@@ -73,7 +73,7 @@ Screenshots and checks need a headless Chromium: `npx playwright install chromiu
 ## Use without an agent
 
 ```bash
-cp templates/diagram.html my.html        # or sketch.html, or deck.html
+cp templates/diagram.html my.html        # or sketch.html, sequence.html, state.html, swimlane.html, deck.html
 python3 scripts/inline.py my.html > out.html
 ```
 
@@ -122,6 +122,8 @@ To keep a copy of the library in another project, run `scripts/vendor.sh path/to
 | `…/themes/` | `engineering.css`, `indigo.css`, `drafting.css`: colours and faces, light and dark, on one token contract |
 | `…/templates/` | `diagram.html`, `sketch.html` and `deck.html`, ready to copy |
 | `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, `test.sh`, which runs the tests in `tests/`, and `visual.py`, which compares every template with its baseline image |
+| `…/templates/` | `diagram.html`, `sketch.html`, `sequence.html`, `state.html`, `swimlane.html` and `deck.html`, ready to copy |
+| `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, and `test.sh`, which runs the tests in `tests/` |
 | `…/references/` | `api.md` (every option) and `conventions.md` (tokens, layout, publishing, checks) |
 | `…/examples/` | `ci-canary-deck.html`, a two-slide deck on a neutral workflow, and `isometric/`, an isometric layered-figure generator |
 

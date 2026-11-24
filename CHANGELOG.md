@@ -28,6 +28,16 @@
   - steps that reveal row groups (or column groups) with their captions, then the totals; with GSAP, `ctl.timeline` for EdgeDeck.
 
   Its layout check reports headers wider or longer than their band, group labels wider than their span, marks too large for their cell, item labels out of their box, and anything outside the viewBox into `shot.sh --check`; EdgeSketch's check leaves its figures alone. It measures again when a web font loads after `document.fonts.ready`. draw.io exports it as a hand-drawn figure. `templates/matrix.html` is a complete example; `inline.py` and `vendor.sh` know the file. Tested in `tests/matrix.html` and `tests/test_todrawio.py`.
+- **State machines in EdgeDiagram.**
+  - Node shapes `state` (a rounded box), `initial` (a dot), `final` (a ringed dot), `choice` (a small diamond) and `composite` (a state holding others, with its title on a tab); links meet a dot or a diamond at the middle of a side.
+  - `d.transition()` is a link labelled `event [guard] / action`, the guard quieter and the action in italics. A self-transition is a loop at right angles on a chosen side, its label beside it.
+  - Two links that run opposite ways between the same sides keep 22 units apart, each label beside its wire on its outer side.
+  - Steps take `current` (a ring on the state the walk is in) and `fire` (the transition drawn thicker, with a packet on it); `d.walk([state, transition, state, ...])` makes those steps.
+- **Swimlanes in EdgeDiagram.** `d.lanes()` draws horizontal or vertical lanes with titles. A node given `lane` stays inside it, centred unless placed, and each lane grows to its content, moving the lanes after it; the viewBox follows. Process shapes `task`, `decision` (text inside the diamond) and `start`/`end` events.
+- The check also reports a node outside its lane, a transition's label on another wire, text outside a diamond and a state on its composite's title tab.
+- Two ends that face each other across a gap narrower than two stubs get shorter stubs, so the wire is one straight run instead of a loop.
+- The draw.io export maps the new shapes to draw.io's own (startState, endState, rhombus, ellipses), composites with their tab, and lanes to swimlanes; a link's end attaches to the smallest node it touches, so a state inside a composite keeps its links.
+- `templates/state.html` (an edge node's lifecycle) and `templates/swimlane.html` (a field device's onboarding across operator, hub, site and node). Tested in `tests/states.html` and `tests/test_todrawio.py`.
 
 ## 1.3.1 (2026-11-23)
 

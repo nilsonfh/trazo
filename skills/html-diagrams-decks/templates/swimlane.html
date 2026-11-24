@@ -1,0 +1,130 @@
+<title>Device Onboarding Lanes</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.body{display:grid;gap:22px}
+@media (min-width:980px){.body{grid-template-columns:300px 1fr;align-items:start}}
+.body>*{min-width:0}
+.cap{font-size:19px;line-height:1.5;min-height:6.2em;margin:0}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+.stage svg#ob{min-width:760px}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · swimlane process</p>
+  <h1>Onboarding a field device: who does what</h1>
+  <div class="body">
+    <div>
+      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="hint">One lane per actor; each step follows the work one hand-off further. Hover a task for details. Arrow keys step.</p>
+    </div>
+    <div class="stage"><svg id="ob" viewBox="0 0 1140 480" role="img" aria-label="The operator registers a device, the hub issues an enrolment token, the site installs the device, the edge node discovers it and requests a certificate; the hub signs it if the token matches, and the node starts polling, or the operator investigates."></svg></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Restart</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script>
+(function () {
+  var d = EdgeDiagram.create(document.getElementById('ob'));
+
+  // the lanes come first; a node's lane holds it, and each lane grows to fit (the viewBox follows)
+  d.lanes('who', {x: 20, y: 20, w: 1100, head: 116, lanes: [
+    {id: 'operator', title: 'Operator', sub: 'NOC console'},
+    {id: 'hub', title: 'Hub', sub: 'central services'},
+    {id: 'site', title: 'Site', sub: 'field technician'},
+    {id: 'node', title: 'Edge node', sub: 'at the substation'}
+  ]});
+
+  d.node('shipped', {lane: 'operator', x: 160, w: 30, h: 30, shape: 'start', tone: 'add', title: 'Device shipped'})
+   .node('register', {lane: 'operator', x: 225, w: 130, h: 56, shape: 'task', title: 'Register device', sub: 'serial · site · profile',
+      info: 'The operator records the serial number, the target site and the polling profile in the inventory.'})
+   .node('token', {lane: 'hub', x: 395, w: 130, h: 56, shape: 'task', title: 'Issue token', sub: 'one-time, 72 h',
+      info: 'A one-time enrolment token bound to the serial; it expires after 72 hours.'})
+   .node('install', {lane: 'site', x: 565, w: 130, h: 56, shape: 'task', title: 'Install device', sub: 'wire · power on',
+      info: 'The technician mounts the device, wires it to the fieldbus and powers it on.'})
+   .node('discover', {lane: 'node', x: 565, w: 130, h: 56, shape: 'task', title: 'Discover', sub: 'Modbus / DNP3 scan',
+      info: 'The edge node scans the fieldbus and finds a new device answering at an unassigned address.'})
+   .node('request', {lane: 'node', x: 740, w: 130, h: 56, shape: 'task', title: 'Request cert', sub: 'EST + token',
+      info: 'The node asks the hub for a device certificate over EST, presenting the enrolment token.'})
+   .node('valid', {lane: 'hub', x: 750, w: 110, h: 76, shape: 'decision', title: 'Token valid?',
+      info: 'The token must be unexpired and bound to the serial the device reports.'})
+   .node('sign', {lane: 'hub', x: 905, w: 130, h: 56, shape: 'task', tone: 'add', title: 'Sign certificate', sub: 'add to inventory',
+      info: 'The hub signs the device certificate and marks the device active in the inventory.'})
+   .node('investigate', {lane: 'operator', x: 740, w: 130, h: 56, shape: 'task', tone: 'gap', title: 'Investigate', sub: 'wrong serial or site',
+      info: 'A mismatch goes back to the operator: a swapped device, a typo, or an expired token.'})
+   .node('rejected', {lane: 'operator', x: 935, w: 30, h: 30, shape: 'end', tone: 'gap', title: 'Rejected'})
+   .node('poll', {lane: 'node', x: 905, w: 130, h: 56, shape: 'task', title: 'Start polling', sub: 'every 2 s',
+      info: 'With its certificate, the node opens a secure session to the device and starts polling it.'})
+   .node('online', {lane: 'node', x: 1078, w: 30, h: 30, shape: 'end', tone: 'add', title: 'Online'});
+
+  d.link('f1', {from: ['shipped', 'right'], to: ['register', 'left'], arrow: 'end'})
+   .link('f2', {from: ['register', 'right'], to: ['token', 'top'], arrow: 'end', flow: {dir: 1}})
+   .link('f3', {from: ['token', 'right'], to: ['install', 'top'], arrow: 'end', flow: {dir: 1}})
+   .link('f4', {from: ['install', 'bottom'], to: ['discover', 'top'], arrow: 'end', flow: {dir: 1}})
+   .link('f5', {from: ['discover', 'right'], to: ['request', 'left'], arrow: 'end'})
+   .link('f6', {from: ['request', 'top'], to: ['valid', 'bottom'], arrow: 'end', flow: {dir: 1}})
+   .link('yes', {from: ['valid', 'right'], to: ['sign', 'left'], arrow: 'end', label: 'yes'})
+   .link('no', {from: ['valid', 'top'], to: ['investigate', 'bottom'], arrow: 'end', tone: 'gap', label: 'no'})
+   .link('f7', {from: ['investigate', 'right'], to: ['rejected', 'left'], arrow: 'end', tone: 'gap'})
+   .link('f8', {from: ['sign', 'bottom'], to: ['poll', 'top'], arrow: 'end', tone: 'add', label: 'certificate', flow: {dir: 1, tone: 'add'}})
+   .link('f9', {from: ['poll', 'right'], to: ['online', 'left'], arrow: 'end', tone: 'add'});
+
+  d.bindFocus();
+
+  var caps = document.getElementById('cap'), dots = document.getElementById('dots');
+  var STEPS = [
+    {show: ['who', 'shipped', 'register', 'f1'],
+     caption: 'A device is shipped, and the operator registers it: serial, site and polling profile.'},
+    {show: ['token', 'f2'], flows: ['f2'],
+     caption: 'The hub issues a one-time enrolment token bound to that serial.'},
+    {show: ['install', 'f3'], flows: ['f3'], stopFlows: ['f2'],
+     caption: 'At the site, a technician installs the device, wires it and powers it on.'},
+    {show: ['discover', 'request', 'f4', 'f5'], flows: ['f4'], stopFlows: ['f3'],
+     caption: 'The edge node finds the new device on the fieldbus and asks the hub for its certificate.'},
+    {show: ['valid', 'f6'], flows: ['f6'], stopFlows: ['f4'],
+     caption: 'The hub checks the token: unexpired, and bound to the serial the device reports.'},
+    {show: ['investigate', 'rejected', 'no', 'f7'], stopFlows: ['f6'],
+     caption: 'A mismatch goes back to the operator, and the device is rejected until it is fixed.'},
+    {show: ['sign', 'poll', 'online', 'yes', 'f8', 'f9'], flows: ['f8'], dim: ['investigate', 'rejected', 'no', 'f7'],
+     caption: 'A match: the hub signs the certificate, and the node starts polling the device. It is online.'}
+  ];
+  STEPS.forEach(function () { dots.appendChild(document.createElement('i')); });
+  var ctl = d.steps(STEPS, {onStep: function (k, s) {
+    caps.innerHTML = '<b>' + (k + 1) + ' / ' + STEPS.length + '</b>';
+    caps.appendChild(document.createTextNode(s.caption));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }});
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>

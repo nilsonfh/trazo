@@ -28,7 +28,7 @@ const d = EdgeDiagram.create(svgElement, {icons: window.EDGE_ICONS});
 | `sub`, `subSize`, `subWrap` | A string (wrapped at `subWrap` characters, default 44) or an array of lines. `subSize` defaults to 12 |
 | `icon`, `iconSize` | A sprite id without `i-` (see `lib/icons.js`) |
 | `tone` | `neutral` (default), `accent`, `add` (green), `gap` (amber), `p3` (a further phase, dashed), `ink` (filled dark) |
-| `shape` | `'pill'` for a rounded chip |
+| `shape` | `'pill'` for a rounded chip; the shapes of state machines and processes (see below) |
 | `dashed` | Dashes the outline |
 | `align` | `'center'` centres the text, with the icon top-left; `'left'` is the default when there is an icon |
 | `textY` | Pins the title's baseline; the icon aligns with it |
@@ -79,7 +79,67 @@ A trunk leaves the shared end. A bus runs across at right angles, halfway to the
 
 Each branch is a link named `id + '.' + nodeId` (or its own `id`), for hover, `flows` and steps. In a step, the fan's `id` stands for all its branches and its dots, as `id + '.dots'`.
 
-### `d.bindFocus()`
+### State machines and processes
+
+```js
+d.node('init', {x: 96, y: 24, w: 18, h: 18, shape: 'initial'})
+ .node('trusted', {x: 750, y: 110, w: 140, h: 56, shape: 'state', title: 'Trusted', sub: 'runs workloads'})
+ .node('svc', {x: 625, y: 40, w: 375, h: 320, shape: 'composite', title: 'In service'});   // before the states it holds
+d.transition('fail', {from: ['trusted', 'bottom'], to: ['untrusted', 'top'], event: 'quote fails', action: 'stop workloads'})
+ .transition('heal', {from: ['untrusted', 'top'], to: ['trusted', 'bottom'], event: 'quote ok', guard: '3 in a row'})
+ .transition('beat', {from: 'trusted', to: 'trusted', side: 'top', event: 'quote ok', action: 'reset timer'});
+d.steps(d.walk(['init', 'enrol', 'registered', 'quote', 'attested'], captions));
+```
+
+Node shapes (`shape`):
+
+| Shape | Drawn as |
+| --- | --- |
+| `state` | A rounded box (corner 18), its text centred |
+| `task` | A rounded box (corner 12), its text centred: a step of a process |
+| `initial` | A filled dot: where a state machine starts. Give it a small square box (18) |
+| `final` | A ringed dot: where it ends |
+| `choice` | A small diamond, where guards split a transition |
+| `decision` | A diamond with its `title` (and `sub`) inside; the check reports text that runs outside the diamond, not just its box |
+| `start`, `end` | A process's start and end events: circles, thin and thick. A `title` sits below the circle |
+| `composite` | A state that holds others: a box in the layer colour with its `title` on a tab in its top-left corner. Define it before the states inside it. Links between those states, and links out of them, draw above its fill; a label inside it is fine; a state on its tab is reported |
+
+Links meet a dot, a ring, a diamond or a circle at the middle of a side, whatever `t` says. `initial`, `final` and `choice` take `title` too, below them; `label` names them for screen readers.
+
+### `d.transition(id, o)`: a state machine's transition
+
+A `d.link` with `arrow: 'end'`, tone `ink2` and a packet that runs while a step fires it, labelled `event [guard] / action` (the guard quieter, the action in italics). Every `d.link` option applies.
+
+| Option | Meaning |
+| --- | --- |
+| `from`, `to` | A node id (side `auto`) or `[nodeId, side, t]` |
+| `event`, `guard`, `action` | The parts of the label; any may be left out. `label` replaces them all |
+| `side`, `span`, `loop` | For a self-transition (`from` and `to` the same node): the side its loop sits on (default `right`), how far apart it leaves and comes back (30) and how far it reaches out (26). Its label sits beside the loop |
+| `apart` | Two links that run opposite ways between the same sides, with no `t` given, keep `apart` (default 22) between them, centred on the span the nodes share: the one going right runs above, the one going down runs on the right. Each label goes beside its wire, on its outer side. `apart: false` turns this off. It applies to any `d.link`, not just transitions |
+
+A transition's label also slides along its wire until it clears every other wire, and the check reports one that lies on another wire.
+
+### `d.lanes(id, o)`: swimlanes
+
+```js
+d.lanes('who', {x: 20, y: 20, w: 1100, head: 116, lanes: [{id: 'operator', title: 'Operator', sub: 'NOC console'}, {id: 'hub', title: 'Hub'}]});
+d.node('register', {lane: 'operator', x: 225, w: 130, h: 56, shape: 'task', title: 'Register device'});
+```
+
+Lanes are rows (`dir: 'horizontal'`, the default) or columns (`dir: 'vertical'`), each with its title (and `sub`) in a head column on the left, or a head row on top. Define them before their nodes.
+
+| Option | Meaning |
+| --- | --- |
+| `x y` | The top-left corner |
+| `w` (rows) or `h` (columns) | The length of every lane |
+| `lanes` | `[{id, title, sub, size}]`, in order. Each `id` is a step item like a zone's, with `id + '.label'` for its title; the lanes' own `id` stands for all of them |
+| `head` | The title column's width (rows, default 130) or the title row's height (columns, 48) |
+| `min`, `pad` | A lane's least size (100 for rows, 170 for columns; a lane's `size` overrides it) and the room kept around its nodes (22) |
+| `fit` | `false` keeps the viewBox as it is. By default, its height (rows) or width (columns) follows the lanes, ending as far past them as it starts before them |
+
+A node with `lane` stays in that lane. In a row, its `y` is measured from the lane's top, and left out it is centred in the lane; in a column, the same goes for its `x`. Each lane grows to hold its nodes (a start or end event's title included), and the lanes after it move along, with their nodes and links. Lanes are zones to the router, so a wire crosses a lane that holds neither of its ends without turning inside it. The check reports a node outside its lane (in its head, or past its end).
+
+
 
 Call it after all nodes and links exist. Hovering or focusing a node or link that has `info` dims everything except it and its neighbours, and shows a tooltip.
 - A click, or Enter or space on a focused item, pins the tooltip.
@@ -103,9 +163,13 @@ Each step is an object:
 | `flows: [linkIds]` | Start packets; they stay on in later steps |
 | `stopFlows: [linkIds]` | Stop packets |
 | `view: 'x y w h'` | Animate the viewBox; it holds until a later step sets another one |
+| `current: nodeId` | Rings that node (a state machine's current state) until a later step names another (`null` clears it) |
+| `fire: linkId` or `[ids]` | Draws the link thicker with its packets running, for this step only |
 | Anything else | Kept for `onStep(k, step)`, for example `caption` |
 
 Step 0 is the resting state, and its `show` items are drawn from the start. Items listed in a later `show` start hidden. A jump to any step, forwards or back, lands on what the steps up to it leave: every reveal is a `set` and a `to`, never a `fromTo`, so going back never leaves a shown item hidden. `scripts/test.sh` checks this. `ctl` has `next()`, `prev()`, `go(k)`, `end()`, `step`, `count`, `timeline` (a paused GSAP timeline with labels `s0..sN`) and `flowsAt(k)` (`-1` stops all flows). Going forward animates, going back jumps, and reduced motion always jumps. Without GSAP, everything is shown at once.
+
+`d.walk([state, transition, state, ...], captions)` returns such steps: the first state is current at step 0, and each transition fires in the step that makes the state after it current (a self-transition between the same state twice). Captions, if given, go on the steps in order.
 
 ### `d.check()`: the layout check
 
@@ -116,7 +180,9 @@ Returns a list of problems, checked at every step with what is visible at that s
 - a `straight` link that is slanted, and an ortho link with a jog under 10 units (two ends almost in line);
 - an ortho link turning inside a zone that holds neither of its ends;
 - a link label on a node or on another label;
-- a node or label outside the viewBox.
+- a node or label outside the viewBox;
+- a node outside its lane, a node on a composite's title tab, and text outside a diamond;
+- a transition's label on another wire.
 
 In debug mode, the check runs once fonts have loaded. Each problem is outlined in red, logged with `console.warn`, and written to a hidden `<pre id="ed-issues">`; `EdgeDiagram.issues()` returns them all. `scripts/shot.sh --check page.html` reads that list and exits 1 if it is not empty.
 

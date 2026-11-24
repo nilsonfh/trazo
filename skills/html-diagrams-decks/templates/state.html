@@ -1,0 +1,119 @@
+<title>Edge Node Lifecycle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.body{display:grid;gap:22px}
+@media (min-width:980px){.body{grid-template-columns:300px 1fr;align-items:start}}
+.body>*{min-width:0}
+.cap{font-size:19px;line-height:1.5;min-height:6.2em;margin:0}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+#lc{--ed-plate:var(--card)}   /* label plates outside the composite take the card's colour */
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · state machine</p>
+  <h1>The life of an edge node, from enrolment to quarantine</h1>
+  <div class="body">
+    <div>
+      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="hint">Each step fires one transition: the ring shows the state the node is in. Hover a state for details. Arrow keys step.</p>
+    </div>
+    <div class="stage"><svg id="lc" viewBox="0 0 1020 560" role="img" aria-label="An edge node is registered, attested and then trusted while its quotes hold; a failed quote makes it untrusted, three failures quarantine it, and a reimaged node is attested again only if its measurements match the golden values."></svg></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Restart</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script>
+(function () {
+  var d = EdgeDiagram.create(document.getElementById('lc'));
+
+  d.node('init', {x: 96, y: 24, w: 18, h: 18, shape: 'initial', label: 'start'})
+   .node('registered', {x: 30, y: 110, w: 150, h: 56, shape: 'state', title: 'Registered', sub: 'identity issued',
+      info: 'The hub knows the node by its serial and its endorsement key, but has not yet seen a quote.'})
+   .node('attested', {x: 380, y: 110, w: 150, h: 56, shape: 'state', title: 'Attested', sub: 'golden PCRs stored',
+      info: {text: 'The first TPM quote matched the expected boot chain; its PCR values become the golden ones.', facts: [['PCRs', '0, 2, 4, 7'], ['quote', 'every 2 s']]}})
+   .node('operating', {x: 625, y: 40, w: 375, h: 320, shape: 'composite', title: 'In service',
+      info: 'Admitted to the fleet: placement may schedule work on the node while it is trusted.'})
+   .node('enter', {x: 655, y: 129, w: 18, h: 18, shape: 'initial', label: 'in service'})
+   .node('trusted', {x: 750, y: 110, w: 140, h: 56, shape: 'state', tone: 'add', title: 'Trusted', sub: 'runs workloads',
+      info: 'Every quote matches; the node carries the tag attestation:ok and placement may use it.'})
+   .node('untrusted', {x: 750, y: 266, w: 140, h: 56, shape: 'state', tone: 'gap', title: 'Untrusted', sub: 'workloads stopped',
+      info: 'A quote failed. The node keeps running but holds no work until three quotes in a row pass.'})
+   .node('quarantined', {x: 750, y: 460, w: 140, h: 56, shape: 'state', tone: 'gap', title: 'Quarantined', sub: 'network isolated',
+      info: 'Isolated to the management VLAN: it can be reimaged or decommissioned, nothing else.'})
+   .node('recovered', {x: 380, y: 460, w: 150, h: 56, shape: 'state', title: 'Recovered', sub: 'reimaged',
+      info: 'Reimaged from a signed image; it must prove its new measurements before it is trusted again.'})
+   .node('check', {x: 439, y: 314, w: 32, h: 32, shape: 'choice', label: 'golden values match?'})
+   .node('done', {x: 955, y: 476, w: 24, h: 24, shape: 'final', label: 'decommissioned'});
+
+  d.transition('enrol', {from: ['init', 'bottom'], to: ['registered', 'top'], event: 'enrol', action: 'issue identity'})
+   .transition('quote', {from: ['registered', 'right'], to: ['attested', 'left'], event: 'quote', guard: 'EK valid', action: 'store PCRs'})
+   .transition('admit', {from: ['attested', 'right'], to: ['operating', 'left'], event: 'policy ok'})
+   .transition('start', {from: ['enter', 'right'], to: ['trusted', 'left']})
+   .transition('beat', {from: 'trusted', to: 'trusted', side: 'top', event: 'quote ok', action: 'reset timer'})
+   .transition('fail', {from: ['trusted', 'bottom'], to: ['untrusted', 'top'], event: 'quote fails', action: 'stop workloads'})
+   .transition('heal', {from: ['untrusted', 'top'], to: ['trusted', 'bottom'], event: 'quote ok', guard: '3 in a row', action: 'retag'})
+   .transition('timeout', {from: ['untrusted', 'bottom'], to: ['quarantined', 'top'], event: 'timeout', guard: '3 failures', action: 'isolate'})
+   .transition('reimage', {from: ['quarantined', 'left'], to: ['recovered', 'right'], event: 'reimage', action: 're-enrol'})
+   .transition('verify', {from: ['recovered', 'top'], to: ['check', 'bottom'], event: 'quote'})
+   .transition('match', {from: ['check', 'top'], to: ['attested', 'bottom'], guard: 'PCRs match golden'})
+   .transition('reset', {from: ['check', 'left'], to: ['registered', 'bottom'], guard: 'else', action: 're-register'})
+   .transition('retire', {from: ['quarantined', 'right'], to: ['done', 'left'], event: 'retire'});
+
+  d.bindFocus();
+
+  var STEPS = d.walk(['init', 'enrol', 'registered', 'quote', 'attested', 'admit', 'operating', 'start', 'trusted', 'beat', 'trusted',
+    'fail', 'untrusted', 'timeout', 'quarantined', 'reimage', 'recovered', 'verify', 'check', 'match', 'attested'], [
+    'A new node starts outside the fleet.',
+    'It enrols: the hub issues it an identity bound to its TPM endorsement key.',
+    'Its first quote checks out, and its PCR values are stored as the golden ones.',
+    'Policy admits it to service.',
+    'Inside, it starts trusted: placement may schedule work on it.',
+    'Every 2 s a good quote resets the timer; the node stays trusted.',
+    'A quote fails (PCR 7 changed): the node is untrusted and its workloads stop.',
+    'Three failures in a row: it is quarantined on the management network.',
+    'An operator reimages it from a signed image.',
+    'It quotes again, and the hub compares the new values with the golden ones.',
+    'They match, so it is attested again. Had they not, it would start over as registered.'
+  ]);
+  var caps = document.getElementById('cap'), dots = document.getElementById('dots');
+  STEPS.forEach(function () { dots.appendChild(document.createElement('i')); });
+  var ctl = d.steps(STEPS, {onStep: function (k, s) {
+    caps.innerHTML = '<b>' + (k + 1) + ' / ' + STEPS.length + '</b>';
+    caps.appendChild(document.createTextNode(s.caption));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }});
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>
