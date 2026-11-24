@@ -61,6 +61,13 @@
 - Look at light and dark, step 0 and the last step, and a 400 px width. Labels must not collide, and no text may be clipped.
 - When a page is meant to be shared, keep internal names, customers and addresses out of it.
 
+## Printing and PDF
+
+- A deck prints one 16:9 page per slide at its last step, in the light theme, from the browser's print and from `scripts/topdf.sh page.html out.pdf` alike; `--steps` gives a page per step, `--dark` the dark theme. Notes and controls never print.
+- Any other page prints as the browser lays it out. Each theme ends with a print block that keeps a figure, a table or a `pre` on one page and a heading with what follows it, and fits a figure that scrolls on screen into the page's width. Keep figures in `svg[role="img"]`, `figure`, `.fig` or `.pane` so it finds them.
+- Figures print at their resting state, without motion: a step that matters on paper belongs in a deck slide or a figure of its own.
+- Look at the PDF (`pdftoppm -png out.pdf /tmp/p`) as at a screenshot.
+
 ## Exporting to draw.io
 
 - `scripts/todrawio.sh page.html TARGET out.drawio [name]` writes one figure of a built page (after `inline.py`) to a draw.io file. TARGET is an svg's id, or a CSS selector when it starts with `.` or `#`.

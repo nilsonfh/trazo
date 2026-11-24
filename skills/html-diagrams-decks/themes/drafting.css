@@ -27,3 +27,7 @@
   --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#9a907f; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
   --ed-accent:#62bccc; --ed-accent-soft:#143338; --ed-gap:#f28c55; --ed-gap-soft:#3a2115; --ed-add:#a3cc5c; --ed-add-soft:#232e17; --ed-p3:#cfa2e3; --ed-p3-soft:#2c1d33;
   --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; }
+/* print: colours as on screen, and a figure on one page and within its width, a table or a heading's first lines never cut */
+@media print{ html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  svg[role="img"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}
+  .pane,.stage,.fig{overflow:visible} svg[role="img"]{min-width:0!important;max-width:100%} }

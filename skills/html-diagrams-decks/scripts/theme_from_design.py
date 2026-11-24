@@ -39,6 +39,13 @@ SANS = 'system-ui,-apple-system,"Segoe UI",sans-serif'
 MONO = 'ui-monospace,SFMono-Regular,Menlo,monospace'
 
 
+# the print block every theme ends with (see themes/engineering.css)
+PRINT = ('/* print: colours as on screen, and a figure on one page and within its width, a table or a heading\'s first lines never cut */\n'
+         '@media print{ html,body{-webkit-print-color-adjust:exact;print-color-adjust:exact}\n'
+         '  svg[role="img"],figure,pre,table,tr,.fig,.pane,.stage{break-inside:avoid} h1,h2,h3,h4{break-after:avoid}\n'
+         '  .pane,.stage,.fig{overflow:visible} svg[role="img"]{min-width:0!important;max-width:100%} }')
+
+
 # ---------- front matter ----------
 def front_matter(text):
     text = text.lstrip('﻿')
@@ -518,6 +525,7 @@ def main(argv):
     dk = 'color-scheme:dark; %s\n  %s' % (decl(dark, ORDER_PAGE), decl(dark, ORDER_ED))
     lines.append('@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){\n  %s } }' % dk)
     lines.append(':root[data-theme="dark"]{\n  %s }' % dk)
+    lines.append(PRINT)
     css = '\n'.join(lines) + '\n'
     if a.explain:
         for m in ('light', 'dark'):

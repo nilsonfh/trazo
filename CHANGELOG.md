@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Speaker's notes and a presenter view.** A slide's `<aside class="notes">` (or `notes` given to `EdgeDeck.run`, by slide or build, one item per step if a list) holds what the speaker says; it never shows on the slide. N, or a `#b-notes` button, opens the presenter view in a second window: the current slide and step, the next step's caption and the next slide, the notes with the current step's marked, the time since it opened and the clock. Both windows follow whichever moved, so the keys and a clicker drive both; they talk over a BroadcastChannel and by `postMessage` to the window opened, which also works for file:// pages that get no channel. Where popups are blocked, the view takes the deck's own window. **N no longer steps forward**; J still does. Tested in `tests/deck.html` and, with a real second window, `tests/presenter.html`.
+- **Print and PDF.** A deck prints one 16:9 page per slide, at its last step with every build done, in the light theme (`printTheme` to change it), without notes or controls; EdgeDeck prints still copies with ids of their own, so arrowheads survive, and puts the deck back afterwards. `scripts/topdf.sh page.html out.pdf` (`trazo pdf`) does it with headless Chrome, `--steps` for a page per step and `--dark`. Each theme, and each theme `theme_from_design.py` makes, ends with a print block that keeps a figure, a table or a heading's first lines from being cut between pages and fits a scrolling figure to the page, so a plain page prints well too. `vendor.sh` copies `topdf.sh`. Tested in `tests/deck.html` and `tests/test_tools.py`.
+- **Icon gallery.** `templates/icons.html` shows every icon of the sprite with its name, in light and dark: filter as you type, click to copy the name. `tests/icons.html` checks that names are unique and well formed and that every icon draws inside its grid; `tests/test_tools.py` that the gallery shows them all and that the count in the sprite's header and in `api.md` is right.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.

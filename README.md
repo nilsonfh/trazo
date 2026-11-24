@@ -7,7 +7,7 @@ Trazo is an agent skill for Claude Code and GitHub Copilot, installed as `html-d
 - **EdgeDiagram** draws graphs: zones, nodes and orthogonal links that line up, go around boxes and fan out from one point, revealed step by step.
 - **EdgeSequence** draws sequence diagrams: actors, numbered messages and replies, activation bars, notes and `alt`/`loop` frames, one message per step with a packet travelling along it.
 - **EdgeSketch** draws figures laid out by hand on a grid, such as layered stacks and left-to-right platform views. Its boxes fit their text, and its check works on any SVG.
-- **EdgeDeck** runs 1600×900 slide decks with per-slide steps.
+- **EdgeDeck** runs 1600×900 slide decks with per-slide steps, speaker's notes in a presenter view on a second screen, and a PDF of one 16:9 page per slide.
 - **Three themes** share one token contract, each in light and dark, with a contrast checker, and **any DESIGN.md** (a brand's colours and faces) becomes a fourth with one command.
 
 ![The example deck, examples/ci-canary-deck.html: a delivery pipeline from developer to production, with continuous integration and continuous delivery as zones and signed images flowing between them](assets/example-deck.png)
@@ -31,7 +31,7 @@ trazo install --project . copilot   # into a repository's .github/skills
 
 To update: `uv tool upgrade trazo && trazo install`. With `--link`, the skill is linked to the installed package instead of copied, so `uv tool upgrade` alone updates it. `trazo uninstall` removes only what trazo installed. For a one-off install with nothing left on the PATH, use `uvx --from git+https://github.com/nilsonfh/trazo trazo install`.
 
-The same command runs the tools: `trazo inline`, `trazo check`, `trazo shot`, `trazo todrawio`, `trazo theme`, `trazo check-theme`, `trazo vendor` and `trazo test` take the arguments of the scripts below, and `trazo path` prints where the skill is.
+The same command runs the tools: `trazo inline`, `trazo check`, `trazo shot`, `trazo pdf`, `trazo todrawio`, `trazo theme`, `trazo check-theme`, `trazo vendor` and `trazo test` take the arguments of the scripts below, and `trazo path` prints where the skill is.
 
 **With GitHub CLI** (2.90 or later):
 

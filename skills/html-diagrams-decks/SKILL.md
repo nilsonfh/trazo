@@ -15,14 +15,16 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (right angles, two heads), `connect` (box to box), `fan`, `text`; and `EdgeSketch.check`, a layout check for any SVG, slanted and curved wires included |
 | `lib/edgesequence.js` | Sequence diagrams: actors in columns, numbered messages, replies, self calls, notes, `alt`/`opt`/`loop`/`par` frames, activation bars, a step per message with a packet on it, and its own layout check |
 | `lib/icons.js` | `window.EDGE_ICONS`: 50 line icons on a 24-unit grid (grid equipment, compute, trust, operations) |
-| `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, swipe and `#n` links |
+| `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, clicker, swipe and `#n` links; speaker's notes and a presenter view in a second window (N); prints one 16:9 page per slide |
 | `themes/*.css` | Colour and type themes, light and dark, on one token contract: `engineering` (blue on green-grey, Archivo Narrow and IBM Plex), `indigo` (indigo on lavender-grey, Space Grotesk and Inter), `drafting` (teal on warm paper, Barlow Condensed and Source Sans 3) |
 | `templates/diagram.html` | A stepped EdgeDiagram figure with captions, Previous/Next and dots |
 | `templates/sketch.html` | A hand-drawn EdgeSketch figure: zones left to right, columns, services, two-headed arrows, a legend |
 | `templates/sequence.html` | A stepped EdgeSequence figure: who talks to whom, one message per step |
-| `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step |
+| `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step, with speaker's notes |
+| `templates/icons.html` | The icon gallery: every icon with its name, filter and click to copy, light and dark |
 | `scripts/inline.py` | Inlines the library files and the theme into a page so it publishes as one file; fails on anything it cannot find |
 | `scripts/shot.sh` | Headless screenshots (light or dark, any width, after given clicks, `--only` one element, `--full` page) and `--check`, the layout check of every figure on a page |
+| `scripts/topdf.sh` | Prints a page to PDF with headless Chrome: a deck one 16:9 page per slide at its last step (`--steps`: per step), light (`--dark`) |
 | `scripts/todrawio.sh` | Exports one figure of a built page to a draw.io file, to be edited there: EdgeDiagram figures with their links attached, hand-drawn SVG figures, HTML figures |
 | `scripts/check_theme.py` | Checks a theme's WCAG contrast in light and dark, and that its two dark blocks agree |
 | `scripts/theme_from_design.py` | Makes a theme from a DESIGN.md file (a brand's colours and faces), light and dark, every pair at its contrast |
@@ -37,7 +39,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 ## Workflow
 
 1. **Decide what the figure must show.** Name the mechanism, the parts it depends on, and the sequence in which to reveal it. A sentence that says it faster beats a figure.
-2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence build returns `q.steps().timeline`).
+2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence build returns `q.steps().timeline`); put what the speaker says in each slide's `<aside class="notes">`, which N shows in the presenter view.
 3. **Copy the template** into the working directory, for example `cp <skill>/templates/sketch.html ./my-figure.html`. Fix the `<script src>` and theme paths so they point at `<skill>/lib/` and `<skill>/themes/`, or run `inline.py` with `--lib` and `--themes` at the end.
 4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires (see **Connectors** below). Put boxes that talk to each other in the same row or column, so their wire is one straight run. Give links that carry meaning an `info`. Read `references/api.md` for the options.
 5. **Write the steps** (EdgeDiagram). Step 0 is the resting state. Each later step adds one idea and has a short caption. Use `flows` for the data that moves, and `dim` or `hide` for what the step moves past.
@@ -52,7 +54,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
    ```
    Fix everything `--check` reports. Then open the PNGs and fix what it cannot see, such as off-grid boxes, arrowheads that collide or crowded labels, and look again at width 420. Screenshots freeze packets near the start of their wires, so judge motion in a real browser.
 8. **Hand over an editable copy when asked.** `<skill>/scripts/todrawio.sh build/my-figure.html <svg id or selector> out.drawio "Name"` writes a draw.io file of one figure, in the light theme and at its last step. Say what it does not carry: motion, steps, tooltips, and filled shapes other than rects and ellipses (it prints how many it left out).
-9. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it).
+9. **Publish.** The inlined file is the page: share it as a file, commit it, or, in Claude, give it to the Artifact tool (republish the same path or URL to update it). For a PDF (a deck to hand out, a figure for a document): `<skill>/scripts/topdf.sh build/my-deck.html my-deck.pdf`, with `--steps` for a page per step.
 
 ## Connectors
 

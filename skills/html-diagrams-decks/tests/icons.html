@@ -1,0 +1,27 @@
+<!-- The icon sprite: names unique and well formed, and every icon draws something inside its 24-unit grid. Run with scripts/test.sh. -->
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script>
+var bad = [], NS = 'http://www.w3.org/2000/svg';
+var sprite = document.createElementNS(NS, 'svg');
+sprite.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden');
+sprite.innerHTML = '<defs>' + window.EDGE_ICONS + '</defs>';
+document.body.appendChild(sprite);
+var syms = sprite.querySelectorAll('symbol'), seen = {};
+if (syms.length < 50) bad.push('only ' + syms.length + ' icons');
+if (window.EDGE_ICONS.split('<symbol').length - 1 !== syms.length) bad.push('a symbol did not parse');
+[].forEach.call(syms, function (s) {
+  var id = s.id;
+  if (!/^i-[a-z0-9]+(-[a-z0-9]+)*$/.test(id)) bad.push('name: "' + id + '"');
+  if (seen[id]) bad.push('twice: ' + id); seen[id] = 1;
+  if (s.getAttribute('viewBox') !== '0 0 24 24') bad.push(id + ': viewBox ' + s.getAttribute('viewBox'));
+  if (!s.querySelector('path,circle,rect,line,polyline,polygon,ellipse')) bad.push(id + ': no shape');
+  var v = document.createElementNS(NS, 'svg'); v.setAttribute('viewBox', '0 0 24 24'); v.setAttribute('width', '24'); v.setAttribute('height', '24');
+  var u = document.createElementNS(NS, 'use'); u.setAttribute('href', '#' + id); v.appendChild(u); document.body.appendChild(v);
+  var b = u.getBBox();
+  if (!(b.width > 2 && b.height > 2)) bad.push(id + ': draws nothing (' + b.width + 'x' + b.height + ')');
+  else if (b.x < -0.5 || b.y < -0.5 || b.x + b.width > 24.5 || b.y + b.height > 24.5) bad.push(id + ': outside its grid');
+  document.body.removeChild(v);
+});
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

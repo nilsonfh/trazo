@@ -1,14 +1,16 @@
-<!-- EdgeDeck's keys: forward and back, Shift for a whole slide, a number then Enter, the blank screen, and keys a focused control or the browser owns. Run with scripts/test.sh. -->
+<!-- EdgeDeck's keys: forward and back, Shift for a whole slide, a number then Enter, the blank screen, and keys a focused control or the browser owns;
+     the notes, the presenter view in the deck's own window, and the pages it prints. tests/presenter.html covers a presenter window. Run with scripts/test.sh. -->
 <div id="viewport" style="position:fixed;inset:0"><div id="stage" style="width:1600px;height:900px">
-  <section class="slide" data-steps="2"><h2>One</h2></section>
+  <section class="slide" data-steps="2"><h2>One</h2><svg><defs><marker id="m1"></marker></defs><path d="M0 0H9" marker-end="url(#m1)"></path><use href="#m1"></use></svg><ol class="caps"><li>a</li><li>b</li><li>c</li></ol>
+    <aside class="notes"><p>All along.</p><p data-step="1">At step one.</p></aside></section>
   <section class="slide" data-steps="0"><h2>Two</h2></section>
-  <section class="slide" data-steps="1"><h2>Three</h2></section>
+  <section class="slide" data-steps="1" data-build="three"><h2>Three</h2></section>
 </div></div>
 <div><button id="b-prev">‹</button><button id="b-next">›</button><button id="b-full">full</button><span id="prog"></span><span id="count"></span></div>
 <pre id="out"></pre>
 <script src="../lib/edgedeck.js"></script>
 <script>
-var deck = EdgeDeck.run({}), bad = [];
+var deck = EdgeDeck.run({notes: {three: ['first', 'second']}}), bad = [];
 function key(k, o, target) {
   o = o || {};
   var e = new KeyboardEvent('keydown', {key: k, bubbles: true, cancelable: true, shiftKey: !!o.shift, ctrlKey: !!o.ctrl, altKey: !!o.alt});
@@ -28,7 +30,7 @@ key('PageDown'); key('PageDown'); at(1, 0, 'a clicker\'s PageDown');
 key('PageUp'); at(0, 2, 'a clicker\'s PageUp');
 key('ArrowRight', {shift: true}); at(1, 0, 'shift+right: the next slide, past the steps');
 key('ArrowLeft', {shift: true}); at(0, 0, 'shift+left: the previous slide');
-key('n'); key('j'); at(0, 2, 'n and j forward');
+key('j'); key('j'); at(0, 2, 'j forward');
 key('p'); at(0, 1, 'p back');
 key('End'); at(2, 1, 'End'); key('Home'); at(0, 0, 'Home');
 key('3'); key('Enter'); at(2, 0, 'a number then Enter');
@@ -40,6 +42,49 @@ key('b'); if (!deck.state().blank) bad.push('b does not blank the screen');
 key('ArrowRight'); if (deck.state().blank) bad.push('a key does not bring the screen back'); at(1, 0, 'the key that unblanks does not also turn the page');
 var inp = document.createElement('input'); document.body.appendChild(inp); inp.focus();
 key('ArrowRight', {}, inp); at(1, 0, 'keys typed in a field are left to it');
+// notes: an aside, hidden on the slide, with its step marked; a list from opt.notes, one item per step
+var aside = document.querySelector('aside.notes');
+if (getComputedStyle(aside).display !== 'none') bad.push('the notes show on the slide');
+if (!/class="cur">At step one/.test(deck.notes(0, 1))) bad.push('the note of step 1 is not marked: ' + deck.notes(0, 1));
+if (/cur/.test(deck.notes(0, 0))) bad.push('a note marked at the wrong step');
+if (deck.notes(2, 1) !== '<ol><li>first</li><li class="cur">second</li></ol>') bad.push('notes from opt.notes: ' + deck.notes(2, 1));
+if (deck.notes(1) !== '') bad.push('a slide without notes has some');
+// the presenter view in this window: notes, the next slide, a timer; the keys still drive it
+deck.go(2); deck.presenter(true);
+var pv = document.querySelector('.ed-pv');
+if (!pv || getComputedStyle(pv).display === 'none') bad.push('no presenter view');
+else {
+  if (!/No notes/.test(pv.querySelector('.ed-pv-text').textContent)) bad.push('a slide without notes says so');
+  var nx = pv.querySelector('.ed-pv-next-in .slide h2');
+  if (!nx || nx.textContent !== 'Three') bad.push('the next slide is not previewed');
+  if (!/^0:0\d$/.test(pv.querySelector('.ed-pv-time b').textContent)) bad.push('timer: ' + pv.querySelector('.ed-pv-time b').textContent);
+  key('ArrowRight'); at(2, 0, 'keys in the presenter view');
+  if (!/first/.test(pv.querySelector('.ed-pv-text').textContent)) bad.push('the notes do not follow the slide');
+  if (!/Next step: /.test(pv.querySelector('.ed-pv-cap').textContent)) bad.push('the next step is not named');
+  key('End'); if (!/End/.test(pv.querySelector('.ed-pv-next').textContent)) bad.push('the last slide has no "End"');
+  key('b'); if (getComputedStyle(document.getElementById('stage')).visibility === 'hidden') bad.push('the presenter view hides its own slide when blanked');
+  key('ArrowLeft');
+  if (document.getElementById('viewport').getBoundingClientRect().width > innerWidth * 0.7) bad.push('the slide does not make room for the view');
+  key('n'); if (deck.state().presenter || getComputedStyle(pv).display !== 'none') bad.push('n does not close the presenter view in this window');
+}
+// print: one page per slide at its last step, or one per step; the deck comes back where it was
+deck.go(2);
+var n = deck.printPages({theme: 'dark'}), box = document.getElementById('ed-print');
+if (n !== 3 || !box || box.children.length !== 3) bad.push('print: ' + n + ' pages, want 3');
+else {
+  var c = box.children[0].querySelectorAll('.caps li');
+  if (!c[2].classList.contains('cur') || c[0].classList.contains('cur')) bad.push('print: slide 1 is not at its last step');
+  if (document.documentElement.getAttribute('data-theme') !== 'dark') bad.push('print: theme');
+}
+n = deck.printPages({steps: true});
+if (n !== 6 || document.querySelectorAll('#ed-print .slide').length !== 6) bad.push('print with steps: ' + n + ' pages, want 6');
+if (!document.querySelectorAll('#ed-print .slide')[1].querySelectorAll('.caps li')[1].classList.contains('cur')) bad.push('print with steps: page 2 is not step 1');
+var ids = {}; [].forEach.call(document.querySelectorAll('[id]'), function (e) { if (ids[e.id]) bad.push('print: id ' + e.id + ' twice'); ids[e.id] = 1; });
+var p0 = document.querySelector('#ed-print .slide path');
+if (!p0 || !document.querySelector('#ed-print .slide ' + p0.getAttribute('marker-end').slice(4, -1))) bad.push('print: a copy\'s marker is not its own');
+deck.printPages(false);
+if (document.getElementById('ed-print') || document.documentElement.hasAttribute('data-theme')) bad.push('print: not cleaned up');
+at(1, 0, 'print leaves the deck where it was');
 if (EdgeDeck.version !== '1.3.1') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>
