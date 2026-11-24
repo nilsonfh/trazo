@@ -1,6 +1,7 @@
 <!-- EdgeDiagram's layout check finds overlaps, overflowing text and links through nodes, and an ortho route goes around a node in its way. Run with scripts/test.sh. -->
 <svg id="ok" viewBox="0 0 600 220"></svg>
 <svg id="bad" viewBox="0 0 600 220"></svg>
+<svg id="zl" viewBox="0 0 400 300"></svg>
 <pre id="out"></pre>
 <script src="../lib/edgediagram.js"></script>
 <script>
@@ -27,6 +28,12 @@ e.node('a', {x: 20, y: 20, w: 120, h: 50, title: 'A title much too long for its 
  .node('far', {x: 560, y: 10, w: 100, h: 40, title: 'F'})
  .link('cx', {from: ['c', 'right'], to: ['x', 'left'], route: 'straight'});
 expect(e.check(), ['nodes a and b overlap', 'runs', 'link cx crosses node m', 'node far is outside the viewBox'], 'broken figure');
+// a wire into a zone through its label
+var z = EdgeDiagram.create(document.getElementById('zl'));
+z.zone('box', {x: 40, y: 100, w: 300, h: 160, label: 'IN SERVICE'})
+ .node('top', {x: 40, y: 10, w: 100, h: 40, title: 'T'}).node('in', {x: 40, y: 180, w: 100, h: 40, title: 'I'})
+ .link('down', {from: ['top', 'bottom'], to: ['in', 'top']});
+expect(z.check(), ['link down runs through zone label box.label'], 'a wire through a zone label');
 if (!EdgeDiagram.version) bad.push('no EdgeDiagram.version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

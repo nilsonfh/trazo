@@ -387,6 +387,16 @@
       if (lr) { z.xb = pad + (z.o.label ? LABEL : 0); z.xa = pad; z.mb = z.ma = wide(span); }
       else { z.xb = z.xa = wide(row); z.mb = pad + (z.o.label ? LABEL : 0); z.ma = pad; }
     });
+    if (!lr) Z.forEach(function (z) {   // TB: a wire entering the zone from above stays clear of its label (top-left)
+      if (!z.o.label || z.o.labelPos) return;
+      var tw = measure(d.svg, z.o.label, z.o.labelSize || 11, 'ed-zlabel'), at = 0, prev = null;
+      layers[z.r0].filter(function (v) { return v.zone === z; }).forEach(function (v) {
+        at += prev ? gap(prev, v) : 0; prev = v;
+        var ins = v.up.filter(function (w) { return w.zone !== z; }).length;
+        if (ins) z.xb = Math.max(z.xb, Math.ceil(18 + tw + 12 - (at + (ins > 1 ? v.cs / 4 : v.cs / 2))));   // the label starts 18 in
+        at += v.cs;
+      });
+    });
     function gap(p, q) {   // between neighbours p and q (p first) in a rank, edge to edge
       if (p.zone === q.zone) return (!p.real && !q.real) ? Math.max(14, nodeSep / 3) : (!p.real || !q.real) ? nodeSep / 2 : nodeSep;
       return (p.zone ? p.zone.xa : 0) + (q.zone ? q.zone.xb : 0) + zoneGap;
