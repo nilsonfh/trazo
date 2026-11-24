@@ -1,4 +1,4 @@
-"""Tests for todrawio.sh: the three kinds of figure, and the errors. They need a headless Chrome (see shot.sh)."""
+"""Tests for todrawio.sh: the three kinds of figure, state machines and swimlanes, and the errors. They need a headless Chrome (see shot.sh)."""
 import glob, os, shutil, subprocess, sys, tempfile, unittest
 import xml.etree.ElementTree as ET
 
@@ -15,7 +15,7 @@ class ToDrawio(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp(dir=os.path.join(ROOT, "tests"))   # beside the tests, so file:// pages load
-        for name in ("diagram", "sketch"):
+        for name in ("diagram", "sketch", "state", "swimlane"):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "inline.py"), os.path.join(ROOT, "templates", name + ".html")],
                                  capture_output=True, text=True, check=True).stdout
             with open(os.path.join(cls.dir, name + ".html"), "w", encoding="utf-8") as f:
@@ -54,6 +54,34 @@ class ToDrawio(unittest.TestCase):
         branches = [c for c in cells if c.get("edge") == "1" and c.get("source") and c.get("target")]
         self.assertEqual(len(branches), 4, "three branches and one link")
         self.assertEqual(len([c for c in cells if (c.get("style") or "").startswith("ellipse;")]), 1, "the junction dot")
+
+    def test_a_state_machine_keeps_its_shapes_and_every_transition_attached(self):
+        r, out = self.export(os.path.join(self.dir, "state.html"), "lc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cells = self.cells(out)
+        styles = [c.get("style") or "" for c in cells]
+        self.assertEqual(len([s for s in styles if "shape=startState" in s]), 2, "the two initial states")
+        self.assertEqual(len([s for s in styles if "shape=endState" in s]), 1, "the final state")
+        self.assertTrue(any(s.startswith("rhombus;") for s in styles), "the choice")
+        edges = [c for c in cells if c.get("edge") == "1"]
+        self.assertEqual(len(edges), 13)
+        self.assertTrue(all(c.get("source") and c.get("target") for c in edges), "every transition attached at both ends")
+        self.assertTrue(any(c.get("source") == c.get("target") for c in edges), "the self-transition")
+        self.assertIn("quote [EK valid] / store PCRs", [c.get("value") for c in cells])
+
+    def test_lanes_become_swimlanes_and_events_ellipses(self):
+        r, out = self.export(os.path.join(self.dir, "swimlane.html"), "ob")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        cells = self.cells(out)
+        lanes = [c for c in cells if (c.get("style") or "").startswith("swimlane;")]
+        self.assertEqual(len(lanes), 4)
+        self.assertTrue(all("horizontal=0" in c.get("style") for c in lanes), "titles in a head on the left")
+        self.assertIn("Operator", lanes[0].get("value"))
+        self.assertNotIn("Operator", [c.get("value") for c in cells if c not in lanes], "the title is the lane's, not a loose text")
+        self.assertEqual(len([c for c in cells if (c.get("style") or "").startswith("ellipse;") and c.get("vertex") == "1"]), 3, "the start event and the two end events")
+        self.assertTrue(any((c.get("style") or "").startswith("rhombus;") for c in cells), "the decision")
+        edges = [c for c in cells if c.get("edge") == "1"]
+        self.assertTrue(edges and all(c.get("source") and c.get("target") for c in edges), "every flow attached at both ends")
 
     def test_a_hand_drawn_figure_keeps_boxes_text_icons_and_both_arrowheads(self):
         r, out = self.export(os.path.join(self.dir, "sketch.html"), "mp")

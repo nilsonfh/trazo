@@ -5,7 +5,10 @@
 
 - An EdgeDiagram figure: zones and nodes become rounded rectangles with the page's computed fill, stroke
   and dash; links become edges attached to their nodes at the rendered anchors, with the route's corners
-  as waypoints and each label at its rendered place along the wire.
+  as waypoints and each label at its rendered place along the wire. State machine and process shapes map
+  to draw.io's own: initial and final states to startState and endState, choices and decisions to
+  rhombus, start and end events to ellipses, a composite to a rounded rectangle with its tab; lanes
+  become draw.io swimlanes with their titles.
 - Any other svg (drawn by hand or with EdgeSketch): rects and ellipses keep their fill, stroke, dash and
   corner radius, text keeps its place, size, weight and rotation, and lines and paths become edges with
   their arrowheads, not attached to anything. Everything keeps the page's order, so what was on top stays
@@ -150,6 +153,20 @@ def icon(doc, sym, color, x, y, w, h, op=1.0):
 
 
 # ---------- an EdgeDiagram figure ----------
+def node_style(n):
+    st, s = n['st'], n.get('shape')
+    fill, stroke, sw, dash = hx(st['fill']), hx(st['stroke']), px(st['sw']), dash_of(st['dash'])
+    if s == 'initial':
+        return 'ellipse;html=1;shape=startState;aspect=fixed;fillColor=%s;strokeColor=%s;' % (fill, stroke)
+    if s == 'final':
+        return 'ellipse;html=1;shape=endState;aspect=fixed;fillColor=%s;strokeColor=%s;strokeWidth=%s;' % (hx(n['core']['fill']) if n.get('core') else stroke, stroke, sw)
+    if s in ('choice', 'decision'):
+        return 'rhombus;html=1;whiteSpace=wrap;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % (fill, stroke, sw, dash)
+    if s in ('start', 'end'):
+        return 'ellipse;html=1;aspect=fixed;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % (fill, stroke, sw, dash)
+    return 'rounded=1;absoluteArcSize=1;arcSize=%d;html=1;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % ((n['rx'] or 0) * 2, fill, stroke, sw, dash)
+
+
 def edge_figure(d, doc):
     def text(s, x, y, st, fs, anchor, w=None):
         h = fs * 1.4
@@ -163,25 +180,37 @@ def edge_figure(d, doc):
         doc.cell({'value': val, 'style': style, 'vertex': '1'}, {'x': r(left), 'y': r(y - fs * 0.35 - h / 2), 'width': r(w), 'height': r(h)})
     for z in d['zones']:
         st = z['st']
+        if z.get('lane'):   # a draw.io swimlane: the title in its head, horizontal lanes' head on the left
+            ln, hs = z['lane'], z['lane']['hst']
+            t = z['label'][0] if z['label'] else None
+            val = '<b>%s</b>' % html.escape(t['s']) if t else ''
+            if len(z['label']) > 1: val += '<br><span style="font-weight:normal">%s</span>' % html.escape(z['label'][1]['s'])
+            doc.cell({'value': val, 'style': 'swimlane;html=1;whiteSpace=wrap;horizontal=%d;startSize=%s;fillColor=%s;swimlaneFillColor=%s;strokeColor=%s;strokeWidth=%s;%sfontSize=%s;fontColor=%s;' % (
+                0 if ln['dir'] == 'h' else 1, r(ln['head']), hx(hs['fill']), hx(st['fill']), hx(st['stroke']), px(st['sw']),
+                font_style(t['st']['ff'], t['st']['fw']) if t else '', t['fs'] if t else 12, hx(t['st']['fill']) if t else '#000000'), 'vertex': '1'},
+                     {'x': z['x'], 'y': z['y'], 'width': z['w'], 'height': z['h']})
+            continue
         doc.cell({'value': '', 'style': 'rounded=1;absoluteArcSize=1;arcSize=%d;html=1;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % (z['rx'] * 2, hx(st['fill']), hx(st['stroke']), px(st['sw']), dash_of(st['dash'])), 'vertex': '1'},
                  {'x': z['x'], 'y': z['y'], 'width': z['w'], 'height': z['h']})
         for t in z['label']: text(t['s'], t['x'], t['y'], t['st'], t['fs'], t['anchor'])
     ids = {}
     for n in d['nodes']:
         st = n['st']
-        ids[n['id']] = doc.cell({'value': '', 'style': 'rounded=1;absoluteArcSize=1;arcSize=%d;html=1;fillColor=%s;strokeColor=%s;strokeWidth=%s;%s' % (n['rx'] * 2, hx(st['fill']), hx(st['stroke']), px(st['sw']), dash_of(st['dash'])), 'vertex': '1'},
-                                {'x': n['x'], 'y': n['y'], 'width': n['w'], 'height': n['h']})
+        ids[n['id']] = doc.cell({'value': '', 'style': node_style(n), 'vertex': '1'}, {'x': r(n['x']), 'y': r(n['y']), 'width': r(n['w']), 'height': r(n['h'])})
+        if n.get('tab'):   # a composite's title tab
+            tb = n['tab']
+            doc.cell({'value': '', 'style': 'rounded=1;absoluteArcSize=1;arcSize=16;html=1;fillColor=%s;strokeColor=%s;strokeWidth=%s;' % (hx(tb['st']['fill']), hx(tb['st']['stroke']), px(tb['st']['sw'])), 'vertex': '1'},
+                     {'x': r(tb['x']), 'y': r(tb['y']), 'width': r(tb['w']), 'height': r(tb['h'])})
         ic = n.get('icon')
         if ic and ic['href'] in d['icons']:
             icon(doc, d['icons'][ic['href']], ic['color'], ic['x'], ic['y'], ic['w'], ic['h'])
         for t in n['texts']:
             text(t['s'], t['x'], t['y'], t['st'], t['fs'], t['anchor'], w=n['x'] + n['w'] - t['x'] - 4 if t['anchor'] in (None, 'start') else None)
     for t in d.get('free', []): text(t['s'], t['x'], t['y'], t['st'], t['fs'], t['anchor'])
-    def owner(p):
-        for n in d['nodes']:
-            x, y = p
-            if n['x'] - 0.6 <= x <= n['x'] + n['w'] + 0.6 and n['y'] - 0.6 <= y <= n['y'] + n['h'] + 0.6:
-                return n
+    def owner(p):   # the smallest node the end is on: a state, not the composite around it
+        x, y = p
+        on = [n for n in d['nodes'] if n['x'] - 0.6 <= x <= n['x'] + n['w'] + 0.6 and n['y'] - 0.6 <= y <= n['y'] + n['h'] + 0.6]
+        return min(on, key=lambda n: n['w'] * n['h']) if on else None
     def path_pts(dd):
         pts = []
         for cmd, args in re.findall(r'([MLQC])([^MLQC]*)', dd):

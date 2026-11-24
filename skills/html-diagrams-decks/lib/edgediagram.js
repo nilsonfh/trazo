@@ -24,13 +24,23 @@
  * the zone beneath. Packets follow the drawn path, fade with their link, wait until the wire is
  * drawn, and stop when nothing flows or the figure is off screen.
  *
+ * State machines and process figures: node shapes 'state' and 'task' (rounded boxes), 'initial' (a
+ * dot), 'final' (a ringed dot), 'choice' and 'decision' (diamonds), 'start' and 'end' (event circles)
+ * and 'composite' (a state holding others, with a title tab). Links meet a dot or a diamond at the
+ * middle of a side. d.transition() is a link labelled 'event [guard] / action'; from === to is a
+ * self-transition, a right-angle loop on a chosen side; two transitions that run opposite ways between
+ * the same sides are kept apart, each label on its own side. d.lanes() draws horizontal or vertical
+ * lanes with titles; a node with {lane} stays inside its lane, and each lane grows to its content.
+ * Steps take {current: node} (a ring on the state the walk is in) and {fire: link} (the link drawn
+ * thicker with a packet on it, for that step); d.walk([state, transition, state, ...]) makes them.
+ *
  * Hovering or focusing a node or a link with `info` highlights it with its neighbours and shows
  * a tooltip (a string, or {text, facts: [[k, v]], href, hrefText}); click or Enter pins it; a
  * click elsewhere or Escape releases it. Below 560 px the tooltip is a sheet at the bottom.
  *
  * {debug: true} or window.ED_DEBUG = 1 checks the figure at every step once fonts are loaded:
  * overlapping nodes, text outside its node, links through nodes, ortho links turning inside a
- * zone that holds neither end, slanted straight links, ortho links with a jog of a few pixels, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view). Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
+ * zone that holds neither end, slanted straight links, ortho links with a jog of a few pixels, link labels on nodes or on each other, zone labels under nodes, items outside the viewBox (or outside every step's view), a node outside its lane, a transition's label on another wire, text outside a diamond, a node on a composite's title tab. Icon-only symbols may sit on wires. Each issue is outlined in red, logged, and listed in a hidden
  * <pre id="ed-issues"> (scripts/shot.sh --check reads it). d.check() returns the list. An item
  * with {check: false} is left out; create(svg, {check: false}) leaves out a whole figure whose own
  * timeline swaps overlapping items.
@@ -45,7 +55,7 @@
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.3.1';
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.3.1', FIRED = 3.6;   // a fired transition's width
 
   var CSS = [
     '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',
@@ -94,6 +104,15 @@
     '.ed-tip a{color:inherit;display:inline-block;margin-top:6px}',
     '.ed-tip.pinned{pointer-events:auto;outline:2px solid var(--ed-accent,#2456a4)}',
     '.ed-tip.sheet{left:8px!important;right:8px;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom,0px));max-width:none}',
+    '.ed-node.s-initial .ed-shape,.ed-node .ed-core{fill:var(--_ink);stroke:var(--_ink)}',
+    '.ed-node.s-final .ed-shape{fill:var(--_surface);stroke:var(--_ink);stroke-width:1.6}',
+    '.ed-node.s-start .ed-shape{stroke-width:1.8}.ed-node.s-end .ed-shape{stroke-width:3.6}',
+    '.ed-node.s-composite.t-neutral>.ed-shape{fill:var(--_layer)}',
+    '.ed-node .ed-tab{fill:var(--_surface);stroke:var(--_ink2);stroke-width:1.2}.ed-node.t-accent .ed-tab{stroke:var(--_accent)}',
+    '.ed-halo{fill:none;stroke:var(--_accent);stroke-width:2.8;opacity:0;pointer-events:none}',
+    '.ed-llabel .ed-tguard{fill:var(--_muted)}.ed-llabel .ed-tact{font-style:italic}',
+    '.ed-llabel-bg.on-accent{fill:var(--_accent-soft)}.ed-llabel-bg.on-add{fill:var(--_add-soft)}.ed-llabel-bg.on-p3{fill:var(--_p3-soft)}',
+    '.ed-lane .ed-lhead{fill:var(--_surface);stroke:var(--_rule)}.ed-lane .ed-ltitle{font-size:15px}',
     '.ed-debug rect{fill:none;stroke:#e0102f;stroke-width:2;stroke-dasharray:5 3}',
     '@media (forced-colors:active){.ed-node .ed-shape,.ed-zone .ed-zshape,.ed-link path.ed-wire{stroke:CanvasText}',
     '.ed-pkt,.ed-arrow{fill:Highlight}.ed-tip{border:1px solid CanvasText}}'
@@ -341,7 +360,12 @@
       g.setAttribute('aria-label', name + '. ' + infoText(info));
     }
     api.node = function (id, o) {
-      var g = el('g', {'class': 'ed-item ed-node t-' + (o.tone || 'neutral') + (o.dashed ? ' dashed' : ''), 'data-id': id}, layers.nodes);
+      if (o.lane && !o._laned) return laneNode(id, o);
+      if (POINT[o.shape] || o.shape === 'composite') return shapeNode(id, o);
+      if (o.shape === 'state' || o.shape === 'task')   // a rounded box, its text centred
+        o = Object.assign({align: 'center'}, o, {r: o.r != null ? o.r : (o.shape === 'state' ? 18 : 12)});
+      var g = el('g', {'class': 'ed-item ed-node t-' + (o.tone || 'neutral') + (o.dashed ? ' dashed' : '') + (o.shape ? ' s-' + o.shape : ''), 'data-id': id}, layers.nodes);
+      if (o.shape) g.setAttribute('data-shape', o.shape);
       var pill = o.shape === 'pill';
       if (Object.keys(links).length) dirty = true;   // links drawn before this node did not know it
       // o.ghost: no shape, only a place for links to attach (a source point, a label anchor)
@@ -384,6 +408,137 @@
       return api;
     };
 
+    /* ---------- state machines and processes: a dot, a ringed dot, a diamond or a circle, which links
+       meet at the middle of a side, and a composite state with a title tab ---------- */
+    var POINT = {initial: 1, final: 1, choice: 1, decision: 1, start: 1, end: 1}, tabs = [];
+    function shapeNode(id, o) {
+      var s = o.shape, g = el('g', {'class': 'ed-item ed-node t-' + (o.tone || 'neutral') + ' s-' + s + (o.dashed ? ' dashed' : ''), 'data-id': id, 'data-shape': s}, layers.nodes);
+      if (Object.keys(links).length) dirty = true;
+      var cx = o.x + o.w / 2, cy = o.y + o.h / 2, R = Math.min(o.w, o.h) / 2, below = 0;
+      var n = {x: o.x, y: o.y, w: o.w, h: o.h, o: o, el: g, links: [], ports: {}, point: !!POINT[s], shape: s};
+      g.setAttribute('data-box', [o.x, o.y, o.w, o.h].join(' '));   // the box links attach to, for the draw.io export
+      if (s === 'choice' || s === 'decision') el('polygon', {'class': 'ed-shape', points: [cx, o.y, o.x + o.w, cy, cx, o.y + o.h, o.x, cy].join(' ')}, g);
+      else if (s === 'composite') {
+        var r = o.r != null ? o.r : 14;
+        el('rect', {'class': 'ed-shape', x: o.x, y: o.y, width: o.w, height: o.h, rx: r}, g);
+        var tab = el('path', {'class': 'ed-tab'}, g);
+        var tt = el('text', {'class': 'ed-title', x: o.x + 14, y: o.y + 19, 'font-size': o.titleSize || 13}, g, o.title || '');
+        n.retab = function () {   // the tab fits its title, in the composite's top-left corner
+          var w = Math.max(48, ((bboxOf(tt) || {w: 0}).w || 0) + 28), x = n.x, y = n.y, h = 28;
+          tab.setAttribute('d', 'M' + x + ' ' + (y + h) + ' V' + (y + r) + ' Q' + x + ' ' + y + ' ' + (x + r) + ' ' + y + ' H' + (x + w) +
+            ' V' + (y + h - 8) + ' Q' + (x + w) + ' ' + (y + h) + ' ' + (x + w - 8) + ' ' + (y + h) + ' Z');
+          n.tab = {x: x, y: y, w: w, h: h};
+        };
+        n.retab(); tabs.push(n);
+      } else {
+        el('circle', {'class': 'ed-shape', cx: cx, cy: cy, r: R - (s === 'end' ? 1.8 : s === 'initial' ? 0 : 1)}, g);
+        if (s === 'final') el('circle', {'class': 'ed-core', cx: cx, cy: cy, r: R * 0.52}, g);
+      }
+      if (s === 'decision' && o.title) {   // its text inside the diamond
+        var sub = o.sub ? wrapLines(o.sub, o.subWrap || 20) : [], ts = o.titleSize || 13, ss = o.subSize || 11;
+        var ty = cy - (ts + sub.length * (ss + 4)) / 2 + ts * 0.85;
+        el('text', {'class': 'ed-title', x: cx, y: ty, 'font-size': ts, 'text-anchor': 'middle'}, g, o.title);
+        sub.forEach(function (line, i) { el('text', {'class': 'ed-sub', x: cx, y: ty + (i + 1) * (ss + 4), 'font-size': ss, 'text-anchor': 'middle'}, g, line); });
+      } else if (s !== 'composite' && o.title) {   // a point's name, below it
+        el('text', {'class': 'ed-sub ed-outside', x: cx, y: o.y + o.h + 16, 'font-size': o.titleSize || 12, 'text-anchor': 'middle'}, g, o.title);
+        below = 20;
+      }
+      n.below = below;
+      if (o.info) focusable(g, o.title || o.label || s, o.info);
+      nodes[id] = n;
+      items[id] = {el: g, kind: 'node', o: o};
+      return api;
+    }
+    /* a ring around a node, for the state a walk is in (steps {current}) */
+    function haloOf(n) {
+      if (n.halo) return n.halo;
+      var p = 5, sh = n.el.querySelector('.ed-shape'), h;
+      if (n.shape === 'choice' || n.shape === 'decision') {
+        var cx = n.x + n.w / 2, cy = n.y + n.h / 2, k = p * 1.5;
+        h = el('polygon', {points: [cx, n.y - k, n.x + n.w + k, cy, cx, n.y + n.h + k, n.x - k, cy].join(' ')});
+      } else if (sh && sh.tagName === 'circle') h = el('circle', {cx: n.x + n.w / 2, cy: n.y + n.h / 2, r: +sh.getAttribute('r') + p});
+      else h = el('rect', {x: n.x - p, y: n.y - p, width: n.w + 2 * p, height: n.h + 2 * p, rx: (sh ? +sh.getAttribute('rx') || 0 : 10) + p});
+      h.setAttribute('class', 'ed-halo');
+      n.el.insertBefore(h, n.el.firstChild);
+      return (n.halo = h);
+    }
+    /* move a drawn node: every coordinate of what it drew, and its tab */
+    function shiftNode(n, dx, dy) {
+      n.x += dx; n.y += dy;
+      [].forEach.call(n.el.querySelectorAll('*'), function (e) {
+        ['x', 'cx'].forEach(function (a) { if (e.hasAttribute(a)) e.setAttribute(a, +e.getAttribute(a) + dx); });
+        ['y', 'cy'].forEach(function (a) { if (e.hasAttribute(a)) e.setAttribute(a, +e.getAttribute(a) + dy); });
+        if (e.hasAttribute('points')) e.setAttribute('points', e.getAttribute('points').trim().split(/[\s,]+/).map(function (v, i) { return +v + (i % 2 ? dy : dx); }).join(' '));
+      });
+      if (n.retab) n.retab();
+      if (n.el.hasAttribute('data-box')) n.el.setAttribute('data-box', [n.x, n.y, n.w, n.h].join(' '));
+      if (Object.keys(links).length) { dirty = true; respread = true; }
+    }
+
+    /* ---------- lanes: rows (or columns) for actors or planes. A node given {lane} stays inside its
+       lane, and every lane grows to hold its nodes; the view follows the lanes ---------- */
+    var laneSets = [], laneOf = {}, respread = false;
+    api.lanes = function (id, o) {
+      var hz = (o.dir || 'horizontal').charAt(0) !== 'v';
+      var LS = {id: id, o: o, hz: hz, head: o.head != null ? o.head : (hz ? 130 : 48), min: o.min || (hz ? 100 : 170), pad: o.pad != null ? o.pad : 22, lanes: []};
+      LS.g = el('g', {'class': 'ed-item ed-lanes', 'data-id': id}, layers.zones);
+      items[id] = {el: LS.g, kind: 'zone', o: o};
+      o.lanes.forEach(function (lo) {
+        if (items[lo.id]) throw new Error('EdgeDiagram: lane ' + lo.id + ' reuses an id');
+        var g = el('g', {'class': 'ed-item ed-zone ed-lane t-layer', 'data-id': lo.id, 'data-lane': hz ? 'h' : 'v', 'data-head': LS.head}, LS.g);
+        var ln = {id: lo.id, o: lo, g: g, members: [], band: el('rect', {'class': 'ed-zshape'}, g), head: el('rect', {'class': 'ed-lhead'}, g)};
+        var lg = el('g', {'class': 'ed-item', 'data-id': lo.id + '.label'}, g);
+        ln.tt = el('text', {'class': 'ed-title ed-ltitle', 'text-anchor': hz ? 'start' : 'middle'}, lg, lo.title || '');
+        if (lo.sub) ln.st = el('text', {'class': 'ed-sub', 'font-size': 12, 'text-anchor': hz ? 'start' : 'middle'}, lg, lo.sub);
+        items[lo.id] = {el: g, kind: 'zone', o: lo}; items[lo.id + '.label'] = {el: lg, kind: 'label'};
+        ln.z = {id: lo.id, x: 0, y: 0, w: 0, h: 0, tone: 'layer'}; zones.push(ln.z);
+        LS.lanes.push(ln); laneOf[lo.id] = {set: LS, lane: ln};
+      });
+      laneSets.push(LS); fitLanes(LS);
+      return api;
+    };
+    function extent(n, hz) { return hz ? n.h + (n.below || 0) : n.w; }
+    function fitLanes(LS) {
+      var o = LS.o, hz = LS.hz, pos = hz ? o.y : o.x;
+      LS.lanes.forEach(function (ln) {
+        var need = ln.o.size || LS.min;
+        ln.members.forEach(function (id) {
+          var n = nodes[id], e = extent(n, hz);
+          need = Math.max(need, n.rel != null ? n.rel + e + LS.pad : e + 2 * LS.pad);
+        });
+        ln.at = pos; ln.size = need; pos += need;
+      });
+      LS.lanes.forEach(function (ln) {
+        var x = hz ? o.x : ln.at, y = hz ? ln.at : o.y, w = hz ? o.w : ln.size, h = hz ? ln.size : o.h;
+        [['x', x], ['y', y], ['width', w], ['height', h]].forEach(function (a) { ln.band.setAttribute(a[0], a[1]); });
+        [['x', x], ['y', y], ['width', hz ? LS.head : w], ['height', hz ? h : LS.head]].forEach(function (a) { ln.head.setAttribute(a[0], a[1]); });
+        var tx = hz ? x + 16 : x + w / 2, ty = (hz ? y + h / 2 : y + LS.head / 2) + (ln.st ? -3 : 5);
+        ln.tt.setAttribute('x', tx); ln.tt.setAttribute('y', ty);
+        if (ln.st) { ln.st.setAttribute('x', tx); ln.st.setAttribute('y', ty + 16); }
+        ln.z.x = x; ln.z.y = y; ln.z.w = w; ln.z.h = h;
+        ln.area = hz ? {x: x + LS.head, y: y, w: w - LS.head, h: h} : {x: x, y: y + LS.head, w: w, h: h - LS.head};
+        ln.members.forEach(function (id) {
+          var n = nodes[id], want = ln.at + (n.rel != null ? n.rel : (ln.size - extent(n, hz)) / 2), cur = hz ? n.y : n.x;
+          if (Math.abs(want - cur) > 0.01) shiftNode(n, hz ? 0 : want - cur, hz ? want - cur : 0);
+        });
+      });
+      if (o.fit !== false && vb) {   // the view ends as far past the lanes as it starts before them
+        if (hz) vb.h = pos + (o.y - vb.y) - vb.y; else vb.w = pos + (o.x - vb.x) - vb.x;
+        svg.setAttribute('viewBox', [vb.x, vb.y, vb.w, vb.h].join(' '));
+      }
+    }
+    /* a node in a lane: its y (in a row) or x (in a column) is from the lane's edge, or centred when left out */
+    function laneNode(id, o) {
+      var L = laneOf[o.lane];
+      if (!L) throw new Error('EdgeDiagram: node ' + id + ' names an unknown lane ' + o.lane);
+      var hz = L.set.hz, rel = hz ? o.y : o.x, p = Object.assign({}, o, {_laned: true});
+      if (hz) p.y = L.lane.at + (rel || 0); else p.x = L.lane.at + (rel || 0);
+      api.node(id, p);
+      nodes[id].rel = rel; nodes[id].lane = o.lane; L.lane.members.push(id);
+      fitLanes(L.set);
+      return api;
+    }
+
     /* free text: a label that is not part of a node or a zone */
     api.text = function (id, o) {
       var g = el('g', {'class': 'ed-item', 'data-id': id}, layers.nodes);
@@ -409,15 +564,28 @@
       return zones.filter(function (z) { return !contains(z, A) && !contains(z, B); });
     }
     function plateClass(x, y) {
+      var host = null;   // a composite state is drawn above the zones
+      Object.keys(nodes).forEach(function (k) {
+        var n = nodes[k];
+        if (n.shape === 'composite' && x >= n.x && x <= n.x + n.w && y >= n.y && y <= n.y + n.h && (!host || n.w * n.h < host.w * host.h)) host = n;
+      });
+      if (host) { var t = host.o.tone || 'neutral'; return t === 'neutral' ? ' on-layer' : ' on-' + t; }
       for (var i = zones.length - 1; i >= 0; i--) {
         var z = zones[i];
         if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) return z.tone === 'gap' ? ' on-gap' : ' on-layer';
       }
       return '';
     }
+    function inComposite(n, box) { return n.shape === 'composite' && contains(n, box) && !(n.tab && inter(box, n.tab, 0)); }
+    function onWire(box, M) {   // a wire under a label's plate
+      var ps = samples(M);
+      for (var q = 0; q < ps.length; q++) if (ps[q][0] > box.x + 1.5 && ps[q][0] < box.x + box.w - 1.5 && ps[q][1] > box.y + 1.5 && ps[q][1] < box.y + box.h - 1.5) return true;
+      return false;
+    }
     function labelBlocked(L, box) {
-      for (var k in nodes) if (!nodes[k].o.ghost && inter(box, nodes[k], 0)) return true;
+      for (var k in nodes) if (!nodes[k].o.ghost && inter(box, nodes[k], 0) && !inComposite(nodes[k], box)) return true;
       for (var j in links) if (j !== L.id && links[j].lbox && inter(box, links[j].lbox, 0)) return true;
+      if (L.o._transition) for (var w in links) if (w !== L.id && onWire(box, links[w])) return true;
       return false;
     }
     /* a label slides along its wire until it clears the nodes and the other labels */
@@ -429,6 +597,12 @@
         var mid = L.path.getPointAtLength(L.len * at);
         L.lt.setAttribute('x', mid.x); L.lt.setAttribute('y', mid.y + 4);
         var bb = bboxOf(L.lt) || {x: mid.x, y: mid.y, w: 0, h: 0};
+        if (L.out) {   // beside the wire, on the side away from its pair or its node
+          var ox = L.out[0] * (bb.w / 2 + 7), oy = L.out[1] * (bb.h / 2 + 4);
+          mid = {x: mid.x + ox, y: mid.y + oy};
+          L.lt.setAttribute('x', mid.x); L.lt.setAttribute('y', mid.y + 4);
+          bb = {x: bb.x + ox, y: bb.y + oy, w: bb.w, h: bb.h};
+        }
         var cand = {mid: mid, box: {x: bb.x - 4, y: bb.y - 2, w: bb.w + 8, h: bb.h + 4}};
         if (!best) best = cand;
         if (!labelBlocked(L, cand.box)) { best = cand; break; }
@@ -465,11 +639,33 @@
       }
       return [f0 ? (v - lo0) / len0 : t0, f1 ? (v - lo1) / len1 : t1];
     }
+    /* Two links that run opposite ways between the same sides: each moves half of o.apart (default 22)
+       from the middle of the span the nodes share, the one going right (or down) above (or right of) the
+       other, and its label goes beside it on its outer side. */
+    function pairT(L, a, b) {
+      var n0 = NORMAL[L.s0], n1 = NORMAL[L.s1], h = n0[1] === 0, M = links[L.pair];
+      var apart = L.o.apart || (M && M.o.apart) || 22;
+      var lo0 = h ? a.y : a.x, len0 = h ? a.h : a.w, lo1 = h ? b.y : b.x, len1 = h ? b.h : b.w, c0, c1;
+      var facing = n0[0] === -n1[0] && n0[1] === -n1[1];
+      if (facing) {
+        var lo = Math.max(lo0, lo1), hi = Math.min(lo0 + len0, lo1 + len1);
+        if (hi - lo >= apart + 16) c0 = c1 = (lo + hi) / 2;
+      }
+      if (c0 == null) { c0 = lo0 + len0 / 2; c1 = lo1 + len1 / 2; }
+      var sg = h ? -n0[0] : n0[1];   // clockwise: rightwards on top, downwards on the right
+      L.out = facing && c0 === c1 ? (h ? [0, sg] : [sg, 0]) : null;
+      return [(c0 + sg * apart / 2 - lo0) / len0, (c1 + sg * apart / 2 - lo1) / len1];
+    }
     function drawLink(L) {
       var a = nodes[L.from], b = nodes[L.to];
-      var kind = L.o.route || 'ortho', tt = aligned(L, a, b), p0 = anchor(a, L.s0, tt[0]), p1 = anchor(b, L.s1, tt[1]), d;
+      var kind = L.o.route || 'ortho', tt = L.pair ? pairT(L, a, b) : aligned(L, a, b), p0 = anchor(a, L.s0, tt[0]), p1 = anchor(b, L.s1, tt[1]), d;
       L.segs = null;
-      if (L.fan) {
+      if (L.loop) {   // a self-transition: out of the side, along it, and back in, at right angles
+        var nn = NORMAL[L.s0], ext = L.o.loop || 26;
+        var lp = [p0, [p0[0] + nn[0] * ext, p0[1] + nn[1] * ext], [p1[0] + nn[0] * ext, p1[1] + nn[1] * ext], p1];
+        L.segs = lp.slice(1).map(function (q, i) { return [lp[i], q]; });
+        d = roundedPolyline(lp, Math.min(L.o.radius || 14, 10));
+      } else if (L.fan) {
         var fg = fanGeom(L.fan), fp = fg.pts[L.fanIndex].slice();
         if (L.fan.into) fp.reverse();
         L.segs = fp.slice(1).map(function (q, i) { return [fp[i], q]; });
@@ -483,7 +679,10 @@
           var twin = M.from === L.from && M.to === L.to && M.s0 === L.s0 && M.s1 === L.s1 && M.t0 === L.t0 && M.t1 === L.t1;
           if (k !== L.id && M.poly && !twin) others = others.concat(M.poly);
         });
-        var pts = orthoPoints(p0, L.s0, p1, L.s1, L.o, L.o.avoid !== false ? obstaclesFor(L) : null, others,
+        var ro = L.o, nf = NORMAL[L.s0], nt = NORMAL[L.s1], gap = (p1[0] - p0[0]) * nf[0] + (p1[1] - p0[1]) * nf[1];
+        if (nf[0] === -nt[0] && nf[1] === -nt[1] && gap > 0 && gap < 2 * (ro.stub != null ? ro.stub : 16))
+          ro = Object.assign({}, ro, {stub: gap / 2});   // ends facing across a narrow gap: stubs that fit it
+        var pts = orthoPoints(p0, L.s0, p1, L.s1, ro, L.o.avoid !== false ? obstaclesFor(L) : null, others,
           L.o.avoid !== false ? foreignZones(L) : null, vb);
         L.segs = pts.slice(1).map(function (q, i) { return [pts[i], q]; });
         d = roundedPolyline(pts, L.o.radius || 14);
@@ -514,6 +713,10 @@
     }
     function relayout() {
       if (!dirty) return; dirty = false;
+      if (respread) {   // nodes moved into their lanes after links were spread along their sides
+        respread = false;
+        Object.keys(nodes).forEach(function (k) { Object.keys(nodes[k].ports).forEach(function (sd) { spread(k, sd); }); });
+      }
       Object.keys(links).forEach(function (k) { drawLink(links[k]); });
       fans.forEach(drawDots);
     }
@@ -521,7 +724,8 @@
     api.link = function (id, o) {
       var a = nodes[o.from[0]], b = nodes[o.to[0]];
       if (!a || !b) throw new Error('EdgeDiagram: link ' + id + ' needs existing nodes');
-      var s0 = o.from[1] || 'auto', s1 = o.to[1] || 'auto';
+      var s0 = o.from[1] || 'auto', s1 = o.to[1] || 'auto', loop = a === b && !o._fan;
+      if (loop) { s0 = s1 = s0 !== 'auto' ? s0 : s1 !== 'auto' ? s1 : 'right'; }
       if (s0 === 'auto') s0 = autoSide(a, b);
       if (s1 === 'auto') s1 = autoSide(b, a);
       var tone = o.tone || 'accent';
@@ -531,6 +735,13 @@
       if (o.arrow === 'end' || o.arrow === 'both') path.setAttribute('marker-end', mk);
       if (o.arrow === 'start' || o.arrow === 'both') path.setAttribute('marker-start', mk);
       var t0 = o.from[2], t1 = o.to[2];
+      if (a.point) t0 = 0.5;   // a dot or a diamond is met at the middle of its side
+      if (b.point) t1 = 0.5;
+      if (loop) {   // out and back o.span (default 30) apart, about the side's middle
+        var sl = s0 === 'top' || s0 === 'bottom' ? a.w : a.h, sp = (o.span || 30) / 2 / sl;
+        if (typeof t0 !== 'number') t0 = 0.5 - sp;
+        if (typeof t1 !== 'number') t1 = 0.5 + sp;
+      }
       var L = {id: id, el: g, path: path, hit: hit, from: o.from[0], to: o.to[0], s0: s0, s1: s1,
                t0: t0 === 'auto' ? null : t0, t1: t1 === 'auto' ? null : t1, o: o,
                fix0: typeof t0 === 'number', fix1: typeof t1 === 'number', fan: o._fan || null, fanIndex: o._fanIndex};
@@ -551,6 +762,18 @@
         if (!host || n.w * n.h < host.w * host.h) host = n;
       });
       L.host = host;
+      if (!host) Object.keys(nodes).forEach(function (k) {   // out of a composite state: above its fill too
+        var n = nodes[k];
+        if (n.shape === 'composite' && n !== a && n !== b && (contains(n, a) || contains(n, b)) &&
+            (!host || (host.el.compareDocumentPosition(n.el) & Node.DOCUMENT_POSITION_FOLLOWING))) host = n;
+      });
+      if (loop) { L.loop = true; L.out = NORMAL[s0]; if (o.labelFixed == null) o.labelFixed = true; }
+      var twin = null;   // a link already drawn the opposite way between the same sides: the two keep apart
+      if (!loop && !L.fan && o.apart !== false && !L.fix0 && !L.fix1) Object.keys(links).forEach(function (k) {
+        var M = links[k];
+        if (!twin && !M.pair && !M.fan && !M.loop && M.o.apart !== false && M.from === L.to && M.to === L.from && M.s0 === s1 && M.s1 === s0 && !M.fix0 && !M.fix1) twin = M;
+      });
+      if (twin) { L.pair = twin.id; twin.pair = id; }
       if (host) {
         host.el.parentNode.insertBefore(g, host.el.nextSibling);
         if (L.lb) host.el.parentNode.insertBefore(L.lb, g.nextSibling);
@@ -559,13 +782,20 @@
       items[id] = {el: g, kind: 'link', o: o, path: path};
       // an end is spread along its side when the side or the position is 'auto'; an explicit side
       // with no position is its middle, and a ghost end is a junction where links meet
-      var autoFrom = (t0 === 'auto' || (t0 == null && (o.from[1] || 'auto') === 'auto')) && !a.o.ghost;
-      var autoTo = (t1 === 'auto' || (t1 == null && (o.to[1] || 'auto') === 'auto')) && !b.o.ghost;
+      var autoFrom = (t0 === 'auto' || (t0 == null && (o.from[1] || 'auto') === 'auto')) && !a.o.ghost && !twin;
+      var autoTo = (t1 === 'auto' || (t1 == null && (o.to[1] || 'auto') === 'auto')) && !b.o.ghost && !twin;
       (a.ports[s0] = a.ports[s0] || []).push({link: id, end: 0, auto: autoFrom});
       (b.ports[s1] = b.ports[s1] || []).push({link: id, end: 1, auto: autoTo});
       drawLink(L);
       if (autoFrom) spread(o.from[0], s0);
       if (autoTo) spread(o.to[0], s1);
+      if (twin) {   // the twin leaves the spread of its sides and moves to its lane
+        [[twin.from, twin.s0], [twin.to, twin.s1]].forEach(function (e) {
+          (nodes[e[0]].ports[e[1]] || []).forEach(function (p) { if (p.link === twin.id) p.auto = false; });
+          spread(e[0], e[1]);
+        });
+        drawLink(twin);
+      }
       if (o.flow) {
         var f = o.flow, count = f.count || 1;
         for (var i = 0; i < count; i++) {
@@ -577,6 +807,27 @@
       return api;
     };
     api.layout = function () { dirty = true; relayout(); return api; };
+
+    /* d.transition(id, {from, to, event, guard, action}): a state machine's transition, a link labelled
+       'event [guard] / action' (an end is a node id or [id, side, t]). from === to is a self-transition: a
+       loop on o.side (default right), o.span wide and o.loop deep, its label beside it. Ink by default,
+       with an arrowhead and a packet that runs while a step fires it. */
+    api.transition = function (id, o) {
+      function end(e) { return typeof e === 'string' ? [e, 'auto'] : e; }
+      var from = end(o.from), to = end(o.to), parts = [];
+      if (from[0] === to[0] && o.side) { from = [from[0], o.side, from[2]]; to = [to[0], o.side, to[2]]; }
+      var bits = [['ed-tev', o.event], ['ed-tguard', o.guard && '[' + o.guard + ']'], ['ed-tact', o.action && '/ ' + o.action]];
+      bits.forEach(function (b) { if (b[1]) parts.push(b[1]); });
+      api.link(id, Object.assign({arrow: 'end', tone: 'ink2', flow: {dir: 1, period: 1.4, tone: 'accent'}}, o,
+        {from: from, to: to, label: o.label || parts.join(' ') || null, _transition: true}));
+      var L = links[id];
+      if (L.lt && !o.label) {   // the guard quieter, the action in italics
+        L.lt.textContent = '';
+        bits.forEach(function (b) { if (b[1]) el('tspan', {'class': b[0]}, L.lt, (L.lt.childNodes.length ? ' ' : '') + b[1]); });
+        placeLabel(L);
+      }
+      return api;
+    };
 
     /* ---------- fans: one point feeding several nodes, or several feeding one ---------- */
     var fans = [];
@@ -816,8 +1067,25 @@
         var c = Object.assign({}, s);
         ['show', 'hide', 'dim'].forEach(function (k) { if (s[k]) c[k] = expand(s[k]); });
         ['flows', 'stopFlows'].forEach(function (k) { if (s[k]) c[k] = expand(s[k], true); });
+        if (s.fire) { c.fire = expand([].concat(s.fire), true); c.flows = (c.flows || []).concat(c.fire); }
         return c;
       });
+      // a walk through a state machine: {current: node} rings that node until a later step moves the
+      // ring; {fire: link} draws the link thicker with a packet on it, for that step only
+      list.forEach(function (s, k) {
+        var was = k ? list[k - 1].fire || [] : [];
+        if (was.length) s.stopFlows = (s.stopFlows || []).concat(was.filter(function (f) { return (s.fire || []).indexOf(f) < 0; }));
+      });
+      function currentAt(k) { var c = null; for (var j = 0; j <= k && j < list.length; j++) if ('current' in list[j]) c = list[j].current; return c; }
+      var halos = {}, fired = {};
+      list.forEach(function (s) {
+        if (s.current != null) { if (!nodes[s.current]) throw new Error('EdgeDiagram: step current ' + s.current + ' is not a node'); halos[s.current] = haloOf(nodes[s.current]); }
+        (s.fire || []).forEach(function (f) { var p = links[f].path; fired[f] = parseFloat(global.getComputedStyle(p).strokeWidth) || 2; });
+      });
+      function walkAt(k) {   // without a timeline: set the ring and the fired wires
+        Object.keys(halos).forEach(function (id) { halos[id].style.opacity = currentAt(k) === id ? 1 : 0; });
+        Object.keys(fired).forEach(function (f) { links[f].path.style.strokeWidth = (list[k].fire || []).indexOf(f) >= 0 ? FIRED : ''; });
+      }
       var G = global.gsap, all = {};
       // s.view: an optional viewBox for that step; the view holds until a later step changes it
       function viewAt(k) { var v = null; for (var j = 0; j <= k && j < list.length; j++) if (list[j].view) v = list[j].view; return v; }
@@ -881,6 +1149,8 @@
           G.set(items[id].el, {opacity: 0});
         });
         if (viewAt(0)) svg.setAttribute('viewBox', viewAt(0));
+        Object.keys(halos).forEach(function (id) { G.set(halos[id], {opacity: currentAt(0) === id ? 1 : 0}); });
+        (list[0].fire || []).forEach(function (f) { G.set(links[f].path, {strokeWidth: FIRED}); });
         tl.addLabel('s0');
         list.forEach(function (s, k) {
           if (k === 0) return;
@@ -890,6 +1160,11 @@
           (s.hide || []).forEach(function (id) { tl.to(withLabel(id), {opacity: 0, duration: 0.3}, at); });
           (s.dim || []).forEach(function (id) { tl.to(withLabel(id), {opacity: 0.25, duration: 0.3}, at); });
           (s.show || []).forEach(function (id, i) { reveal(id, at + '+=' + (0.08 * i).toFixed(2)); });
+          var pc = currentAt(k - 1), nc = currentAt(k);
+          if (pc !== nc && pc != null) tl.to(halos[pc], {opacity: 0, duration: 0.25}, at);
+          if (pc !== nc && nc != null) tl.to(halos[nc], {opacity: 1, duration: 0.35}, at + '+=0.35');
+          (list[k - 1].fire || []).forEach(function (f) { if ((s.fire || []).indexOf(f) < 0) tl.to(links[f].path, {strokeWidth: fired[f], duration: 0.25}, at); });
+          (s.fire || []).forEach(function (f) { tl.to(links[f].path, {strokeWidth: FIRED, duration: 0.25}, at); });
           tl.addLabel('s' + k, '+=0.15');
         });
       }
@@ -903,7 +1178,7 @@
         cur = Math.max(0, Math.min(list.length - 1, k));
         flowsAt(cur);
         if (tl) { if (animate && !reduce) tl.tweenTo('s' + cur); else tl.pause().seek('s' + cur, false); }
-        else if (viewAt(cur)) svg.setAttribute('viewBox', viewAt(cur));
+        else { if (viewAt(cur)) svg.setAttribute('viewBox', viewAt(cur)); walkAt(cur); }
         api.clearFocus();
         if (opt.onStep) opt.onStep(cur, list[cur]);
       }
@@ -918,6 +1193,19 @@
       };
       apply(opt.start != null ? opt.start : 0, false);
       return ctl;
+    };
+
+    /* d.walk([state, transition, state, ...], captions) returns steps for d.steps: the first state is
+       current from step 0, and each transition fires in the step that makes the state after it current */
+    api.walk = function (seq, caps) {
+      var out = [], st = null;
+      seq.forEach(function (id) {
+        if (links[id] || (items[id] && items[id].kind === 'fan')) { st = {fire: id}; out.push(st); }
+        else if (nodes[id]) { if (st && !('current' in st)) st.current = id; else { st = {current: id}; out.push(st); } }
+        else throw new Error('EdgeDiagram: walk: unknown item ' + id);
+      });
+      if (caps) out.forEach(function (s, i) { if (caps[i] != null) s.caption = caps[i]; });
+      return out;
     };
 
     /* ---------- check ---------- */
@@ -939,7 +1227,16 @@
       Object.keys(nodes).forEach(function (id) {
         var n = nodes[id]; if (n.o.ghost || !checked(id)) return;
         [].forEach.call(n.el.querySelectorAll('text'), function (t) {
+          if (t.classList.contains('ed-outside')) return;   // a point's name, set below it
           var b = bboxOf(t); if (!b || !b.w) return;
+          if (n.shape === 'choice' || n.shape === 'decision') {   // inside the diamond, not just its box
+            var cx = n.x + n.w / 2, cy = n.y + n.h / 2, worst = 0;
+            [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]].forEach(function (c) {
+              worst = Math.max(worst, Math.abs(c[0] - cx) / (n.w / 2) + Math.abs(c[1] - cy) / (n.h / 2));
+            });
+            if (worst > 1.04) add('text "' + t.textContent + '" runs outside the diamond of node ' + id + ': make it wider or taller', b);
+            return;
+          }
           var over = Math.max(n.x + 2 - b.x, b.x + b.w - (n.x + n.w - 2), n.y + 1 - b.y, b.y + b.h - (n.y + n.h - 1));
           if (over > 1) add('text "' + t.textContent + '" runs ' + Math.round(over) + ' px outside node ' + id, b);
         });
@@ -947,6 +1244,13 @@
       });
       Object.keys(links).forEach(function (id) {
         var L = links[id]; if (L.lbox && vb && checked(id) && !contains(vb, L.lbox)) add('label of link ' + id + ' is outside the viewBox', L.lbox);
+      });
+      laneSets.forEach(function (LS) {   // a node outside its lane's band (its title column left out)
+        LS.lanes.forEach(function (ln) {
+          ln.members.forEach(function (id) {
+            if (checked(id) && !contains(ln.area, nodes[id])) add('node ' + id + ' is outside its lane ' + ln.id, rectOf(nodes[id]));
+          });
+        });
       });
       (stepSets || [Object.keys(items)]).forEach(function (ids, k) {
         var V = {}, step = stepSets ? k : null;
@@ -967,6 +1271,9 @@
         for (var i = 0; i < ns.length; i++) for (var j = i + 1; j < ns.length; j++) {
           var a = nodes[ns[i]], b = nodes[ns[j]];
           if (inter(a, b, 1) && !contains(a, b) && !contains(b, a)) add('nodes ' + ns[i] + ' and ' + ns[j] + ' overlap', rectOf(b), step);
+          [[a, b, ns[i], ns[j]], [b, a, ns[j], ns[i]]].forEach(function (q) {   // a state on its composite's title
+            if (q[0].tab && contains(q[0], q[1]) && inter(q[0].tab, q[1], 1)) add('node ' + q[3] + ' covers the title of composite ' + q[2], rectOf(q[1]), step);
+          });
         }
         ls.forEach(function (lid, li) {
           var L = links[lid], A = nodes[L.from], B = nodes[L.to], pts = samples(L);
@@ -991,7 +1298,10 @@
             for (var q = 1; q < L.segs.length; q++) if (inside(L.segs[q][0], z)) { add('link ' + lid + ' turns inside zone ' + z.id, z, step); break; }
           });
           if (!L.lbox) return;
-          ns.forEach(function (nid) { if (inter(L.lbox, nodes[nid], 1)) add('label of link ' + lid + ' covers node ' + nid, L.lbox, step); });
+          ns.forEach(function (nid) { if (inter(L.lbox, nodes[nid], 1) && !inComposite(nodes[nid], L.lbox)) add('label of link ' + lid + ' covers node ' + nid, L.lbox, step); });
+          if (L.o._transition) ls.forEach(function (oid) {
+            if (oid !== lid && onWire(L.lbox, links[oid])) add('label of transition ' + lid + ' lies on link ' + oid, L.lbox, step);
+          });
           ls.slice(li + 1).forEach(function (oid) {
             if (links[oid].lbox && inter(L.lbox, links[oid].lbox, 1)) add('labels of links ' + lid + ' and ' + oid + ' overlap', L.lbox, step);
           });
@@ -1014,6 +1324,7 @@
     // labels measured before the web fonts arrived are placed again once they have
     var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
     ready.then(function () {
+      tabs.forEach(function (n) { n.retab(); });
       Object.keys(links).forEach(function (k) { if (links[k].lt) placeLabel(links[k]); });
       if (debug) setTimeout(runCheck, 0);
     });

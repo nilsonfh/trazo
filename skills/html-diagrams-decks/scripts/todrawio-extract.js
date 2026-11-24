@@ -1,6 +1,7 @@
 /* Injected by todrawio.sh: finds the figure window.TODRAWIO_TARGET names, once the page has loaded and its
    fonts are ready, and dumps it as JSON in a pre element with id dump, for todrawio.py.
-   - an EdgeDiagram svg (.ed-root), at its last step: zones, nodes, links with their ends, link labels;
+   - an EdgeDiagram svg (.ed-root), at its last step: zones and lanes, nodes with their shape (state,
+     initial, final, choice, decision, start, end, composite with its tab), links with their ends, link labels;
    - any other svg, drawn by hand or with EdgeSketch: rects, circles, text, sprite icons, and lines and
      paths drawn as wires, with their arrowheads, in the svg's own units and in document order;
    - an HTML element: every box with a background or a border, every line of text, every sprite icon.
@@ -31,12 +32,21 @@
     var out = {kind: 'edge', id: svg.id, vb: [vb.x, vb.y, vb.width, vb.height], zones: [], nodes: [], links: [], labels: [], icons: {}, free: []};
     svg.querySelectorAll('.ed-zone').forEach(function (g) {
       var r = g.querySelector('.ed-zshape');
-      out.zones.push({id: g.dataset.id, x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height'), rx: +r.getAttribute('rx'), st: cs(r), label: texts(g.querySelector('.ed-item') || g)});
+      var z = {id: g.dataset.id, x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height'), rx: +r.getAttribute('rx'), st: cs(r), label: texts(g.querySelector('.ed-item') || g)};
+      if (g.dataset.lane) z.lane = {dir: g.dataset.lane, head: +g.dataset.head, hst: cs(g.querySelector('.ed-lhead'))};   // a lane: its title column or row
+      out.zones.push(z);
     });
     svg.querySelectorAll('.ed-node').forEach(function (g) {
       var r = g.querySelector('.ed-shape'); if (!r) return;
       var u = g.querySelector('use');
       var n = {id: g.dataset.id, x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height'), rx: +r.getAttribute('rx'), st: cs(r), texts: texts(g)};
+      if (g.dataset.shape) {   // a dot, a diamond or a circle: its box; a final state's core; a composite's tab
+        var bb = r.getBBox(), box = (g.dataset.box || '').split(' ').map(Number);
+        if (box.length === 4) bb = {x: box[0], y: box[1], width: box[2], height: box[3]};
+        n.shape = g.dataset.shape; n.x = bb.x; n.y = bb.y; n.w = bb.width; n.h = bb.height;
+        var core = g.querySelector('.ed-core'); if (core) n.core = cs(core);
+        var tab = g.querySelector('.ed-tab'); if (tab) { var tb = tab.getBBox(); n.tab = {x: tb.x, y: tb.y, w: tb.width, h: tb.height, st: cs(tab)}; }
+      }
       if (u) {
         var href = u.getAttribute('href'); n.icon = {href: href, x: +u.getAttribute('x'), y: +u.getAttribute('y'), w: +u.getAttribute('width'), h: +u.getAttribute('height'), color: getComputedStyle(u).color};
         var sym = document.querySelector(href); if (sym) out.icons[href] = {vb: sym.getAttribute('viewBox'), html: sym.innerHTML};

@@ -11,7 +11,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 
 | Path | What it is |
 | --- | --- |
-| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, and a layout check at every step |
+| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, and a layout check at every step. Also state machines (state, initial, final, choice and composite shapes, `transition` with self-loops, `walk` through the states) and swimlane processes (`lanes`, task, decision and event shapes) |
 | `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (right angles, two heads), `connect` (box to box), `fan`, `text`; and `EdgeSketch.check`, a layout check for any SVG, slanted and curved wires included |
 | `lib/edgesequence.js` | Sequence diagrams: actors in columns, numbered messages, replies, self calls, notes, `alt`/`opt`/`loop`/`par` frames, activation bars, a step per message with a packet on it, and its own layout check |
 | `lib/icons.js` | `window.EDGE_ICONS`: 50 line icons on a 24-unit grid (grid equipment, compute, trust, operations) |
@@ -20,6 +20,8 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `templates/diagram.html` | A stepped EdgeDiagram figure with captions, Previous/Next and dots |
 | `templates/sketch.html` | A hand-drawn EdgeSketch figure: zones left to right, columns, services, two-headed arrows, a legend |
 | `templates/sequence.html` | A stepped EdgeSequence figure: who talks to whom, one message per step |
+| `templates/state.html` | An EdgeDiagram state machine: an edge node's lifecycle, walked one transition per step |
+| `templates/swimlane.html` | An EdgeDiagram swimlane process: a field device's onboarding across four lanes |
 | `templates/deck.html` | A title slide plus a content slide whose diagram builds step by step |
 | `scripts/inline.py` | Inlines the library files and the theme into a page so it publishes as one file; fails on anything it cannot find |
 | `scripts/shot.sh` | Headless screenshots (light or dark, any width, after given clicks, `--only` one element, `--full` page) and `--check`, the layout check of every figure on a page |
@@ -37,7 +39,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 ## Workflow
 
 1. **Decide what the figure must show.** Name the mechanism, the parts it depends on, and the sequence in which to reveal it. A sentence that says it faster beats a figure.
-2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence build returns `q.steps().timeline`).
+2. **Pick the library.** Who calls whom, in what order (a request path, a handshake, a boot or attestation chain, anything with replies): EdgeSequence (`templates/sequence.html`). A graph of parts joined by meaningful wires, revealed step by step: EdgeDiagram (`templates/diagram.html`). The states something passes through and the events that move it: an EdgeDiagram state machine (`templates/state.html`). A process whose steps belong to different actors or planes: EdgeDiagram lanes (`templates/swimlane.html`). A grid of boxes, a layered stack or a left-to-right platform view, where the arrangement carries the meaning: EdgeSketch (`templates/sketch.html`). A presentation: `templates/deck.html`, with any of the libraries on its slides (an EdgeSequence build returns `q.steps().timeline`).
 3. **Copy the template** into the working directory, for example `cp <skill>/templates/sketch.html ./my-figure.html`. Fix the `<script src>` and theme paths so they point at `<skill>/lib/` and `<skill>/themes/`, or run `inline.py` with `--lib` and `--themes` at the end.
 4. **Lay out on a grid.** Pick the viewBox, then the zones, then the boxes (equal sizes, even gaps), then the wires (see **Connectors** below). Put boxes that talk to each other in the same row or column, so their wire is one straight run. Give links that carry meaning an `info`. Read `references/api.md` for the options.
 5. **Write the steps** (EdgeDiagram). Step 0 is the resting state. Each later step adds one idea and has a short caption. Use `flows` for the data that moves, and `dim` or `hide` for what the step moves past.

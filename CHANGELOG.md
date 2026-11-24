@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **State machines in EdgeDiagram.**
+  - Node shapes `state` (a rounded box), `initial` (a dot), `final` (a ringed dot), `choice` (a small diamond) and `composite` (a state holding others, with its title on a tab); links meet a dot or a diamond at the middle of a side.
+  - `d.transition()` is a link labelled `event [guard] / action`, the guard quieter and the action in italics. A self-transition is a loop at right angles on a chosen side, its label beside it.
+  - Two links that run opposite ways between the same sides keep 22 units apart, each label beside its wire on its outer side.
+  - Steps take `current` (a ring on the state the walk is in) and `fire` (the transition drawn thicker, with a packet on it); `d.walk([state, transition, state, ...])` makes those steps.
+- **Swimlanes in EdgeDiagram.** `d.lanes()` draws horizontal or vertical lanes with titles. A node given `lane` stays inside it, centred unless placed, and each lane grows to its content, moving the lanes after it; the viewBox follows. Process shapes `task`, `decision` (text inside the diamond) and `start`/`end` events.
+- The check also reports a node outside its lane, a transition's label on another wire, text outside a diamond and a state on its composite's title tab.
+- Two ends that face each other across a gap narrower than two stubs get shorter stubs, so the wire is one straight run instead of a loop.
+- The draw.io export maps the new shapes to draw.io's own (startState, endState, rhombus, ellipses), composites with their tab, and lanes to swimlanes; a link's end attaches to the smallest node it touches, so a state inside a composite keeps its links.
+- `templates/state.html` (an edge node's lifecycle) and `templates/swimlane.html` (a field device's onboarding across operator, hub, site and node). Tested in `tests/states.html` and `tests/test_todrawio.py`.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.
