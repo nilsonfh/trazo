@@ -1,0 +1,225 @@
+<!-- EdgeLayout: four graphs laid out without coordinates pass the layout check with 0 issues and
+     cross less than the order they were declared in; pinned nodes, zones, fans, determinism. Run with scripts/test.sh. -->
+<style>svg{display:block;width:900px;height:auto}</style>
+<div id="figs"></div>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgelayout.js"></script>
+<script>
+var bad = [], report = [];
+function svg(id) {
+  var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.id = id; s.setAttribute('viewBox', '0 0 100 100'); s.setAttribute('role', 'img'); s.setAttribute('aria-label', id);
+  document.getElementById('figs').appendChild(s);
+  return s;
+}
+/* the corners of every drawn wire, and the crossings between wires (a shared end is not one) */
+function wires(d) {
+  return [].map.call(d.svg.querySelectorAll('.ed-link path.ed-wire'), function (p) {
+    var n = p.getAttribute('d').match(/-?[\d.]+(e-?\d+)?/g).map(Number), pts = [];
+    for (var i = 0; i < n.length; i += 2) pts.push([n[i], n[i + 1]]);
+    return pts;
+  });
+}
+function cross(p, q, u, v) {
+  var d = (q[0] - p[0]) * (v[1] - u[1]) - (q[1] - p[1]) * (v[0] - u[0]);
+  if (Math.abs(d) < 1e-9) return false;
+  var t = ((u[0] - p[0]) * (v[1] - u[1]) - (u[1] - p[1]) * (v[0] - u[0])) / d;
+  var w = ((u[0] - p[0]) * (q[1] - p[1]) - (u[1] - p[1]) * (q[0] - p[0])) / d;
+  return t > 0.02 && t < 0.98 && w > 0.02 && w < 0.98;
+}
+function drawnCrossings(d) {
+  var W = wires(d), c = 0;
+  for (var i = 0; i < W.length; i++) for (var j = i + 1; j < W.length; j++) {
+    var a = W[i], b = W[j], hit = false;
+    for (var k = 0; k < a.length - 1 && !hit; k++) for (var l = 0; l < b.length - 1 && !hit; l++) if (cross(a[k], a[k + 1], b[l], b[l + 1])) hit = true;
+    if (hit) c++;
+  }
+  return c;
+}
+function boxes(d) {
+  var out = {};
+  Object.keys(d.items).forEach(function (k) { var it = d.items[k]; if (it.kind === 'node' || it.kind === 'zone') out[k] = [it.o.x, it.o.y, it.o.w, it.o.h].join(','); });
+  return out;
+}
+
+/* each graph is a function that declares it on a diagram */
+var GRAPHS = {
+  pipeline: {opts: {dir: 'LR'}, build: function (d) {
+    // declared out of order, so the input order crosses
+    d.node('store', {icon: 'database', title: 'Store'})
+     .node('quar', {icon: 'fault', title: 'Quarantine', tone: 'gap'})
+     .node('ingest', {icon: 'cloud', title: 'Ingest'})
+     .node('enrich', {title: 'Enrich', sub: 'tags · units'})
+     .node('parse', {title: 'Parse'})
+     .node('index', {title: 'Index'})
+     .node('validate', {title: 'Validate', tone: 'accent'});
+    d.link('a', {from: ['ingest'], to: ['parse'], arrow: 'end'})
+     .link('b', {from: ['parse'], to: ['validate'], arrow: 'end'})
+     .link('c', {from: ['validate'], to: ['enrich'], arrow: 'end', label: 'valid'})
+     .link('q', {from: ['validate'], to: ['quar'], arrow: 'end', tone: 'gap'})
+     .link('e', {from: ['enrich'], to: ['store'], arrow: 'end'})
+     .link('i', {from: ['enrich'], to: ['index'], arrow: 'end'});
+  }},
+  hub: {build: function (d) {
+    d.node('c4', {title: 'Historian'}).node('p2', {title: 'Relay'}).node('c1', {title: 'Alarms'})
+     .node('broker', {icon: 'broker', title: 'Broker', tone: 'accent', w: 200})
+     .node('c3', {title: 'Dashboard'}).node('p1', {title: 'Meter'}).node('c2', {title: 'Analytics'}).node('p3', {title: 'Sensor'});
+    d.link('l1', {from: ['p3'], to: ['broker'], arrow: 'end'})
+     .link('l2', {from: ['p1'], to: ['broker'], arrow: 'end'})
+     .link('l3', {from: ['p2'], to: ['broker'], arrow: 'end'});
+    d.fan('out', {from: ['broker'], to: ['c1', 'c2', 'c3', 'c4'], arrow: 'end'});
+  }},
+  layers: {opts: {bands: true}, build: function (d) {
+    d.zone('cloud', {label: 'CLOUD'}).zone('edge', {label: 'EDGE'}).zone('field', {label: 'FIELD'});
+    d.node('camera', {icon: 'watch', title: 'Camera', zone: 'field'})
+     .node('portal', {icon: 'desktop', title: 'Portal', zone: 'cloud'})
+     .node('meter', {icon: 'meter', title: 'Meter', zone: 'field'})
+     .node('agent', {icon: 'container', title: 'Agent', zone: 'edge'})
+     .node('registry', {icon: 'manifest', title: 'Registry', zone: 'cloud'})
+     .node('gateway', {icon: 'rtu', title: 'Gateway', zone: 'edge', tone: 'accent'})
+     .node('relay', {icon: 'recloser', title: 'Relay', zone: 'field'})
+     .node('analytics', {icon: 'gauge', title: 'Analytics', zone: 'cloud'})
+     .node('broker', {icon: 'broker', title: 'Broker', zone: 'edge'})
+     .node('sensor', {icon: 'radio', title: 'Sensor', zone: 'field'});
+    d.link('a1', {from: ['portal'], to: ['gateway'], arrow: 'end'})
+     .link('a2', {from: ['registry'], to: ['agent'], arrow: 'end'})
+     .link('a3', {from: ['broker'], to: ['analytics'], arrow: 'end'})
+     .link('b1', {from: ['gateway'], to: ['relay'], arrow: 'end'})
+     .link('b2', {from: ['agent'], to: ['camera'], arrow: 'end'})
+     .link('b3', {from: ['meter'], to: ['broker'], arrow: 'end'})
+     .link('b4', {from: ['sensor'], to: ['broker'], arrow: 'end'})
+     .link('b5', {from: ['gateway'], to: ['broker'], arrow: 'end'});
+  }},
+  sites: {build: function (d) {   // zones side by side, each with a fan
+    d.zone('a', {label: 'SITE A'}).zone('b', {label: 'SITE B'});
+    d.node('ctl', {title: 'Controller', tone: 'accent'});
+    ['a', 'b'].forEach(function (z) {
+      d.node(z + 'gw', {title: 'Gateway ' + z.toUpperCase(), zone: z}).node(z + 'm1', {title: 'Meter 1', zone: z}).node(z + 'm2', {title: 'Meter 2', zone: z});
+      d.link(z + 'l', {from: ['ctl'], to: [z + 'gw'], arrow: 'end'});
+      d.fan(z + 'f', {from: [z + 'gw'], to: [z + 'm1', z + 'm2'], arrow: 'end'});
+    });
+  }},
+  skips: {build: function (d) {   // links that skip ranks, declared against the flow
+    'fedcba'.split('').forEach(function (c) { d.node(c, {title: c.toUpperCase() + ' step'}); });
+    [['a', 'b'], ['b', 'c'], ['c', 'd'], ['d', 'e'], ['e', 'f'], ['a', 'd'], ['b', 'f'], ['a', 'f']].forEach(function (p, i) { d.link('k' + i, {from: [p[0]], to: [p[1]], arrow: 'end'}); });
+  }},
+  dag: {build: function (d) {   // fourteen nodes, links drawn at random (seeded)
+    var n = 14, seed = 7, k = 0;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var i = 0; i < n; i++) d.node('n' + i, {title: 'Node ' + i});
+    for (i = 0; i < n; i++) for (var j = i + 1; j < n; j++) if (rnd() < 0.18) d.link('e' + (k++), {from: ['n' + i], to: ['n' + j], arrow: 'end'});
+  }},
+  states: {opts: {dir: 'LR'}, build: function (d) {   // a cycle left to right, every link labelled
+    d.node('idle', {title: 'Idle'}).node('run', {title: 'Running'}).node('pause', {title: 'Paused'}).node('stop', {title: 'Stopped'});
+    d.link('1', {from: ['idle'], to: ['run'], arrow: 'end', label: 'start'}).link('2', {from: ['run'], to: ['pause'], arrow: 'end', label: 'pause'})
+     .link('3', {from: ['pause'], to: ['run'], arrow: 'end', label: 'resume'}).link('4', {from: ['run'], to: ['stop'], arrow: 'end', label: 'stop'})
+     .link('5', {from: ['stop'], to: ['idle'], arrow: 'end', label: 'reset'});
+  }},
+  control: {opts: {bands: true}, build: function (d) {   // a link back up two bands, labelled: its label keeps off the zone's
+    d.zone('c', {label: 'CLOUD'}).zone('e', {label: 'EDGE'});
+    d.node('api', {title: 'API', icon: 'server', zone: 'c'}).node('ui', {title: 'Console', icon: 'desktop', zone: 'c'})
+     .node('ag', {title: 'Agent', icon: 'container', zone: 'e'}).node('rt', {title: 'Runtime', icon: 'chip', zone: 'e'}).node('kv', {title: 'Store', icon: 'database', zone: 'e'});
+    d.link('1', {from: ['ui'], to: ['api'], arrow: 'end'}).link('2', {from: ['api'], to: ['ag'], arrow: 'end', label: 'plan'})
+     .link('3', {from: ['ag'], to: ['rt'], arrow: 'end'}).link('4', {from: ['ag'], to: ['kv'], arrow: 'end'}).link('5', {from: ['rt'], to: ['api'], arrow: 'end', label: 'status'});
+  }},
+  cycle: {build: function (d) {
+    d.node('done', {title: 'Done', tone: 'add'}).node('plan', {title: 'Plan'}).node('check', {title: 'Check'})
+     .node('build', {title: 'Build'}).node('test', {title: 'Test'}).node('fix', {title: 'Fix', tone: 'gap'});
+    d.link('a', {from: ['plan'], to: ['build'], arrow: 'end'})
+     .link('b', {from: ['build'], to: ['test'], arrow: 'end'})
+     .link('c', {from: ['test'], to: ['check'], arrow: 'end'})
+     .link('d', {from: ['check'], to: ['fix'], arrow: 'end', tone: 'gap'})
+     .link('e', {from: ['fix'], to: ['build'], arrow: 'end', tone: 'gap', label: 'again'})
+     .link('f', {from: ['check'], to: ['done'], arrow: 'end', tone: 'add'});
+  }}
+};
+
+Object.keys(GRAPHS).forEach(function (name) {
+  var G = GRAPHS[name];
+  var d = EdgeDiagram.create(svg(name), {icons: window.EDGE_ICONS});
+  G.build(d); d.layout(G.opts || {});
+  var c = d.check();
+  if (c.length) bad.push(name + ': ' + c.join(' / '));
+  var info = d.layoutInfo;
+  var n = EdgeDiagram.create(svg(name + '-naive'), {icons: window.EDGE_ICONS});
+  G.build(n); n.layout(Object.assign({order: 'input'}, G.opts || {}));
+  var dc = drawnCrossings(d), nc = drawnCrossings(n);
+  report.push(JSON.stringify(info.order)); report.push(name + ': crossings ' + info.crossings + ' (input order ' + info.inputCrossings + '), drawn ' + dc + ' (input order ' + nc + ')');
+  if (info.inputCrossings > 0 && !(info.crossings < info.inputCrossings)) bad.push(name + ': no fewer crossings than the input order: ' + info.crossings + ' vs ' + info.inputCrossings);
+  if (dc > nc) bad.push(name + ': more drawn crossings than the input order: ' + dc + ' vs ' + nc);
+  // the same input gives the same figure
+  var again = EdgeDiagram.create(svg(name + '-again'), {icons: window.EDGE_ICONS});
+  G.build(again); again.layout(G.opts || {});
+  if (JSON.stringify(boxes(again)) !== JSON.stringify(boxes(d))) bad.push(name + ': not deterministic');
+  G.d = d;
+});
+(function () {
+  var I = GRAPHS.pipeline.d.items, mid = function (k) { return I[k].o.y + I[k].o.h / 2; };
+  if (Math.abs(mid('enrich') - (mid('store') + mid('index')) / 2) > 1) bad.push('pipeline: enrich is not centred on store and index');
+})();
+if (GRAPHS.pipeline.d.layoutInfo.crossings !== 0) bad.push('pipeline: crossings ' + GRAPHS.pipeline.d.layoutInfo.crossings);
+
+/* a straight run stays straight: each link of the pipeline's chain is one segment, the branch to
+   quarantine bends off it; two branches alike (enrich to store and index) are centred on */
+['a', 'b', 'c'].forEach(function (id) {
+  var p = GRAPHS.pipeline.d.items[id].path.getAttribute('d');
+  if (/[Q]/.test(p)) bad.push('pipeline: link ' + id + ' bends: ' + p);
+});
+/* zones hold their nodes, in bands, and do not overlap */
+(function () {
+  var d = GRAPHS.layers.d, I = d.items, Zs = ['cloud', 'edge', 'field'];
+  Zs.forEach(function (z) {
+    var Z = I[z].o;
+    Object.keys(I).forEach(function (k) {
+      if (I[k].kind !== 'node') return;
+      var o = I[k].o, inside = o.x >= Z.x && o.y >= Z.y && o.x + o.w <= Z.x + Z.w && o.y + o.h <= Z.y + Z.h;
+      var over = o.x < Z.x + Z.w && Z.x < o.x + o.w && o.y < Z.y + Z.h && Z.y < o.y + o.h;
+      if (o.zone === z && !inside) bad.push('layers: ' + k + ' is outside its zone ' + z);
+      if (o.zone !== z && over) bad.push('layers: ' + k + ' overlaps zone ' + z);
+    });
+  });
+  if (!(I.cloud.o.y + I.cloud.o.h < I.edge.o.y && I.edge.o.y + I.edge.o.h < I.field.o.y)) bad.push('layers: the zones are not bands top to bottom');
+})();
+/* a fan's source is centred over its ends */
+(function () {
+  var I = GRAPHS.hub.d.items, b = I.broker.o, xs = ['c1', 'c2', 'c3', 'c4'].map(function (k) { return I[k].o.x + I[k].o.w / 2; });
+  var mid = (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2;
+  if (Math.abs(b.x + b.w / 2 - mid) > 1) bad.push('hub: broker at ' + (b.x + b.w / 2) + ', its ends centred at ' + mid);
+  if (new Set(['c1', 'c2', 'c3', 'c4'].map(function (k) { return I[k].o.y; })).size !== 1) bad.push('hub: the fan ends are not in one rank');
+})();
+/* the cycle is drawn, its back edge goes up */
+(function () {
+  var I = GRAPHS.cycle.d.items;
+  if (!(I.plan.o.y < I.build.o.y && I.build.o.y < I.test.o.y && I.test.o.y < I.check.o.y)) bad.push('cycle: the main chain does not run down');
+})();
+
+/* a pinned node stays where it was put; the others are placed around it */
+(function () {
+  var d = EdgeDiagram.create(svg('pinned'), {icons: window.EDGE_ICONS});
+  d.node('hub', {x: 400, y: 300, w: 160, h: 64, title: 'Hub'})
+   .node('a', {title: 'A'}).node('b', {title: 'B'}).node('c', {title: 'C'});
+  d.link('1', {from: ['a'], to: ['hub'], arrow: 'end'}).link('2', {from: ['hub'], to: ['b'], arrow: 'end'}).link('3', {from: ['hub'], to: ['c'], arrow: 'end'});
+  d.layout();
+  var h = d.items.hub.o;
+  if (h.x !== 400 || h.y !== 300) bad.push('pinned: hub moved to ' + h.x + ',' + h.y);
+  var c = d.check(); if (c.length) bad.push('pinned: ' + c.join(' / '));
+  if (!(d.items.a.o.y < 300 && d.items.b.o.y > 300)) bad.push('pinned: ranks do not follow the pinned node');
+})();
+/* steps() lays out a held figure by itself; sizes come from the text */
+(function () {
+  var d = EdgeDiagram.create(svg('lazy'));
+  d.node('x', {title: 'A rather long title for one box', sub: 'and a subtitle'}).node('y', {title: 'Y'});
+  d.link('xy', {from: ['x'], to: ['y']});
+  d.steps([{show: ['x']}, {show: ['y', 'xy']}]);
+  var o = d.items.x.o;
+  if (!(o.w > 200 && o.h >= 56)) bad.push('lazy: size ' + o.w + 'x' + o.h);
+  var c = d.check(); if (c.length) bad.push('lazy: ' + c.join(' / '));
+})();
+if (EdgeLayout.version !== EdgeDiagram.version) bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+if (/report/.test(location.hash)) document.getElementById('out').textContent += ' | ' + report.join(' | ');
+console.log(report.join('\n'));
+window.LAYOUT_REPORT = report;
+</script>

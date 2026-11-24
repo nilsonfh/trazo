@@ -147,9 +147,11 @@ Call it after all nodes and links exist. Hovering or focusing a node or link tha
 
 The tooltip is `position: fixed`, stays inside the window, and is announced through `aria-describedby`. Below 560 px it becomes a sheet at the bottom of the screen. `EdgeDiagram.clearAll()` releases every tooltip on the page; EdgeDeck calls it on every slide change.
 
-### `d.layout()`
+### `d.layout(opts)`
 
 Redraws every link. This is only needed after moving nodes by hand. A node added after some links already marks them for redrawing, and `steps`, `bindFocus` and `check` do that redraw.
+
+When a node or a zone has no `x` or `y`, the diagram holds that call and every later `zone`, `node`, `text`, `link` and `fan` until `d.layout(opts)`; then `lib/edgelayout.js` places them and they are drawn in the order given. `steps`, `bindFocus` and `check` call it with no options when it was left out. See **EdgeLayout** below.
 
 ### `d.steps(list, {onStep, start})` returns `ctl`
 
@@ -187,6 +189,55 @@ Returns a list of problems, checked at every step with what is visible at that s
 In debug mode, the check runs once fonts have loaded. Each problem is outlined in red, logged with `console.warn`, and written to a hidden `<pre id="ed-issues">`; `EdgeDiagram.issues()` returns them all. `scripts/shot.sh --check page.html` reads that list and exits 1 if it is not empty.
 
 `EdgeDiagram.route(p0, side0, p1, side1, kind, opts)` returns the path `d` string, for drawing a wire by hand. `EdgeDiagram.version` is the library's version.
+
+## EdgeLayout (`lib/edgelayout.js`)
+
+Automatic layout for EdgeDiagram: declare the nodes, links, fans and zones without coordinates and the library places them. Load it after `edgediagram.js`. `templates/auto.html` is a complete example.
+
+```js
+var d = EdgeDiagram.create(svg, {icons: window.EDGE_ICONS});
+d.zone('edge', {label: 'EDGE'}).zone('cloud', {label: 'CLOUD'});           // drawn around their nodes
+d.node('gw', {zone: 'edge', icon: 'rtu', title: 'Gateway', sub: 'polls · converts'})   // no x, y, w, h
+ .node('ingest', {zone: 'cloud', icon: 'cloud', title: 'Ingest'});
+d.fan('poll', {from: [['meter'], ['relay']], to: ['gw'], arrow: 'end'});   // sides left out
+d.link('up', {from: ['gw'], to: ['ingest'], arrow: 'end', label: 'forward'});
+d.layout({dir: 'LR', bands: true});
+```
+
+What it does, in order (a layered, Sugiyama-style layout written for the ortho router):
+1. **Cycles.** A depth-first walk reverses the links it finds going back; they are drawn the other way round, as loops.
+2. **Ranks.** Longest path, then sources pulled next to what they feed and other nodes moved toward the side with more links. The ends of a fan share one rank, one rank from its source when the graph allows.
+3. **Lanes.** A link that spans several ranks gets a dummy in each rank between, which keeps a lane open for its wire (as wide as its label).
+4. **Order.** Barycentre sweeps down and up, and swaps of neighbours, from three starts (the order declared and two depth-first walks); it keeps the order with the fewest crossings. A zone's nodes stay together, and zones keep the order they were declared in.
+5. **Position across the ranks.** A node joins the column of its median neighbour when it is that neighbour's median too, preferring the branch that leads on (so a chain runs straight and a side branch bends off it); two alike branches are centred on instead. The columns are packed, then each is pulled to the median of its neighbours as far as the nodes beside it allow. A fan's source is centred over its ends, and a node over branches only it feeds.
+6. **Position along the ranks.** Each rank is as deep as its deepest node; boxes of one rank get the same depth (width in LR, height in TB) unless they gave it, so columns are even. The gaps leave room for zone pads and labels, link labels and the lanes of bent wires.
+7. **Ends.** Every link without a side gets the side facing its next rank (a long link whose lane runs beside its end, with nothing between, leaves by that side). Ends that share a side are placed across from what they join, in order, apart by 24 or by their labels; a pair a few units out of line is moved into line, or far enough apart to turn on purpose. A side or a `t` given by hand is kept.
+
+Then the viewBox is fitted to the figure (`fit: false` keeps it).
+
+| Option of `d.layout` | Meaning |
+| --- | --- |
+| `dir` | `'TB'` (default, ranks top to bottom) or `'LR'` |
+| `bands` | `true`: each zone takes its own ranks, in the order declared (a layered architecture: field, edge, cloud). A link from a later zone to an earlier one is drawn back. Without it, zones sit side by side or anywhere their links put them |
+| `rankSep`, `nodeSep` | The gap between ranks (64 TB, 72 LR) and between neighbours in a rank (40 TB, 28 LR) |
+| `zonePad`, `margin` | Space between a zone's edge and its nodes (20, plus 22 for the label), and around the figure (24) |
+| `uniform` | `false` keeps each box's measured depth instead of the rank's |
+| `iterations` | Crossing sweeps per start (12) |
+| `order` | `'input'` skips crossing reduction (the order declared), to compare |
+| `fit` | `false` keeps the SVG's viewBox |
+
+| Per item | Meaning |
+| --- | --- |
+| node `x`, `y` | A pinned node: it stays there, and the others are placed around it. A node drawn before the held calls counts as pinned |
+| node `w`, `h` | Optional; measured from the title, sub and icon otherwise |
+| node `zone` | The id of a zone without coordinates (or list the nodes in the zone's `nodes: [ids]`) |
+| node `rank` | The least rank the node may take (0 is the first) |
+| zone without `x`, `y` | Drawn around its nodes, with room for its label. Zones do not nest |
+| link `from`/`to` | `[id]` is enough; a side or a `t` given is kept |
+
+After `d.layout`, `d.layoutInfo` holds `{dir, ranks, crossings, inputCrossings, width, height, order}`: `crossings` between ranks after reduction, `inputCrossings` in the order declared, and `order`, each rank's node ids (`~` for a lane). Same input, same figure: every sort breaks ties by the order of declaration. Node sizes are measured with the page's fonts and never smaller than an estimate, so a figure laid out before the web fonts arrive still fits its text. `EdgeLayout.size(svg, o)` fills in a node's `w` and `h` the same way, and `EdgeLayout.version` is the version.
+
+Limits: a fan whose ends cannot share a rank one away from its source draws its bus across the ranks between, and its branches do not go around nodes; zones do not nest; a pinned node in a rank sets that rank's line, and a second pinned node in the same rank may sit off it. Prefer a hand composition (`x`, `y` on every node, or EdgeSketch) when the arrangement itself carries the meaning: a stack of layers in a fixed order, a figure that must match another, a symmetric diagram.
 
 ## EdgeSketch (`lib/edgesketch.js`)
 

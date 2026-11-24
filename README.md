@@ -5,6 +5,7 @@
 Trazo is an agent skill for Claude Code and GitHub Copilot, installed as `html-diagrams-decks`, and a small JavaScript library for architecture figures and slide decks as single HTML files. Figures have stepped builds with captions, packets that flow along routed connectors, hover details, light and dark themes and a 50-icon sprite, and every figure on a page can be checked for overlapping and overflowing text before it is published.
 
 - **EdgeDiagram** draws graphs: zones, nodes and orthogonal links that line up, go around boxes and fan out from one point, revealed step by step.
+- **EdgeLayout** places an EdgeDiagram graph by itself: declare nodes, links, fans and zones without coordinates and it ranks them, orders them to cross as little as possible, lines up chains so their wires run straight, and draws each zone around its nodes.
 - **EdgeSequence** draws sequence diagrams: actors, numbered messages and replies, activation bars, notes and `alt`/`loop` frames, one message per step with a packet travelling along it.
 - **EdgeTimeline** draws timelines and Gantt-style roadmaps: a time axis in dates or abstract units, lanes in bands, bars with progress, milestones, phases, and dependencies at right angles, one phase per step.
 - **EdgeMatrix** draws matrices and coverage maps: rows and columns with groups, cells in a state from a legend, marks, totals, a compact mode for 160 × 40, and SGAM-like planes with small boxes in the cells.
@@ -123,6 +124,9 @@ To keep a copy of the library in another project, run `scripts/vendor.sh path/to
 | `…/templates/` | `diagram.html`, `sketch.html` and `deck.html`, ready to copy |
 | `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, `test.sh`, which runs the tests in `tests/`, and `visual.py`, which compares every template with its baseline image |
 | `…/templates/` | `diagram.html`, `sketch.html`, `sequence.html`, `state.html`, `swimlane.html` and `deck.html`, ready to copy |
+| `…/lib/` | `edgediagram.js` (graphs), `edgelayout.js` (automatic layout for graphs), `edgesketch.js` (hand-drawn figures and the general check), `edgedeck.js` (decks), `icons.js` (sprite) |
+| `…/themes/` | `engineering.css`, `indigo.css`, `drafting.css`: colours and faces, light and dark, on one token contract |
+| `…/templates/` | `diagram.html`, `auto.html` (laid out by EdgeLayout), `sketch.html` and `deck.html`, ready to copy |
 | `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, and `test.sh`, which runs the tests in `tests/` |
 | `…/references/` | `api.md` (every option) and `conventions.md` (tokens, layout, publishing, checks) |
 | `…/examples/` | `ci-canary-deck.html`, a two-slide deck on a neutral workflow, and `isometric/`, an isometric layered-figure generator |
