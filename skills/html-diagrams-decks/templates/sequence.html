@@ -72,7 +72,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
   q.frame('every', {kind: 'loop', label: 'every 200 ms', from: 'take', to: 'ok'});
 
   var cap = document.getElementById('cap'), dots = document.getElementById('dots'), ctl;
-  ctl = q.steps(null, {caption0: 'Five parts take part in a write. Step through it.', onStep: function (k, s) {
+  ctl = q.steps(null, {caption0: 'Five parts take part in a write. Step through it.', onStep: function (k, s, ctl) {
     cap.innerHTML = '<b>' + (k + 1) + ' / ' + ctl.count + '</b>';
     cap.appendChild(document.createTextNode(s.caption || ''));
     [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });

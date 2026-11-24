@@ -12,7 +12,7 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 check=0; [ "${1:-}" = --check ] && { check=1; shift; }
 [ $# -eq 1 ] || { echo "usage: vendor.sh [--check] DEST" >&2; exit 64; }
 dest=$1
-files="lib/edgediagram.js lib/edgesketch.js lib/edgesequence.js lib/edgetimeline.js lib/edgematrix.js edgematrix.js lib/edgedeck.js lib/icons.js scripts/inline.py scripts/shot.sh scripts/topdf.sh scripts/todrawio.sh scripts/todrawio.py scripts/todrawio-extract.js"
+files="lib/edgediagram.js lib/edgesketch.js lib/edgesequence.js lib/edgetimeline.js lib/edgematrix.js lib/edgedeck.js lib/icons.js scripts/inline.py scripts/shot.sh scripts/topdf.sh scripts/todrawio.sh scripts/todrawio.py scripts/todrawio-extract.js"
 if [ $check = 1 ]; then
   rc=0
   echo "skill $(cat "$here/VERSION"), copy $(cat "$dest/VERSION" 2>/dev/null || echo 'without VERSION')"

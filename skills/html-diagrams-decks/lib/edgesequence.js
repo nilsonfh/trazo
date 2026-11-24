@@ -370,7 +370,7 @@
         });
         if (pkts.length && !running) { running = true; global.requestAnimationFrame(loop); }
         cur = k;
-        if (o.onStep) o.onStep(k, list[k]);
+        if (o.onStep) o.onStep(k, list[k], ctl);   // ctl: the first call comes before steps() returns
       }
       var G = global.gsap, tl = null;
       if (G) {   // labels s0..sN for EdgeDeck, which calls onStep on every step

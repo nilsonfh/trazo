@@ -88,8 +88,7 @@ h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);lin
    .dep('d6', {from: 'load', to: 'ga'});
 
   var cap = document.getElementById('cap'), dots = document.getElementById('dots'), ctl;
-  ctl = t.steps(null, {caption0: 'Six workstreams in two groups over 2027. Step through the three phases.', onStep: function (k, s) {
-    if (!ctl) return;   // the first call comes before steps() returns; ctl.go below repeats it
+  ctl = t.steps(null, {caption0: 'Six workstreams in two groups over 2027. Step through the three phases.', onStep: function (k, s, ctl) {
     cap.innerHTML = '<b>' + (k + 1) + ' / ' + ctl.count + '</b>';
     cap.appendChild(document.createTextNode(s.caption || ''));
     [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
