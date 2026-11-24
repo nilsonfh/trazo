@@ -246,6 +246,10 @@ Input:
 
 `EdgeDeck.run` returns `{next, prev, show, go, nextSlide, prevSlide, state}`; `state()` is `{slide, step, blank}`.
 
+## A frozen page: `?static`
+
+`?static` in a page's address, or `window.TRAZO_STATIC = true` set before the library loads, stops all motion: EdgeDiagram, EdgeSequence and EdgeDeck behave as under reduced motion (steps jump, no packets) and every `steps()` stands at its last step, whatever `go`, `next` or `start` ask for. `?static=K` (or `TRAZO_STATIC = K`) stands at step K, counted as `ctl.go(K)` counts. A deck shows the slide from `#n` (else the first) at its last step, or at step K. Use it for a printout, a still image, or a screenshot that must be the same every time: `scripts/visual.py` renders the templates so.
+
 ## Icons (`lib/icons.js`)
 
 `window.EDGE_ICONS` is a string of `<symbol id="i-…">` elements on a 24-unit grid, with a 1.7 stroke, round caps, and colour from `currentColor`. To list them:

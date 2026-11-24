@@ -1,0 +1,29 @@
+<!-- window.TRAZO_STATIC (or ?static=K): steps stand at step K, or the last, and packets are not drawn. Run with scripts/test.sh. -->
+<svg id="d" viewBox="0 0 600 200" role="img" aria-label="diagram"></svg>
+<svg id="q" viewBox="0 0 600 300" role="img" aria-label="sequence"></svg>
+<pre id="out"></pre>
+<script>window.TRAZO_STATIC = 1;</script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgesequence.js"></script>
+<script>
+var bad = [];
+var d = EdgeDiagram.create(document.getElementById('d'), {});
+d.node('a', {x: 20, y: 60, w: 120, h: 60, title: 'A'}).node('b', {x: 240, y: 60, w: 120, h: 60, title: 'B'}).node('c', {x: 460, y: 60, w: 120, h: 60, title: 'C'});
+d.link('ab', {from: ['a', 'right'], to: ['b', 'left'], arrow: 'end', flow: {dir: 1}});
+var dc = d.steps([{show: ['a']}, {show: ['b', 'ab'], flows: ['ab']}, {show: ['c']}]);
+if (dc.step !== 1) bad.push('diagram: starts at step 1, got ' + dc.step);
+dc.go(0); dc.next(); dc.end();
+if (dc.step !== 1) bad.push('diagram: go, next and end stay at step 1, got ' + dc.step);
+var pk = document.querySelector('#d circle[opacity]:not([opacity="0"])');
+if (pk) bad.push('diagram: no packet is drawn');
+
+var q = EdgeSequence.create(document.getElementById('q'), {});
+q.actor('x', {title: 'X'}).actor('y', {title: 'Y'});
+q.msg('m1', {from: 'x', to: 'y', label: 'one'}).msg('m2', {from: 'y', to: 'x', label: 'two'});
+var qc = q.steps();
+qc.go(qc.count - 1);
+if (qc.step !== 1) bad.push('sequence: stays at step 1, got ' + qc.step);
+if (q.items.m2.el.classList.contains('off') === false) bad.push('sequence: m2 stays hidden at step 1');
+if (q.layers.pkts.childNodes.length) bad.push('sequence: no packet is drawn');
+document.getElementById('out').textContent = bad.length ? bad.join('\n') : 'ok';
+</script>

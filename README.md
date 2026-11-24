@@ -31,7 +31,7 @@ trazo install --project . copilot   # into a repository's .github/skills
 
 To update: `uv tool upgrade trazo && trazo install`. With `--link`, the skill is linked to the installed package instead of copied, so `uv tool upgrade` alone updates it. `trazo uninstall` removes only what trazo installed. For a one-off install with nothing left on the PATH, use `uvx --from git+https://github.com/nilsonfh/trazo trazo install`.
 
-The same command runs the tools: `trazo inline`, `trazo check`, `trazo shot`, `trazo todrawio`, `trazo theme`, `trazo check-theme`, `trazo vendor` and `trazo test` take the arguments of the scripts below, and `trazo path` prints where the skill is.
+The same command runs the tools: `trazo inline`, `trazo check`, `trazo shot`, `trazo todrawio`, `trazo theme`, `trazo check-theme`, `trazo vendor`, `trazo test` and `trazo visual` take the arguments of the scripts below, and `trazo path` prints where the skill is.
 
 **With GitHub CLI** (2.90 or later):
 
@@ -119,7 +119,7 @@ To keep a copy of the library in another project, run `scripts/vendor.sh path/to
 | `…/lib/` | `edgediagram.js` (graphs), `edgesketch.js` (hand-drawn figures and the general check), `edgedeck.js` (decks), `icons.js` (sprite) |
 | `…/themes/` | `engineering.css`, `indigo.css`, `drafting.css`: colours and faces, light and dark, on one token contract |
 | `…/templates/` | `diagram.html`, `sketch.html` and `deck.html`, ready to copy |
-| `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, and `test.sh`, which runs the tests in `tests/` |
+| `…/scripts/` | `inline.py`, `shot.sh`, `todrawio.sh` (draw.io export), `check_theme.py`, `theme_from_design.py`, `vendor.sh`, `test.sh`, which runs the tests in `tests/`, and `visual.py`, which compares every template with its baseline image |
 | `…/references/` | `api.md` (every option) and `conventions.md` (tokens, layout, publishing, checks) |
 | `…/examples/` | `ci-canary-deck.html`, a two-slide deck on a neutral workflow, and `isometric/`, an isometric layered-figure generator |
 
@@ -129,7 +129,14 @@ To keep a copy of the library in another project, run `scripts/vendor.sh path/to
 skills/html-diagrams-decks/scripts/test.sh
 ```
 
-This runs the library tests in a headless Chromium, the tests of the Python tools, and the contrast check of every theme. `.github/workflows/test.yml` runs the same tests on every push and pull request. `CHANGELOG.md` lists what changed in each version, and `VERSION` and the header of each library file carry the current one.
+This runs the library tests in a headless Chromium, the tests of the Python tools, and the contrast check of every theme. `.github/workflows/test.yml` runs the same tests on every push and pull request.
+
+```bash
+skills/html-diagrams-decks/scripts/visual.py            # or: trazo visual
+skills/html-diagrams-decks/scripts/visual.py --update   # after a change that is meant to look different
+```
+
+The visual test renders every `templates/*.html` in light and dark, frozen at its last step (`?static`, see `references/api.md`) and with the DejaVu fonts of `fonts-dejavu-core` in place of the themes' web fonts, and compares each image with its baseline in `tests/visual/`. A difference writes the render and a diff image (the baseline greyed, the changed pixels red) to `--out`, and a template without a baseline fails until `--update` makes one; look at the new images before committing them. The baselines hold only for the Chrome recorded in `tests/visual/env.txt` (Playwright 1.62.1's `chrome-headless-shell`); the workflow's `visual` job installs that one and uploads the images of a failure as the `visual-diff` artifact. `CHANGELOG.md` lists what changed in each version, and `VERSION` and the header of each library file carry the current one.
 
 ## License
 

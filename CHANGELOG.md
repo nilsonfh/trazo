@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Visual regression test.** `scripts/visual.py` (`trazo visual`) renders every `templates/*.html`, a new one included, in light and dark at 1280 px (a deck slide by slide at 1280×720) and compares each image with its baseline in `tests/visual/`: a pixel counts when a channel moves by more than 32, and more than 25 such pixels fail. A failure writes the render and a diff image; a missing baseline is named and fails; `--update` writes the baselines. Fonts are pinned (no web fonts, only DejaVu through a fontconfig file of its own) and the Chrome the baselines were made with is recorded in `tests/visual/env.txt`. Standard library only: PNG is read and written with zlib. A `visual` job in the workflow runs it and uploads the images of a failure. Tested in `tests/test_visual.py`.
+- **`?static`.** EdgeDiagram, EdgeSequence and EdgeDeck honour `?static[=K]` in the address, or `window.TRAZO_STATIC`: no motion and no packets, every figure at its last step (or step K), a deck's slide at its last step. Tested in `tests/static.html`.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.

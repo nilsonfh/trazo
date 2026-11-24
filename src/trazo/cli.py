@@ -9,6 +9,7 @@
   trazo check-theme themes/x.css             scripts/check_theme.py
   trazo vendor DEST                          scripts/vendor.sh
   trazo test                                 scripts/test.sh
+  trazo visual [--update] [template ...]     scripts/visual.py
   trazo path | trazo version
 """
 import argparse
@@ -36,6 +37,7 @@ TOOLS = {   # command: (script, extra arguments)
     "check-theme": ("check_theme.py", []),
     "vendor": ("vendor.sh", []),
     "test": ("test.sh", []),
+    "visual": ("visual.py", []),
 }
 
 

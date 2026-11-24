@@ -44,7 +44,11 @@
 (function (global) {
   'use strict';
   var NS = 'http://www.w3.org/2000/svg';
-  var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* ?static or ?static=K in the address, or window.TRAZO_STATIC = true | K before the library loads:
+     no motion, and steps stay at step K (default: the last). scripts/visual.py renders pages so. */
+  var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
+    return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
+  var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var UID = 0, REG = [], ISSUES = {}, VERSION = '1.3.1';
 
   var CSS = [
@@ -900,6 +904,7 @@
         api.setFlows('*', false); api.setFlows(Object.keys(on), true);
       }
       function apply(k, animate) {
+        if (still != null) k = still === 'end' ? list.length - 1 : still;
         cur = Math.max(0, Math.min(list.length - 1, k));
         flowsAt(cur);
         if (tl) { if (animate && !reduce) tl.tweenTo('s' + cur); else tl.pause().seek('s' + cur, false); }

@@ -26,3 +26,27 @@ jobs:
           test -f "$RUNNER_TEMP/.github/skills/html-diagrams-decks/SKILL.md"
           trazo inline skills/html-diagrams-decks/templates/sketch.html > "$RUNNER_TEMP/sketch.html"
           trazo check "$RUNNER_TEMP/sketch.html"
+  visual:
+    # scripts/visual.py: every template, light and dark, against tests/visual/. The Chrome is the one
+    # the baselines were made with (tests/visual/env.txt); a newer one needs new baselines.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install a headless Chromium and the pinned fonts
+        run: |
+          npx -y playwright@1.62.1 install --with-deps chromium-headless-shell
+          sudo apt-get install -y fonts-dejavu-core
+      - name: Compare the templates with their baselines
+        run: python3 skills/html-diagrams-decks/scripts/visual.py --out "$RUNNER_TEMP/visual"
+      - name: Upload the renders and diff images
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff
+          path: ${{ runner.temp }}/visual

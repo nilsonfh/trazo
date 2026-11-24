@@ -17,12 +17,16 @@
  */
 (function (global) {
   'use strict';
+  /* ?static or ?static=K in the address, or window.TRAZO_STATIC = true | K before the library loads:
+     no motion, and the slide from #n shows at step K (default: the last). scripts/visual.py renders pages so. */
+  var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
+    return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
   function run(opt) {
     opt = opt || {};
     var BUILDS = opt.builds || {}, LIB = opt.lib || {};
     var stage = document.getElementById('stage'), vp = document.getElementById('viewport');
     var slides = [].slice.call(document.querySelectorAll('.slide'));
-    var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
     var G = global.gsap;
 
     if (opt.icons && !document.getElementById('ed-icons')) {
@@ -147,7 +151,8 @@
     /* start: the slide from a bare #n anchor, else the title */
     var start = parseInt((location.hash || '').replace('#', ''), 10);
     slides[0].classList.add('on');
-    show(isNaN(start) ? 0 : Math.max(0, Math.min(slides.length - 1, start - 1)), 0, 1);
+    start = isNaN(start) ? 0 : Math.max(0, Math.min(slides.length - 1, start - 1));
+    show(start, still == null ? 0 : still === 'end' ? steps(start) : Math.min(still, steps(start)), 1);
     return {next: next, prev: prev, show: show, go: go, nextSlide: nextSlide, prevSlide: prevSlide,
       state: function () { return {slide: cur, step: step, blank: stage.style.visibility === 'hidden'}; }};
   }

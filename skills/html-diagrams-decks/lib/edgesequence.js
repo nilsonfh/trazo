@@ -31,7 +31,11 @@
 (function (global) {
   'use strict';
   var NS = 'http://www.w3.org/2000/svg', VERSION = '1.3.1', UID = 0;
-  var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /* ?static or ?static=K in the address, or window.TRAZO_STATIC = true | K before the library loads:
+     no motion, and steps stay at step K (default: the last). scripts/visual.py renders pages so. */
+  var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
+    return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
+  var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink', 'ink2'];
 
   var CSS = [
@@ -335,6 +339,7 @@
       Object.keys(items).forEach(function (id) { if (at[id] == null) at[id] = 0; });
       var cur = -1;
       function apply(k, animate) {
+        if (still != null) k = still === 'end' ? list.length - 1 : still;
         k = Math.max(0, Math.min(list.length - 1, k));
         var fwd = animate && k > cur && !reduce;
         Object.keys(items).forEach(function (id) {

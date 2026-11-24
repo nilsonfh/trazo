@@ -27,6 +27,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `scripts/check_theme.py` | Checks a theme's WCAG contrast in light and dark, and that its two dark blocks agree |
 | `scripts/theme_from_design.py` | Makes a theme from a DESIGN.md file (a brand's colours and faces), light and dark, every pair at its contrast |
 | `scripts/test.sh` | Runs the tests in `tests/`; run it after changing `lib/`, `scripts/` or `themes/` |
+| `scripts/visual.py` | Renders every template frozen (`?static`), light and dark, with pinned fonts, and compares it with its baseline in `tests/visual/`; run it after changing the router, a theme or text fitting, and `--update` when a change is meant |
 | `scripts/vendor.sh` | Copies the library into another project, and `--check` shows whether that copy is behind |
 | `references/api.md` | Every option of both libraries and the deck engine |
 | `references/conventions.md` | Tokens, the meaning of each tone, layout rules, publishing, and the checks to run |
