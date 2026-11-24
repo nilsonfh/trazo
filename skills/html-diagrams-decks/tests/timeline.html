@@ -94,6 +94,6 @@ e.bar('a', {lane: 'l', start: '2027-01-05', end: '2027-01-20', label: 'a label f
  .dep('back', {from: 'b', to: 'c'});
 e.render();
 expect(e.check(), ['title of lane l runs into the chart', 'label of a overflows its bar', 'dependency back points backward in time', 'bar late runs outside the time axis'], 'broken figure');
-if (EdgeTimeline.version !== '1.4.0') bad.push('version');
+if (EdgeTimeline.version !== '1.4.1') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

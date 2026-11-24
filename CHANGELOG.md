@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.1 (2026-11-24)
+
+Muted text reads on every soft fill. A box's subtitle or a row's note in the muted ink sat at 4.46:1 on the accent's soft fill in the engineering theme, and at 4.2 to 4.3:1 on soft fills in the dark drafting and indigo themes; the contrast check of 1.4.0 reported it in figures that use them.
+
+- engineering: `--muted` and `--ed-muted` #5f6e68 → #5a6963 (light).
+- drafting: `--muted` and `--ed-muted` #9a907f → #a39a8a (dark). indigo: #8a8eae → #9599b8 (dark).
+- The libraries' own muted ink, used when no theme is on the page, is #5a6963 too; EdgeDiagram, EdgeSequence and EdgeTimeline had #66756f, 4.0:1 on the accent's soft fill.
+- `scripts/check_theme.py` checks the muted ink on each soft fill (`--muted` on `--accent-soft`, `--ok-soft`, `--warn-soft`, `--bad-soft`, `--p3-soft`, and the `--ed-` ones), so a theme that fails it is caught before a figure does.
+
 ## 1.4.0 (2026-11-23)
 
 New kinds of figure: timelines and roadmaps (EdgeTimeline), matrices and coverage maps (EdgeMatrix), state machines and swimlanes (EdgeDiagram), figures with no coordinates (EdgeLayout) and figures written as text (EdgeText). Decks gain speaker's notes, a presenter view and PDF. Figures describe themselves to screen readers, the layout check finds more, and a visual regression test guards the templates.

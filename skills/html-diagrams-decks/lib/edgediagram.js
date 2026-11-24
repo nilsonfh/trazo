@@ -1,4 +1,4 @@
-/* EdgeDiagram v1.4.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
+/* EdgeDiagram v1.4.1 — declarative, animated SVG diagrams for single-file HTML pages and decks.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('svc', {x, y, w, h, label: 'SERVICE'});
@@ -71,10 +71,10 @@
   var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
     return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
   var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.4.0', FIRED = 3.6;   // a fired transition's width
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.4.1', FIRED = 3.6;   // a fired transition's width
 
   var CSS = [
-    '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',
+    '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5a6963);',
     '--_surface:var(--ed-surface,#fff);--_layer:var(--ed-layer,#e9eeec);--_rule:var(--ed-rule,#d2dbd7);',
     '--_accent:var(--ed-accent,#2456a4);--_accent-soft:var(--ed-accent-soft,#e3ebf6);--_gap:var(--ed-gap,#b87d00);',
     '--_gap-soft:var(--ed-gap-soft,#fbf1d9);--_add:var(--ed-add,#0b8a0b);--_add-soft:var(--ed-add-soft,#e3f3e3);',

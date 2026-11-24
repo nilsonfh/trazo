@@ -17,6 +17,9 @@ TEXT = [  # (foreground, background), 4.5:1
     ('ed-ink', 'ed-surface'), ('ed-ink', 'ed-layer'), ('ed-ink2', 'ed-surface'), ('ed-muted', 'ed-surface'), ('ed-muted', 'ed-layer'),
     ('ed-ink', 'ed-accent-soft'), ('ed-ink', 'ed-gap-soft'), ('ed-ink', 'ed-add-soft'), ('ed-ink', 'ed-p3-soft'),
     ('ed-tip-ink', 'ed-tip-bg'),
+    # muted text on a soft fill: a box's subtitle or a row's note, in a figure or on the page
+    ('muted', 'accent-soft'), ('muted', 'ok-soft'), ('muted', 'warn-soft'), ('muted', 'bad-soft'), ('muted', 'p3-soft'),
+    ('ed-muted', 'ed-accent-soft'), ('ed-muted', 'ed-gap-soft'), ('ed-muted', 'ed-add-soft'), ('ed-muted', 'ed-p3-soft'),
 ]
 MARK = [  # strokes, arrowheads, outlines: 3:1
     ('ed-accent', 'ed-surface'), ('ed-accent', 'ed-layer'), ('ed-gap', 'ed-surface'), ('ed-gap', 'ed-layer'), ('ed-gap', 'ed-gap-soft'),

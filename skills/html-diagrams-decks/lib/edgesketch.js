@@ -1,4 +1,4 @@
-/* EdgeSketch v1.4.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
+/* EdgeSketch v1.4.1 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
  *
  *   var s = EdgeSketch.create(svg, {icons: window.EDGE_ICONS});
  *   s.zone(0, 0, 400, 300, {label: 'SERVICE'});
@@ -51,11 +51,11 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink'];
 
   var CSS = [
-    '.sk-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5f6e68);',
+    '.sk-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5a6963);',
     '--_surface:var(--ed-surface,#fff);--_layer:var(--ed-layer,#e9eeec);--_rule:var(--ed-rule,#d2dbd7);',
     '--_accent:var(--ed-accent,#2456a4);--_accent-soft:var(--ed-accent-soft,#e3ebf6);--_gap:var(--ed-gap,#ad7600);',
     '--_gap-soft:var(--ed-gap-soft,#fbf1d9);--_add:var(--ed-add,#0b8a0b);--_add-soft:var(--ed-add-soft,#e3f3e3);',

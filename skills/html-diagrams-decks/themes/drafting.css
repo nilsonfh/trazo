@@ -16,15 +16,15 @@
   --f-display:var(--display); --f-body:var(--sans); --f-mono:var(--mono); --slide:var(--card);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#9a907f; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
+  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#a39a8a; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
   --ok:#a3cc5c; --ok-soft:#232e17; --warn:#e8b04a; --warn-soft:#33270f; --bad:#f4876c; --bad-soft:#3b1a12; --p3:#cfa2e3; --p3-soft:#2c1d33;
-  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#9a907f; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
+  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#a39a8a; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
   --ed-accent:#62bccc; --ed-accent-soft:#143338; --ed-gap:#f28c55; --ed-gap-soft:#3a2115; --ed-add:#a3cc5c; --ed-add-soft:#232e17; --ed-p3:#cfa2e3; --ed-p3-soft:#2c1d33;
   --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; } }
 :root[data-theme="dark"]{
-  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#9a907f; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
+  color-scheme:dark; --bg:#11100d; --card:#1a1814; --ink:#ede7db; --ink2:#c6bdab; --muted:#a39a8a; --rule:#37322a; --accent:#62bccc; --accent-soft:#143338;
   --ok:#a3cc5c; --ok-soft:#232e17; --warn:#e8b04a; --warn-soft:#33270f; --bad:#f4876c; --bad-soft:#3b1a12; --p3:#cfa2e3; --p3-soft:#2c1d33;
-  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#9a907f; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
+  --ed-ink:#ede7db; --ed-ink2:#c6bdab; --ed-muted:#a39a8a; --ed-surface:#221f1a; --ed-layer:#1e1b17; --ed-rule:#3a342b;
   --ed-accent:#62bccc; --ed-accent-soft:#143338; --ed-gap:#f28c55; --ed-gap-soft:#3a2115; --ed-add:#a3cc5c; --ed-add-soft:#232e17; --ed-p3:#cfa2e3; --ed-p3-soft:#2c1d33;
   --ed-tip-bg:#ede7db; --ed-tip-ink:#1a1814; }
 /* print: colours as on screen, and a figure on one page and within its width, a table or a heading's first lines never cut */

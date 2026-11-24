@@ -1,4 +1,4 @@
-/* EdgeMatrix v1.4.0 — matrices, coverage maps and planes for single-file HTML pages and decks.
+/* EdgeMatrix v1.4.1 — matrices, coverage maps and planes for single-file HTML pages and decks.
  *
  *   var m = EdgeMatrix.create(svg, {status: document.getElementById('info')});
  *   m.colGroup('io', {label: 'INPUTS'}).col('c1', {label: 'Sensor feed', group: 'io'});
@@ -38,7 +38,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0;
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TONES = {neutral: ['ink2', 'surface'], accent: ['accent', 'accent-soft'], add: ['add', 'add-soft'], gap: ['gap', 'gap-soft'],
                bad: ['bad', 'bad-soft'], p3: ['p3', 'p3-soft'], muted: ['muted', 'layer'], ink: ['ink', 'layer']};
@@ -56,7 +56,7 @@
   };
 
   var CSS = [
-    '.em-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5f6e68);',
+    '.em-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5a6963);',
     '--_surface:var(--ed-surface,#fff);--_layer:var(--ed-layer,#e9eeec);--_rule:var(--ed-rule,#d2dbd7);',
     '--_accent:var(--ed-accent,#2456a4);--_accent-soft:var(--ed-accent-soft,#e3ebf6);--_gap:var(--ed-gap,#ad7600);',
     '--_gap-soft:var(--ed-gap-soft,#fbf1d9);--_add:var(--ed-add,#0b8a0b);--_add-soft:var(--ed-add-soft,#e3f3e3);',

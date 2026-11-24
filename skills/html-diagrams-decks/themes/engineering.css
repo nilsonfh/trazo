@@ -4,12 +4,12 @@
    Tones: accent blue = the subject; gap amber = a gap, a risk, a failure; add green = what is added;
    p3 violet = a further phase or option, drawn dashed. */
 :root{
-  --bg:#eef2f0; --card:#f7f9f8; --ink:#15201d; --ink2:#3f4f4a; --muted:#5f6e68; --rule:#d2dbd7;
+  --bg:#eef2f0; --card:#f7f9f8; --ink:#15201d; --ink2:#3f4f4a; --muted:#5a6963; --rule:#d2dbd7;
   --accent:#2456a4; --accent-soft:#e3ebf6;
   --ok:#0b7a0b; --ok-soft:#e3f3e3; --warn:#8f5f00; --warn-soft:#fbf1d9; --bad:#b42318; --bad-soft:#fde7e4; --p3:#6b46c1; --p3-soft:#efe9fb;
   --display:"Archivo Narrow","Arial Narrow",sans-serif; --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
   --ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono);
-  --ed-ink:#15201d; --ed-ink2:#3f4f4a; --ed-muted:#5f6e68; --ed-surface:#ffffff; --ed-layer:#e9eeec; --ed-rule:#d2dbd7;
+  --ed-ink:#15201d; --ed-ink2:#3f4f4a; --ed-muted:#5a6963; --ed-surface:#ffffff; --ed-layer:#e9eeec; --ed-rule:#d2dbd7;
   --ed-accent:#2456a4; --ed-accent-soft:#e3ebf6; --ed-gap:#ad7600; --ed-gap-soft:#fbf1d9; --ed-add:#0b8a0b; --ed-add-soft:#e3f3e3; --ed-p3:#6b46c1; --ed-p3-soft:#efe9fb;
   --ed-tip-bg:#15201d; --ed-tip-ink:#f3f6f4;
   --f-display:var(--display); --f-body:var(--sans); --f-mono:var(--mono); --slide:var(--card);

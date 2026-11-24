@@ -1,4 +1,4 @@
-/* EdgeSequence v1.4.0 — sequence diagrams for single-file HTML pages and decks.
+/* EdgeSequence v1.4.1 — sequence diagrams for single-file HTML pages and decks.
  *
  *   var q = EdgeSequence.create(svg, {icons: window.EDGE_ICONS});
  *   q.group('CENTRE', ['api', 'db']);                                   // a band over some actors' columns
@@ -35,7 +35,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0;
   /* ?static or ?static=K in the address, or window.TRAZO_STATIC = true | K before the library loads:
      no motion, and steps stay at step K (default: the last). scripts/visual.py renders pages so. */
   var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
@@ -44,7 +44,7 @@
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink', 'ink2'];
 
   var CSS = [
-    '.sq-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#66756f);',
+    '.sq-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5a6963);',
     '--_surface:var(--ed-surface,#fff);--_layer:var(--ed-layer,#e9eeec);--_rule:var(--ed-rule,#d2dbd7);',
     '--_accent:var(--ed-accent,#2456a4);--_accent-soft:var(--ed-accent-soft,#e3ebf6);--_gap:var(--ed-gap,#b87d00);',
     '--_gap-soft:var(--ed-gap-soft,#fbf1d9);--_add:var(--ed-add,#0b8a0b);--_add-soft:var(--ed-add-soft,#e3f3e3);',

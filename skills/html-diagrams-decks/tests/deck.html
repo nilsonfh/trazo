@@ -91,6 +91,6 @@ if (!p0 || !document.querySelector('#ed-print .slide ' + p0.getAttribute('marker
 deck.printPages(false);
 if (document.getElementById('ed-print') || document.documentElement.hasAttribute('data-theme')) bad.push('print: not cleaned up');
 at(1, 0, 'print leaves the deck where it was');
-if (EdgeDeck.version !== '1.4.0') bad.push('version');
+if (EdgeDeck.version !== '1.4.1') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

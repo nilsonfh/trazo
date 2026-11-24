@@ -34,8 +34,8 @@ class Inline(unittest.TestCase):
                       '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>')
         r = run(INLINE, p)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("EdgeDiagram v1.4.0", r.stdout)
-        self.assertIn("EdgeSketch v1.4.0", r.stdout)
+        self.assertIn("EdgeDiagram v1.4.1", r.stdout)
+        self.assertIn("EdgeSketch v1.4.1", r.stdout)
         self.assertIn("window.EDGE_ICONS", r.stdout)
         self.assertIn("--ed-p3:", r.stdout)
         self.assertIn("gsap.min.js", r.stdout)
@@ -65,7 +65,7 @@ class Inline(unittest.TestCase):
         p = self.page('<link rel="stylesheet" href="x/themes/drafting.css"><script src="x/edgedeck.js"></script>')
         r = run(os.path.join(d, "inline.py"), p)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("EdgeDeck v1.4.0", r.stdout)
+        self.assertIn("EdgeDeck v1.4.1", r.stdout)
         self.assertIn("Barlow", r.stdout)
 
 
@@ -91,7 +91,7 @@ class Themes(unittest.TestCase):
     def test_low_contrast_fails(self):
         with open(os.path.join(ROOT, "themes", "engineering.css"), encoding="utf-8") as f:
             src = f.read()
-        bad = src.replace("--muted:#5f6e68", "--muted:#c8d0cc", 1)
+        bad = src.replace("--muted:#5a6963", "--muted:#c8d0cc", 1)
         d = tempfile.mkdtemp()
         p = os.path.join(d, "pale.css")
         with open(p, "w", encoding="utf-8") as f:
