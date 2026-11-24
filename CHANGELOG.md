@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- **EdgeLayout** (`lib/edgelayout.js`), automatic layout for EdgeDiagram: declare nodes, links, fans and zones without coordinates, call `d.layout({dir: 'TB' | 'LR', bands})`, and it
+  - breaks cycles, ranks the nodes (longest path, then balanced), and gives a link that skips ranks a lane in each;
+  - orders each rank to cross as little as possible (barycentre sweeps and swaps from three starts), keeping a zone's nodes together;
+  - lines chains up so their wires run straight, centres a fan's source over its ends and a node over branches only it feeds, and sizes each box from its text, with even columns;
+  - draws each zone around its nodes (`bands: true` stacks them as layers in the order declared), keeps pinned nodes (`x`, `y` given) where they are, and fits the viewBox;
+  - gives every link the sides facing its next rank and places the ends that share a side across from what they join, so the router draws them straight or with two deliberate turns.
+
+  The same input gives the same figure. `d.layoutInfo` reports the crossings, and those of the order declared. EdgeDiagram's hook is small: a node or zone without `x` or `y` holds the calls until `d.layout(opts)` (or `steps`, `bindFocus`, `check`) hands them to EdgeLayout. `templates/auto.html` is a complete example; `inline.py`, `vendor.sh` and the draw.io export know the file. SKILL.md now says to prefer automatic layout unless the figure needs a hand composition. Tested in `tests/layout.html` on nine graphs (a pipeline, a hub with a fan, two architectures in zones as bands, zones side by side, a cycle, links that skip ranks, a labelled state cycle, a random graph): each passes the layout check with 0 issues and crosses less than the order it was declared in, or as little when that order does not cross.
+- EdgeDiagram moves a link's label off a zone's label too, as it does off nodes and other labels.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.

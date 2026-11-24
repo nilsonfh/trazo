@@ -15,7 +15,7 @@ class ToDrawio(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp(dir=os.path.join(ROOT, "tests"))   # beside the tests, so file:// pages load
-        for name in ("diagram", "sketch"):
+        for name in ("diagram", "sketch", "auto"):
             out = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "inline.py"), os.path.join(ROOT, "templates", name + ".html")],
                                  capture_output=True, text=True, check=True).stdout
             with open(os.path.join(cls.dir, name + ".html"), "w", encoding="utf-8") as f:
@@ -54,6 +54,17 @@ class ToDrawio(unittest.TestCase):
         branches = [c for c in cells if c.get("edge") == "1" and c.get("source") and c.get("target")]
         self.assertEqual(len(branches), 4, "three branches and one link")
         self.assertEqual(len([c for c in cells if (c.get("style") or "").startswith("ellipse;")]), 1, "the junction dot")
+
+    def test_a_figure_laid_out_by_edgelayout_keeps_its_zones_and_links_attached(self):
+        r, out = self.export(os.path.join(self.dir, "auto.html"), "auto")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("kind edge", r.stdout)
+        cells = self.cells(out)
+        attached = [c for c in cells if c.get("edge") == "1" and c.get("source") and c.get("target")]
+        self.assertEqual(len(attached), 8, "three poll branches, two publish branches, forward, two fan-out branches")
+        values = [c.get("value") or "" for c in cells]
+        self.assertIn("Gateway", values)
+        self.assertTrue(any(">FIELD<" in v for v in values) and any(">CLOUD<" in v for v in values), "the zones' labels")
 
     def test_a_hand_drawn_figure_keeps_boxes_text_icons_and_both_arrowheads(self):
         r, out = self.export(os.path.join(self.dir, "sketch.html"), "mp")

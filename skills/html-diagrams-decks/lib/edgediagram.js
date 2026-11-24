@@ -24,6 +24,10 @@
  * the zone beneath. Packets follow the drawn path, fade with their link, wait until the wire is
  * drawn, and stop when nothing flows or the figure is off screen.
  *
+ * A node or zone without x and y is held, with every later call, until d.layout(opts): then
+ * lib/edgelayout.js (EdgeLayout) places them all and they are drawn; steps, bindFocus and check
+ * call it if it was left out.
+ *
  * Hovering or focusing a node or a link with `info` highlights it with its neighbours and shows
  * a tooltip (a string, or {text, facts: [[k, v]], href, hrefText}); click or Enter pins it; a
  * click elsewhere or Escape releases it. Below 560 px the tooltip is a sheet at the bottom.
@@ -319,8 +323,17 @@
     });
 
     var api = {svg: svg, items: items};
+    /* A node (or zone) without x or y holds it and every later zone, node, text, link and fan call
+       until d.layout(opts) hands them to EdgeLayout (lib/edgelayout.js), which fills in the
+       positions and sides; then they are drawn in the order given. steps, bindFocus and check call it. */
+    var held = null;
+    function hold(kind, id, o) {
+      if (!held && !((kind === 'node' || kind === 'zone') && (o.x == null || o.y == null))) return false;
+      (held = held || []).push({kind: kind, id: id, o: o}); return true;
+    }
 
     api.zone = function (id, o) {
+      if (hold('zone', id, o)) return api;
       var g = el('g', {'class': 'ed-item ed-zone t-' + (o.tone || 'layer'), 'data-id': id}, layers.zones);
       el('rect', {'class': 'ed-zshape', x: o.x, y: o.y, width: o.w, height: o.h, rx: o.r || 12}, g);
       if (o.label) {
@@ -341,6 +354,7 @@
       g.setAttribute('aria-label', name + '. ' + infoText(info));
     }
     api.node = function (id, o) {
+      if (hold('node', id, o)) return api;
       var g = el('g', {'class': 'ed-item ed-node t-' + (o.tone || 'neutral') + (o.dashed ? ' dashed' : ''), 'data-id': id}, layers.nodes);
       var pill = o.shape === 'pill';
       if (Object.keys(links).length) dirty = true;   // links drawn before this node did not know it
@@ -386,6 +400,7 @@
 
     /* free text: a label that is not part of a node or a zone */
     api.text = function (id, o) {
+      if (hold('text', id, o)) return api;
       var g = el('g', {'class': 'ed-item', 'data-id': id}, layers.nodes);
       el('text', {'class': 'ed-text' + (o.mono ? ' mono' : '') + (o.cls ? ' ' + o.cls : ''), x: o.x, y: o.y, 'font-size': o.size || 14,
         'text-anchor': o.anchor || 'start'}, g, o.text);
@@ -418,6 +433,7 @@
     function labelBlocked(L, box) {
       for (var k in nodes) if (!nodes[k].o.ghost && inter(box, nodes[k], 0)) return true;
       for (var j in links) if (j !== L.id && links[j].lbox && inter(box, links[j].lbox, 0)) return true;
+      for (var z = 0; z < zones.length; z++) { var zl = items[zones[z].id + '.label'], zb = zl && bboxOf(zl.el); if (zb && zb.w && inter(box, zb, 0)) return true; }
       return false;
     }
     /* a label slides along its wire until it clears the nodes and the other labels */
@@ -513,12 +529,14 @@
       list.forEach(function (p) { drawLink(links[p.link]); });
     }
     function relayout() {
+      if (held) { api.layout(); return; }
       if (!dirty) return; dirty = false;
       Object.keys(links).forEach(function (k) { drawLink(links[k]); });
       fans.forEach(drawDots);
     }
 
     api.link = function (id, o) {
+      if (hold('link', id, o)) return api;
       var a = nodes[o.from[0]], b = nodes[o.to[0]];
       if (!a || !b) throw new Error('EdgeDiagram: link ' + id + ' needs existing nodes');
       var s0 = o.from[1] || 'auto', s1 = o.to[1] || 'auto';
@@ -576,7 +594,16 @@
       }
       return api;
     };
-    api.layout = function () { dirty = true; relayout(); return api; };
+    api.layout = function (opts) {
+      if (held) {
+        if (!global.EdgeLayout) throw new Error('EdgeDiagram: a node without x and y needs lib/edgelayout.js');
+        var calls = held; held = null;
+        global.EdgeLayout.place(api, calls, opts || {});
+        if (vbv && vbv.width) vb = {x: vbv.x, y: vbv.y, w: vbv.width, h: vbv.height};   // it may fit the viewBox
+        calls.forEach(function (c) { api[c.kind](c.id, c.o); });
+      }
+      dirty = true; relayout(); return api;
+    };
 
     /* ---------- fans: one point feeding several nodes, or several feeding one ---------- */
     var fans = [];
@@ -633,6 +660,7 @@
        one. Each branch is a link, id + '.' + its node's id; the fan's id in a step stands for all of
        them and their dots. */
     api.fan = function (id, o) {
+      if (hold('fan', id, o)) return api;
       var into = Array.isArray(o.from[0]), shared = (into ? o.to : o.from).slice(), many = into ? o.from : o.to;
       if (!nodes[shared[0]]) throw new Error('EdgeDiagram: fan ' + id + ' needs existing nodes');
       var ends = many.map(function (e) {

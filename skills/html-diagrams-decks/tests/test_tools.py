@@ -146,7 +146,7 @@ class Versions(unittest.TestCase):
         want = open(os.path.join(ROOT, "VERSION")).read().strip()
         top = os.path.dirname(os.path.dirname(ROOT))
         stamps = {"pyproject.toml": r'^version = "([^"]+)"', "src/trazo/__init__.py": r'__version__ = "([^"]+)"'}
-        for f in ("edgediagram", "edgesketch", "edgesequence", "edgedeck", "icons"):
+        for f in ("edgediagram", "edgelayout", "edgesketch", "edgesequence", "edgedeck", "icons"):
             stamps[os.path.join(ROOT, "lib", f + ".js")] = r"v(\d+\.\d+\.\d+)"
         for f, rx in stamps.items():
             p = f if os.path.isabs(f) else os.path.join(top, f)

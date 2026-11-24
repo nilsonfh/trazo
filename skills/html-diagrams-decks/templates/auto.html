@@ -1,0 +1,116 @@
+<title>Auto Layout Figure</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.body{display:grid;gap:22px}
+.body>*{min-width:0}
+.cap{font-size:19px;line-height:1.5;min-height:3.2em;margin:0;max-width:62ch}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:10px 0 0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · automatic layout</p>
+  <h1>How a field reading reaches the cloud</h1>
+  <div class="body">
+    <div>
+      <p class="cap" id="cap" aria-live="polite"></p>
+      <p class="hint">Hover or tap a component for details; tap again or press Esc to release it. Arrow keys step.</p>
+    </div>
+    <!-- no coordinates below: lib/edgelayout.js places the nodes, sizes the zones and fits the viewBox -->
+    <div class="stage"><svg id="auto" viewBox="0 0 1000 560" role="img" aria-label="Field devices are polled by an edge gateway, which publishes each reading to a local HMI and to a buffer; the buffer forwards readings to the cloud, which stores them as time series and raises alarms."></svg></div>
+  </div>
+  <div class="controls">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Restart</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/edgelayout.js"></script>
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  var d = EdgeDiagram.create(document.getElementById('auto'), {icons: window.EDGE_ICONS});
+
+  // zones without x and y are drawn around their nodes; with bands: true each takes its own ranks, in this order
+  d.zone('field', {label: 'FIELD'}).zone('edge', {label: 'EDGE'}).zone('cloud', {label: 'CLOUD'});
+
+  // nodes without x and y: their size comes from their text, their place from the links
+  d.node('meter', {zone: 'field', icon: 'meter', title: 'Meter', sub: 'Modbus TCP',
+      info: 'Reports energy and voltage every second when polled.'})
+   .node('recloser', {zone: 'field', icon: 'recloser', title: 'Recloser', sub: 'DNP3',
+      info: 'Reports its state and fault counters; a change is reported at once.'})
+   .node('pv', {zone: 'field', icon: 'pv', title: 'PV inverter', sub: 'SunSpec',
+      info: 'Reports output power and its set points.'})
+   .node('gw', {zone: 'edge', icon: 'rtu', title: 'Gateway', sub: 'polls · converts', tone: 'accent',
+      info: 'Polls each device in its own protocol and turns every reading into one message format.'})
+   .node('buffer', {zone: 'edge', icon: 'database', title: 'Buffer', sub: 'store and forward', tone: 'add',
+      info: 'Keeps readings while the uplink is down and sends them in order when it returns.'})
+   .node('hmi', {zone: 'edge', icon: 'desktop', title: 'Local HMI', sub: 'works offline',
+      info: 'Shows the site to the crew on site, with or without the uplink.'})
+   .node('ingest', {zone: 'cloud', icon: 'cloud', title: 'Ingest', sub: 'validates · dedups',
+      info: 'Accepts batches from many sites and drops readings it has already seen.'})
+   .node('tsdb', {zone: 'cloud', icon: 'database', title: 'Time series',
+      info: 'Stores every reading by device and time.'})
+   .node('alarms', {zone: 'cloud', icon: 'fault', title: 'Alarms', tone: 'gap',
+      info: 'Raises an alarm when a reading crosses its limit.'});
+
+  // links without sides: each leaves the side that faces the next rank
+  d.fan('poll', {from: [['meter'], ['recloser'], ['pv']], to: ['gw'], arrow: 'end', label: 'poll', flow: {dir: 1}});
+  d.fan('pub', {from: ['gw'], to: ['buffer', 'hmi'], arrow: 'end', label: 'publish', flow: {dir: 1}});
+  d.link('up', {from: ['buffer'], to: ['ingest'], arrow: 'end', tone: 'add', label: 'forward', flow: {dir: 1, tone: 'add'},
+      info: {text: 'Readings leave the site in batches over the uplink.', facts: [['batch', 'up to 1000 readings'], ['every', '5 s']]}});
+  d.fan('fanout', {from: ['ingest'], to: ['tsdb', 'alarms'], arrow: 'end', flow: {dir: 1}});
+
+  d.layout({dir: 'LR', bands: true});   // TB is the default; rankSep, nodeSep, zonePad, margin tune the spacing
+  d.bindFocus();
+
+  var caps = document.getElementById('cap'), dots = document.getElementById('dots');
+  var STEPS = [
+    {show: ['field', 'field.label', 'meter', 'recloser', 'pv'],
+     caption: 'Field devices each speak their own protocol.'},
+    {show: ['edge', 'edge.label', 'gw', 'poll'], flows: ['poll'],
+     caption: 'An edge gateway polls them all and turns their readings into one format.'},
+    {show: ['buffer', 'hmi', 'pub'], flows: ['pub'], stopFlows: ['poll'],
+     caption: 'It publishes every reading on site: to a buffer, and to a local HMI that works without the uplink.'},
+    {show: ['cloud', 'cloud.label', 'ingest', 'up'], flows: ['up'], stopFlows: ['pub'],
+     caption: 'The buffer forwards readings to the cloud in batches, and holds them while the uplink is down.'},
+    {show: ['tsdb', 'alarms', 'fanout'], flows: ['fanout'],
+     caption: 'The cloud stores them as time series and raises alarms on them.'}
+  ];
+  STEPS.forEach(function () { dots.appendChild(document.createElement('i')); });
+  var ctl = d.steps(STEPS, {onStep: function (k, s) {
+    caps.innerHTML = '<b>' + (k + 1) + ' / ' + STEPS.length + '</b>';
+    caps.appendChild(document.createTextNode(s.caption));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }});
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>
