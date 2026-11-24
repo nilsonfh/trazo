@@ -5,7 +5,7 @@
     inline.py --lib DIR --themes DIR page.html > out.html
 
 Every <script src=".../NAME"></script> whose NAME is a library file (edgediagram.js, edgesketch.js, edgesequence.js,
-edgedeck.js, icons.js) is replaced by that file's contents, whatever other attributes the tag has, and a
+edgematrix.js, edgedeck.js, icons.js) is replaced by that file's contents, whatever other attributes the tag has, and a
 <link rel="stylesheet" href=".../themes/NAME.css"> by a <style> holding the theme (its @import of Google
 Fonts stays first in the block, as CSS requires). The files are looked up in --lib and --themes if given,
 else in ../lib and ../themes next to this script (the skill's layout), else in this script's own folder
@@ -17,7 +17,7 @@ reported on stderr, since a published page cannot load them. GSAP stays a CDN <s
 """
 import argparse, os, re, sys
 
-LIB_FILES = ("edgediagram.js", "edgesketch.js", "edgesequence.js", "edgedeck.js", "icons.js")
+LIB_FILES = ("edgediagram.js", "edgesketch.js", "edgesequence.js", "edgematrix.js", "edgedeck.js", "icons.js")
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **EdgeMatrix** (`lib/edgematrix.js`), matrices and coverage maps:
+  - rows and columns with headers and optional codes, row groups (a band beside the rows, or a band above each with `rowGroups: 'head'`) and column groups (a band above the headers);
+  - cells in a state from a small legend, each state a tone (`add`, `gap`, `bad`, `accent`, `p3`, `muted`, ...) and a style (`solid`, `soft`, `outline`, `blank`), with an optional short mark; the library draws the legend, and a click on an entry highlights its state;
+  - totals per state for each row and each column;
+  - cells sized from their marks and headers; column headers turn to read bottom to top when they are long, and `clip` ends headers that are still too long with an ellipsis; a matrix over 60 rows or 900 cells is drawn compact (160 × 40 in about 1100 units wide), since an SVG never scrolls inside;
+  - a plane mode for SGAM-like grids: axes with arrows, wrapping headers, small boxes with icons in the cells (`m.item`);
+  - hover and arrow keys light the cell's row and column and show its info, in a status element or a tooltip;
+  - `filter` (`'gaps'`, states, rows, columns), `highlight` (states, rows, columns, groups, or a function), `counts`;
+  - steps that reveal row groups (or column groups) with their captions, then the totals; with GSAP, `ctl.timeline` for EdgeDeck.
+
+  Its layout check reports headers wider or longer than their band, group labels wider than their span, marks too large for their cell, item labels out of their box, and anything outside the viewBox into `shot.sh --check`; EdgeSketch's check leaves its figures alone. It measures again when a web font loads after `document.fonts.ready`. draw.io exports it as a hand-drawn figure. `templates/matrix.html` is a complete example; `inline.py` and `vendor.sh` know the file. Tested in `tests/matrix.html` and `tests/test_todrawio.py`.
+
 ## 1.3.1 (2026-11-23)
 
 - EdgeSketch fits a box's text to its width by measuring it again after each step, until it fits or reaches the floor. It used to scale the size once in proportion; a web font at small sizes (a mono face above all) does not narrow in proportion, and texts were left a few pixels outside their box. Tested in `tests/sketch.html` over boxes of many widths.

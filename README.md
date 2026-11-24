@@ -6,6 +6,7 @@ Trazo is an agent skill for Claude Code and GitHub Copilot, installed as `html-d
 
 - **EdgeDiagram** draws graphs: zones, nodes and orthogonal links that line up, go around boxes and fan out from one point, revealed step by step.
 - **EdgeSequence** draws sequence diagrams: actors, numbered messages and replies, activation bars, notes and `alt`/`loop` frames, one message per step with a packet travelling along it.
+- **EdgeMatrix** draws matrices and coverage maps: rows and columns with groups, cells in a state from a legend, marks, totals, a compact mode for 160 × 40, and SGAM-like planes with small boxes in the cells.
 - **EdgeSketch** draws figures laid out by hand on a grid, such as layered stacks and left-to-right platform views. Its boxes fit their text, and its check works on any SVG.
 - **EdgeDeck** runs 1600×900 slide decks with per-slide steps.
 - **Three themes** share one token contract, each in light and dark, with a contrast checker, and **any DESIGN.md** (a brand's colours and faces) becomes a fourth with one command.
