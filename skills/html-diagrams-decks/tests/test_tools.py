@@ -140,5 +140,21 @@ class ThemeFromDesign(unittest.TestCase):
         self.assertIn("light: accent <- primary", r.stderr)
 
 
+class Versions(unittest.TestCase):
+    def test_every_stamp_says_the_same_version(self):
+        import re
+        want = open(os.path.join(ROOT, "VERSION")).read().strip()
+        top = os.path.dirname(os.path.dirname(ROOT))
+        stamps = {"pyproject.toml": r'^version = "([^"]+)"', "src/trazo/__init__.py": r'__version__ = "([^"]+)"'}
+        for f in ("edgediagram", "edgesketch", "edgesequence", "edgedeck", "icons"):
+            stamps[os.path.join(ROOT, "lib", f + ".js")] = r"v(\d+\.\d+\.\d+)"
+        for f, rx in stamps.items():
+            p = f if os.path.isabs(f) else os.path.join(top, f)
+            if not os.path.exists(p):   # the skill copied alone, without the package around it
+                continue
+            m = re.search(rx, open(p, encoding="utf-8").read(), re.M)
+            self.assertEqual(m and m.group(1), want, f)
+
+
 if __name__ == "__main__":
     unittest.main()
