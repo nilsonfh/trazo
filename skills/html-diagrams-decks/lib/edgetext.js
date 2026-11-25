@@ -1,4 +1,4 @@
-/* EdgeText v1.4.1 — figures written as a few lines of text, drawn by the other libraries.
+/* EdgeText v1.5.0 — figures written as a few lines of text, drawn by the other libraries.
  *
  *   <svg id="f" role="img" aria-label="..."></svg>
  *   <script type="text/trazo" data-target="#f" data-caption="#cap">
@@ -29,7 +29,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0;
   var KINDS = {flow: 'flow', graph: 'flow', flowchart: 'flow', sequence: 'sequence', sequencediagram: 'sequence',
     state: 'state', statediagram: 'state', 'statediagram-v2': 'state', timeline: 'timeline', gantt: 'timeline', matrix: 'matrix'};
   var NEEDS = {flow: ['EdgeDiagram', 'EdgeLayout'], state: ['EdgeDiagram', 'EdgeLayout'], sequence: ['EdgeSequence'],

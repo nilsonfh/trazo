@@ -96,6 +96,6 @@ expect(r, ['wire #w-slant is slanted', 'wire #w-sag is curved', 'wire #w-line is
 ['w-ok', 'w-arc', 'w-head', 'w-brace', 'w-free'].forEach(function (id) {
   if (r.some(function (m) { return m.indexOf('#' + id + ' ') >= 0; })) bad.push('flagged ' + id + ': ' + r.join(' / '));
 });
-if (EdgeDiagram.version !== '1.4.1' || EdgeSketch.version !== '1.4.1') bad.push('version');
+if (EdgeDiagram.version !== '1.5.0' || EdgeSketch.version !== '1.5.0') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>

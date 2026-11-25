@@ -11,7 +11,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 
 | Path | What it is |
 | --- | --- |
-| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, and a layout check at every step. Also state machines (state, initial, final, choice and composite shapes, `transition` with self-loops, `walk` through the states) and swimlane processes (`lanes`, task, decision and event shapes) |
+| `lib/edgediagram.js` | Declarative SVG graphs: `zone`, `node`, `text`, `link` (orthogonal by default, arrows, labels, packet flows), `fan` (one point feeding several nodes), `bindFocus`, `steps`, `drill` (a block that opens into its inner diagram, any depth), and a layout check at every step. Also state machines (state, initial, final, choice and composite shapes, `transition` with self-loops, `walk` through the states) and swimlane processes (`lanes`, task, decision and event shapes) |
 | `lib/edgelayout.js` | Automatic layout for EdgeDiagram: nodes, links, fans and zones declared without coordinates are ranked, ordered to cross as little as possible, lined up so chains run straight, and boxed in their zones; `d.layout({dir, bands})` |
 | `lib/edgesketch.js` | Hand-drawn figures on a grid: `zone`, `box` (fits its text; vertical columns and centred bars), `arrow` (right angles, two heads), `connect` (box to box), `fan`, `text`; and `EdgeSketch.check`, a layout check for any SVG, slanted and curved wires included; `EdgeSketch.paint`, the contrast (light and dark), wire-through-text and wires-run-together check every library's check adds when it is on the page |
 | `lib/edgesequence.js` | Sequence diagrams: actors in columns, numbered messages, replies, self calls, notes, `alt`/`opt`/`loop`/`par` frames, activation bars, a step per message with a packet on it, and its own layout check |
@@ -22,6 +22,7 @@ This skill (an [Agent Skill](https://agentskills.io): Claude Code, GitHub Copilo
 | `lib/edgedeck.js` | `EdgeDeck.run`: a 1600×900 slide stage with per-slide steps, captions, keyboard, clicker, swipe and `#n` links; speaker's notes and a presenter view in a second window (N); prints one 16:9 page per slide |
 | `themes/*.css` | Colour and type themes, light and dark, on one token contract: `engineering` (blue on green-grey, Archivo Narrow and IBM Plex), `indigo` (indigo on lavender-grey, Space Grotesk and Inter), `drafting` (teal on warm paper, Barlow Condensed and Source Sans 3) |
 | `templates/diagram.html` | A stepped EdgeDiagram figure with captions, Previous/Next and dots |
+| `templates/drill.html` | A block diagram whose blocks open into their inner diagrams, three levels deep, with ports, a trail of levels and the level in the address |
 | `templates/auto.html` | The same kind of figure with no coordinates: zones as bands, fans, steps, all placed by EdgeLayout |
 | `templates/sketch.html` | A hand-drawn EdgeSketch figure: zones left to right, columns, services, two-headed arrows, a legend |
 | `templates/sequence.html` | A stepped EdgeSequence figure: who talks to whom, one message per step |

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 (2026-11-25)
+
+Block diagrams that open: a node with `drill` opens into its inner diagram, at any depth.
+
+- **Drill-down** in EdgeDiagram: `d.node(id, {..., drill: {draw(s), view, title, ports}})`. A click or Enter zooms into the node and grows its inner diagram from it; Escape, Back or the trail of levels go up. The figure's links on the node become ports on the inner diagram's edge (`'@' + neighbour`). `d.open`, `d.close`, `d.go('a/b')`, `d.path()`, `EdgeDiagram.go(svgId, path)`; `{hash: true}` keeps the level in the address.
+- The figure is wrapped in a `div.ed-host` when it has a node that drills: a page rule on `parent > svg` no longer matches it.
+- The check covers every level, a port linked to nothing inside and a ⊕ on a node's text.
+- `templates/drill.html` and `tests/drill.html`.
+
 ## 1.4.1 (2026-11-24)
 
 Muted text reads on every soft fill. A box's subtitle or a row's note in the muted ink sat at 4.46:1 on the accent's soft fill in the engineering theme, and at 4.2 to 4.3:1 on soft fills in the dark drafting and indigo themes; the contrast check of 1.4.0 reported it in figures that use them.

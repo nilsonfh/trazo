@@ -1,0 +1,85 @@
+<title>Drill-down Block Diagram</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:14px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.lede{font-size:17px;line-height:1.5;margin:0;max-width:70ch}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:640px;height:auto}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · drill-down block diagram</p>
+  <h1>An online order, one level at a time</h1>
+  <p class="lede">Each block marked ⊕ opens into what it is made of. The links that reach a block from outside wait at the edge of its inner diagram, named after the block they come from. Esc or Back goes up a level.</p>
+  <div class="stage"><svg id="shop" viewBox="0 0 1000 400" role="img" aria-label="A customer places an order; the order service takes the payment and hands the paid order to the warehouse, which ships it."></svg></div>
+</div>
+</div>
+
+<script src="../lib/edgediagram.js"></script>
+<script src="../lib/icons.js"></script>
+<script>
+(function () {
+  // every level has the figure's shape (1000 x 400), so the inner diagram fills the zoomed view
+  var V = [0, 0, 1000, 400];
+  var d = EdgeDiagram.create(document.getElementById('shop'), {icons: window.EDGE_ICONS, hash: true, title: 'Online shop'});
+
+  d.zone('store', {x: 250, y: 40, w: 460, h: 320, label: 'STORE'});
+
+  d.node('customer', {x: 40, y: 160, w: 170, h: 80, icon: 'phone', title: 'Customer', sub: 'web · app',
+      info: 'Fills a cart and pays from the browser or the phone app.'})
+   .node('orders', {x: 280, y: 160, w: 180, h: 80, icon: 'apps', tone: 'accent', title: 'Order service', sub: 'cart · checkout',
+      info: 'Keeps the cart, takes the payment and records the order.',
+      drill: {title: 'Inside the order service', view: V, draw: function (s) {
+        s.zone('svc', {x: 190, y: 40, w: 620, h: 340, label: 'ORDER SERVICE'});
+        s.node('cart', {x: 220, y: 160, w: 170, h: 80, icon: 'apps', title: 'Cart', sub: 'items · prices',
+            info: 'Holds what the customer chose, priced at today’s rates.'})
+         .node('checkout', {x: 440, y: 160, w: 170, h: 80, icon: 'manifest', tone: 'accent', title: 'Checkout', sub: 'address · total',
+            info: 'Turns the cart into an order once the payment is accepted.'})
+         .node('payments', {x: 440, y: 284, w: 170, h: 76, icon: 'coin', title: 'Payments', sub: 'charges the card',
+            info: 'Checks the payment for fraud and charges the card.',
+            drill: {title: 'Inside payments', view: V, draw: function (t) {
+              t.node('fraud', {x: 240, y: 160, w: 170, h: 80, icon: 'shield', title: 'Fraud check', sub: 'risk score',
+                  info: 'Scores the payment; a high score holds it for review.'})
+               .node('gateway', {x: 460, y: 160, w: 170, h: 80, icon: 'coin', tone: 'accent', title: 'Card gateway', sub: 'authorise · capture',
+                  info: 'Asks the card issuer to authorise the amount, then captures it.'})
+               .node('ledger', {x: 680, y: 160, w: 170, h: 80, icon: 'database', title: 'Ledger', sub: 'one entry per charge',
+                  info: 'Records every charge and refund, for the accounts.'});
+              t.link('in', {from: ['@checkout', 'right'], to: ['fraud', 'left'], arrow: 'end', flow: {dir: 1}})
+               .link('fg', {from: ['fraud', 'right'], to: ['gateway', 'left'], arrow: 'end', flow: {dir: 1}})
+               .link('gl', {from: ['gateway', 'right'], to: ['ledger', 'left'], arrow: 'end', tone: 'add'});
+            }}});
+        s.link('in', {from: ['@customer', 'right'], to: ['cart', 'left'], arrow: 'end', flow: {dir: 1}})
+         .link('cc', {from: ['cart', 'right'], to: ['checkout', 'left'], arrow: 'end', flow: {dir: 1}})
+         .link('pay', {from: ['checkout', 'bottom'], to: ['payments', 'top'], arrow: 'both', tone: 'gap'})
+         .link('out', {from: ['checkout', 'right'], to: ['@warehouse', 'left'], arrow: 'end', label: 'paid order', flow: {dir: 1}});
+      }}})
+   .node('warehouse', {x: 510, y: 160, w: 180, h: 80, icon: 'cabinet', title: 'Warehouse', sub: 'pick · pack',
+      info: 'Picks the items off the shelves and packs the parcel.',
+      drill: {title: 'Inside the warehouse', view: V, draw: function (s) {
+        s.node('pick', {x: 220, y: 160, w: 170, h: 80, icon: 'apps', title: 'Pick', sub: 'one list per aisle',
+            info: 'Pickers walk the aisles with the order’s list.'})
+         .node('pack', {x: 430, y: 160, w: 170, h: 80, icon: 'cabinet', title: 'Pack', sub: 'box · label',
+            info: 'Weighs the parcel and prints its shipping label.'})
+         .node('dispatch', {x: 640, y: 160, w: 170, h: 80, icon: 'truck', tone: 'add', title: 'Dispatch', sub: 'by carrier',
+            info: 'Hands the parcel to the carrier at the dock.'});
+        s.link('in', {from: ['@orders', 'right'], to: ['pick', 'left'], arrow: 'end', flow: {dir: 1}})
+         .link('pp', {from: ['pick', 'right'], to: ['pack', 'left'], arrow: 'end', flow: {dir: 1}})
+         .link('pd', {from: ['pack', 'right'], to: ['dispatch', 'left'], arrow: 'end', flow: {dir: 1}})
+         .link('out', {from: ['dispatch', 'right'], to: ['@delivery', 'left'], arrow: 'end', tone: 'add'});
+      }}})
+   .node('delivery', {x: 770, y: 160, w: 180, h: 80, icon: 'truck', tone: 'add', title: 'Delivery', sub: 'tracked parcel',
+      info: 'The carrier brings the parcel to the customer’s door.'});
+
+  d.link('l1', {from: ['customer', 'right'], to: ['orders', 'left'], arrow: 'end', flow: {dir: 1}})
+   .link('l2', {from: ['orders', 'right'], to: ['warehouse', 'left'], arrow: 'end', flow: {dir: 1}})
+   .link('l3', {from: ['warehouse', 'right'], to: ['delivery', 'left'], arrow: 'end', tone: 'add', flow: {dir: 1, tone: 'add'}});
+
+  d.bindFocus();
+})();
+</script>

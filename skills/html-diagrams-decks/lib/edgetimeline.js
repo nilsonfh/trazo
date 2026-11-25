@@ -1,4 +1,4 @@
-/* EdgeTimeline v1.4.1 — timelines and Gantt-style roadmaps for single-file HTML pages and decks.
+/* EdgeTimeline v1.5.0 — timelines and Gantt-style roadmaps for single-file HTML pages and decks.
  *
  *   var t = EdgeTimeline.create(svg, {start: '2027-01-01', end: '2027-12-31', unit: 'month', today: '2027-04-12'});
  *   t.band('build', {title: 'BUILD'});                                   // a titled group of lanes
@@ -36,7 +36,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0, DAY = 864e5, REG = [];
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0, DAY = 864e5, REG = [];
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

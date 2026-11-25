@@ -1,0 +1,86 @@
+<!-- Drill-down: a node with {drill} opens into its inner diagram; the figure's links on it become ports;
+     click, Enter, Escape, the trail of levels, EdgeDiagram.go and the address; the check finds a port linked
+     to nothing inside and a mark on a node's text. Run with scripts/test.sh. -->
+<svg id="sys" viewBox="0 0 960 400" role="img" aria-label="A platform"></svg>
+<svg id="loose" viewBox="0 0 600 240" role="img" aria-label="loose port"></svg>
+<pre id="out"></pre>
+<script src="../lib/icons.js"></script>
+<script src="../lib/edgediagram.js"></script>
+<script>
+var bad = [];
+function want(c, what) { if (!c) bad.push(what); }
+
+var d = EdgeDiagram.create(document.getElementById('sys'), {icons: window.EDGE_ICONS, hash: true});
+d.node('web', {x: 30, y: 160, w: 170, h: 72, icon: 'desktop', title: 'Web'});
+d.node('api', {x: 270, y: 160, w: 170, h: 72, icon: 'server', title: 'API', info: 'validates'});
+d.node('broker', {x: 510, y: 160, w: 190, h: 72, icon: 'broker', title: 'Event stream', info: 'hover still shows this',
+  drill: {title: 'Inside the event stream', view: [0, 0, 960, 400], draw: function (s) {
+    s.node('ingest', {x: 260, y: 160, w: 170, h: 72, icon: 'server', title: 'Ingest'});
+    s.node('topics', {x: 520, y: 160, w: 170, h: 72, icon: 'database', title: 'Topics', drill: function (t) {
+      t.node('seg', {x: 400, y: 160, w: 170, h: 72, title: 'Segments'});
+      t.link('a', {from: ['@ingest', 'right'], to: ['seg', 'left'], arrow: 'end'});
+      t.link('b', {from: ['seg', 'right'], to: ['@db', 'left'], arrow: 'end'});
+    }});
+    s.link('in', {from: ['@api', 'right'], to: ['ingest', 'left'], arrow: 'end'});
+    s.link('mid', {from: ['ingest', 'right'], to: ['topics', 'left'], arrow: 'end'});
+    s.link('out', {from: ['topics', 'right'], to: ['@db', 'left'], arrow: 'end'});
+  }}});
+d.node('db', {x: 770, y: 160, w: 160, h: 72, icon: 'database', title: 'Store'});
+d.link('l1', {from: ['web', 'right'], to: ['api', 'left'], arrow: 'end'});
+d.link('l2', {from: ['api', 'right'], to: ['broker', 'left'], arrow: 'end'});
+d.link('l3', {from: ['broker', 'right'], to: ['db', 'left'], arrow: 'end'});
+d.bindFocus();
+
+// a port with no link inside, and a mark on the title of a narrow node
+var e = EdgeDiagram.create(document.getElementById('loose'), {icons: window.EDGE_ICONS});
+e.node('a', {x: 20, y: 90, w: 140, h: 60, title: 'Source'});
+e.node('b', {x: 300, y: 90, w: 112, h: 34, title: 'Narrow box', align: 'left', drill: function (s) { s.node('x', {x: 400, y: 200, w: 160, h: 60, title: 'Alone'}); }});
+e.link('ab', {from: ['a', 'right'], to: ['b', 'left'], arrow: 'end'});
+
+var svg = document.getElementById('sys');
+function sub(id) { return document.getElementById(id); }
+function crumbs() { var n = document.querySelector('.ed-crumbs'); return n ? n.textContent : ''; }
+setTimeout(function () {
+  var B = sub('sys-broker');
+  want(B && B.classList.contains('ed-inner'), 'no inner svg for broker');
+  want(B && B.querySelector('[data-id="@api"]') && B.querySelector('[data-id="@db"]'), 'broker: ports @api and @db missing');
+  want(sub('sys-broker-topics') && sub('sys-broker-topics').querySelector('[data-id="@ingest"]') && sub('sys-broker-topics').querySelector('[data-id="@db"]'), 'topics: ports @ingest and @db (not @@db) missing');
+  want(svg.querySelector('[data-id="broker"] .ed-badge'), 'no mark on broker');
+  want(!svg.querySelector('[data-id="api"] .ed-badge'), 'a mark on api');
+  want(/marked/.test(crumbs()), 'no hint in the trail at the top: ' + crumbs());
+  var issues = d.check();
+  want(!issues.length, 'clean figure: ' + issues.join(' / '));
+  var all = EdgeDiagram.issues ? null : null;
+  var le = e.check().join(' / ');
+  want(/has no link inside/.test(le), 'loose port not found: ' + le);
+  want(/drill mark of node b/.test(le), 'mark on text not found: ' + le);
+
+  // a click opens, hover info stays
+  svg.querySelector('[data-id="broker"]').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+  want(svg.classList.contains('ed-drilled') && B.classList.contains('ed-open'), 'click did not open broker');
+  want(svg.querySelector('[data-id="broker"]').getAttribute('aria-expanded') === 'true', 'aria-expanded not true');
+  want(d.path().join('/') === 'broker', 'path after click: ' + d.path());
+  want(/Back/.test(crumbs()) && /Overview/.test(crumbs()) && /Inside the event stream/.test(crumbs()), 'trail after open: ' + crumbs());
+  setTimeout(function () {
+    want(svg.getAttribute('viewBox') !== '0 0 960 400', 'view did not zoom');
+    EdgeDiagram.go('sys', 'broker/topics');
+    want(d.path().join('/') === 'broker/topics', 'go: ' + d.path());
+    want(location.hash === '#sys/broker/topics', 'hash: ' + location.hash);
+    want(sub('sys-broker-topics').classList.contains('ed-open'), 'topics not open');
+    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}));
+    want(d.path().join('/') === 'broker', 'Escape: ' + d.path());
+    // Enter on a node inside opens it again
+    sub('sys-broker').querySelector('[data-id="topics"]').dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+    want(d.path().join('/') === 'broker/topics', 'Enter: ' + d.path());
+    var home = [].filter.call(document.querySelectorAll('.ed-crumbs button'), function (b) { return b.textContent === 'Overview'; })[0];
+    if (home) home.click(); else bad.push('no Overview button');
+    want(!d.path().length && !svg.classList.contains('ed-drilled') && !sub('sys-broker').classList.contains('ed-open'), 'Overview did not close: ' + d.path());
+    setTimeout(function () {
+      want(svg.getAttribute('viewBox') === '0 0 960 400', 'view not back: ' + svg.getAttribute('viewBox'));
+      want(!svg.classList.contains('ed-zoomed'), 'still zoomed');
+      want(location.hash === '', 'hash not cleared: ' + location.hash);
+      document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+    }, 900);
+  }, 900);
+}, 50);
+</script>

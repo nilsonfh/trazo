@@ -173,6 +173,41 @@ Step 0 is the resting state, and its `show` items are drawn from the start. Item
 
 `d.walk([state, transition, state, ...], captions)` returns such steps: the first state is current at step 0, and each transition fires in the step that makes the state after it current (a self-transition between the same state twice). Captions, if given, go on the steps in order.
 
+### Drill-down: a node that opens into its inner diagram
+
+```js
+d.node('broker', {x, y, w, h, icon: 'broker', title: 'Message broker', info: 'shown on hover',
+  drill: {title: 'Inside the message broker', view: [0, 0, 1000, 400], draw: function (s) {
+    s.node('ingest', {...}).node('topics', {..., drill: {...}});   // any depth
+    s.link('in', {from: ['@api', 'right'], to: ['ingest', 'left'], arrow: 'end'});
+  }}});
+```
+
+A node with `drill` carries a ⊕ in its top right corner. A click on it, or Enter, zooms the figure's view into the node, fades the figure out and grows the inner diagram from the node to the whole figure. `s` is an EdgeDiagram of its own (every call above works in it, `drill` too), drawn in an `<svg>` the size of the figure laid over it. To hold them both, the figure is wrapped in a `div.ed-host`, so a page rule like `.stage > svg` no longer matches it: write `.stage svg`. Each level is drawn at the figure's scale, so its text measures and checks as the top level's does.
+
+| Key | Meaning |
+| --- | --- |
+| `draw(s)` | Draws the inner diagram. `drill: function (s) {...}` is short for `{draw}` |
+| `view` | Its viewBox, `[x, y, w, h]` or `'x y w h'`. Give it the figure's aspect, so it fills the zoomed view; the default is 960 wide at that aspect |
+| `title` | Its name in the trail of levels and for screen readers (default: the node's title) |
+| `ports` | `false` for none, or per neighbour id: `false` (leave it out), `{side, at}` (`at` from 0 to 1 along the side), `{x, y, w, h}`, `{info}` |
+| `mark` | `false` leaves out the ⊕ |
+
+**Ports.** Each link of the figure that ends on the node becomes a port on the inner diagram's edge: a dashed pill named after the neighbour, with id `'@' + neighbour id`, on the side the link enters by, spread in the order of the links. Link it like any node (`from: ['@api', 'right']`). Ports are made before `draw` runs, so leave a margin of about 170 units on the sides that have them. A port of a port keeps its name: inside a level, the port of `@db` is `@db` again.
+
+**Moving between levels.** The trail of levels (`nav.ed-crumbs`, put before the figure) shows a hint at the top level and, inside, Back and the path; each part is a button that goes back to that level. Escape goes up one level (after releasing a pinned tooltip). Focus moves into the inner diagram when it opens and back to the node when it closes. A node with `info` shows it on hover, the click opens. Reduced motion jumps.
+
+| Call | Effect |
+| --- | --- |
+| `d.open(id)`, `d.close()` | Open a node of this level, close what is open below this level |
+| `d.go('a/b')` or `d.go(['a', 'b'])` | Open that path at once, `''` back to the top |
+| `d.path()` | The ids open below this level, e.g. `['broker', 'topics']` |
+| `EdgeDiagram.go(svgId, 'a/b')` | The same for a figure by its id; with `shot.sh`, the js argument shoots a level: `shot.sh page.html out.png light 1280 'EdgeDiagram.go("shop","orders/payments")'` |
+
+`create(svg, {hash: true})`, with an svg id, keeps the open level in the address (`#shop/orders/payments`) and opens it on load. `create(svg, {crumbs: false})` leaves the trail out; `{crumbs: element}` fills that element instead; `{crumbs: {home, hint}}` renames the top level and the hint. Every level shares the figure's options (`icons`, `debug`).
+
+**Check.** Each inner diagram is checked as a figure of its own (`shot.sh --check` counts it). The parent's check adds a port with no link inside the level, and a ⊕ on the node's text. When printed, the top level is shown. `templates/drill.html` is a complete example, three levels deep.
+
 ### `d.check()`: the layout check
 
 Returns a list of problems, checked at every step with what is visible at that step:

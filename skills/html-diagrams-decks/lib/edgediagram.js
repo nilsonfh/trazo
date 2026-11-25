@@ -1,4 +1,4 @@
-/* EdgeDiagram v1.4.1 — declarative, animated SVG diagrams for single-file HTML pages and decks.
+/* EdgeDiagram v1.5.0 — declarative, animated SVG diagrams for single-file HTML pages and decks.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('svc', {x, y, w, h, label: 'SERVICE'});
@@ -71,7 +71,7 @@
   var still = (function (v, m) { if (v == null && m) v = m[1] == null ? true : +m[1];
     return v == null || v === false ? null : v === true ? 'end' : +v; })(global.TRAZO_STATIC, /[?&]static(?:=(\d+))?(?:&|$)/.exec(global.location ? global.location.search : ''));
   var reduce = still != null || (global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.4.1', FIRED = 3.6;   // a fired transition's width
+  var UID = 0, REG = [], ISSUES = {}, VERSION = '1.5.0', FIRED = 3.6;   // a fired transition's width
 
   var CSS = [
     '.ed-root{--_ink:var(--ed-ink,#15201d);--_ink2:var(--ed-ink2,#3f4f4a);--_muted:var(--ed-muted,#5a6963);',
@@ -130,6 +130,24 @@
     '.ed-llabel-bg.on-accent{fill:var(--_accent-soft)}.ed-llabel-bg.on-add{fill:var(--_add-soft)}.ed-llabel-bg.on-p3{fill:var(--_p3-soft)}',
     '.ed-lane .ed-lhead{fill:var(--_surface);stroke:var(--_rule)}.ed-lane .ed-ltitle{font-size:15px}',
     '.ed-debug rect{fill:none;stroke:#e0102f;stroke-width:2;stroke-dasharray:5 3}',
+    /* drill-down: the mark on a node that opens, the inner diagram over the zoomed frame, the trail of levels */
+    '.ed-badge circle{fill:var(--_surface);stroke:var(--_accent);stroke-width:1.4}.ed-badge path{fill:none;stroke:var(--_accent);stroke-width:1.7;stroke-linecap:round}',
+    '.ed-node.ed-drillable:hover .ed-shape{stroke-width:2.4}',
+    '.ed-root.ed-zoomed{overflow:hidden}',
+    '.ed-host{position:relative}',
+    '.ed-root.ed-drilled>g{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .35s .15s,visibility 0s .5s}',
+    '.ed-inner{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:0 0;opacity:0;visibility:hidden;pointer-events:none;',
+    'transition:opacity .3s .15s,transform .65s cubic-bezier(.65,0,.35,1),visibility 0s .65s}',
+    '.ed-inner.ed-open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .3s .2s,transform .65s cubic-bezier(.65,0,.35,1)}',
+    '.ed-inner.ed-probe{opacity:1!important;visibility:visible!important;transition:none!important}',
+    '.ed-inner:focus{outline:none}',
+    '.ed-node.ed-port .ed-title{font-weight:500}',
+    '.ed-crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;min-height:28px;margin:0 0 6px;font:13px/1.4 var(--ed-sans,"IBM Plex Sans",system-ui,sans-serif);color:var(--ed-muted,#5a6963)}',
+    '.ed-crumbs button{font:inherit;color:var(--ed-accent,#2456a4);background:none;border:0;padding:2px 4px;border-radius:4px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}',
+    '.ed-crumbs button:focus-visible{outline:2px solid var(--ed-accent,#2456a4)}',
+    '.ed-crumbs .ed-back{text-decoration:none;font-weight:600}.ed-crumbs [aria-current]{color:var(--ed-ink,#15201d);font-weight:600}',
+    '@media (prefers-reduced-motion:reduce){.ed-root>g,.ed-inner{transition:none!important}}',
+    '@media print{.ed-inner,.ed-crumbs{display:none}.ed-root.ed-drilled>g{opacity:1;visibility:visible}}',
     '@media (prefers-reduced-motion:reduce){.ed-root .ed-item>*{transition:none!important}}',
     '@media (forced-colors:active){.ed-node .ed-shape,.ed-zone .ed-zshape,.ed-link path.ed-wire{stroke:CanvasText}',
     '.ed-pkt,.ed-arrow{fill:Highlight}.ed-tip{border:1px solid CanvasText}}'
@@ -159,13 +177,19 @@
   var installed = false;
   function install() {
     if (installed) return; installed = true;
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') clearAll(); });
+    document.addEventListener('keydown', function (e) {   // Escape releases a pinned tooltip, else goes up a level
+      if (e.key !== 'Escape') return;
+      var pinnedAny = REG.some(function (r) { return r.pinned(); });
+      clearAll();
+      if (!pinnedAny && OPEN.length) OPEN[OPEN.length - 1].close();
+    });
     document.addEventListener('click', function () { clearAll(); });
     var re = function () { REG.forEach(function (r) { r.reposition(); }); };
     global.addEventListener('scroll', re, true); global.addEventListener('resize', re);
     document.addEventListener('visibilitychange', function () { REG.forEach(function (r) { r.wake(); }); });
   }
   function clearAll() { REG.forEach(function (r) { r.clear(); }); }
+  var OPEN = [], ROOTS = {};   // the levels open now, the last the deepest; the figures that drill, by svg id
   function infoText(info) { return typeof info === 'string' ? info : (info && info.text) || ''; }
 
   /* ---------- geometry ---------- */
@@ -1191,7 +1215,8 @@
       if (current) current.el.removeAttribute('aria-describedby');
       current = null; clearHot();
     }
-    REG.push({clear: function () { clearFocus(true); }, reposition: function () { if (current && !tip.hidden) placeTip(current.el); }, wake: ensureLoop});
+    REG.push({pinned: function () { return !!pinned; }, clear: function () { clearFocus(true); }, wake: ensureLoop,
+      reposition: function () { if (current && !tip.hidden) placeTip(current.el); if (drilled && drills[drilled].el) place(drills[drilled].el); }});
 
     api.bindFocus = function () {
       relayout();
@@ -1201,6 +1226,7 @@
         g.addEventListener('pointerleave', function (e) { if (e.pointerType !== 'touch') clearFocus(false); });
         g.addEventListener('focus', function () { if (!pinned) focusOn(kind, id); });
         g.addEventListener('blur', function () { clearFocus(false); });
+        if (kind === 'node' && drills[id]) return;   // it opens on click and Enter (drill below); its info shows on hover
         g.addEventListener('click', function (e) {
           e.stopPropagation();
           if (pinned === key) { clearFocus(true); return; }
@@ -1216,6 +1242,226 @@
       return api;
     };
     api.clearFocus = function () { clearFocus(true); };
+
+    /* ---------- drill-down: a node with {drill: {draw(s), view, title, ports}} opens into its inner diagram.
+       The inner diagram is an EdgeDiagram of its own, in an <svg> the size of the figure laid over it (the
+       figure is wrapped in a div.ed-host for that); opening zooms the figure's view to a frame around the node,
+       the shape of the view, fades the figure out and grows the inner diagram from that frame to the whole.
+       Every level is drawn at the figure's own scale, so text measures as it does at the top. Each link of the figure that ends on the node becomes a port on the inner
+       diagram's edge, a node named '@' + the neighbour's id, on the side the link enters by. ---------- */
+    var drills = {}, drilled = null, parentLevel = options._parent || null, crumbs = null, hashRead = false, buildQueued = false, host = null;
+    function viewOf(v) { if (!v) return null; v = (Array.isArray(v) ? v : String(v).trim().split(/[\s,]+/)).map(Number); return {x: v[0], y: v[1], w: v[2], h: v[3]}; }
+    function setView(r) { svg.setAttribute('viewBox', [r.x, r.y, r.w, r.h].map(function (n) { return Math.round(n * 100) / 100; }).join(' ')); }
+    function nowView() { return viewOf(svg.getAttribute('viewBox')) || (function () { var r = svg.getBoundingClientRect(); return {x: 0, y: 0, w: r.width, h: r.height}; })(); }
+    var tweens = 0;   // a newer zoom stops the one before it
+    function tween(from, to, instant, done) {
+      if (instant) ++tweens;
+      if (instant || reduce || !global.requestAnimationFrame) { setView(to); if (done) done(); return; }
+      var t0 = null, dur = 650, over = false, me = ++tweens;
+      function end() { if (over) return; over = true; if (me === tweens) { setView(to); if (done) done(); } }
+      function frame(ts) {
+        if (over || me !== tweens) return;
+        if (t0 == null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+        setView({x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e, w: from.w + (to.w - from.w) * e, h: from.h + (to.h - from.h) * e});
+        if (k < 1) global.requestAnimationFrame(frame); else end();
+      }
+      global.requestAnimationFrame(frame);
+      setTimeout(end, dur + 150);   // a page in the background gets no frames: it still ends where it should
+    }
+    function nameOfNode(id) { var n = nodes[id]; return n ? (n.o.title || n.o.label || id) : id; }
+    function markDrill(id) {
+      if (drills[id]) return;
+      var n = nodes[id], o = n.o.drill;
+      if (typeof o === 'function') o = {draw: o};
+      if (!o || typeof o.draw !== 'function') throw new Error('EdgeDiagram: node ' + id + ' needs drill.draw(s)');
+      drills[id] = {id: id, o: o, title: o.title || nameOfNode(id), sub: null, el: null};
+      n.el.classList.add('ed-drillable');
+      if (o.mark !== false) {   // a plus in a ring, in the node's top right corner
+        var r = 7, cx = n.x + n.w - r - 5, cy = n.y + r + 5;
+        var b = el('g', {'class': 'ed-badge', 'aria-hidden': 'true', 'data-route': 'free'}, n.el);
+        el('circle', {cx: cx, cy: cy, r: r}, b);
+        el('path', {d: 'M' + (cx - 3.4) + ' ' + cy + 'H' + (cx + 3.4) + 'M' + cx + ' ' + (cy - 3.4) + 'V' + (cy + 3.4)}, b);
+        drills[id].badge = {x: cx - r, y: cy - r, w: 2 * r, h: 2 * r};
+      }
+      var g = n.el;
+      g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button'); g.setAttribute('aria-expanded', 'false');
+      g.setAttribute('aria-label', drills[id].title + '. Opens its inner diagram' + (n.o.info ? '. ' + infoText(n.o.info) : ''));
+      g.addEventListener('click', function (e) { e.stopPropagation(); api.open(id); });
+      g.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); api.open(id); }
+      });
+      if (!buildQueued) { buildQueued = true; Promise.resolve().then(buildDrills); }   // once the page's script has declared the links
+    }
+    var nodeCall = api.node;
+    api.node = function (id, o) { var r = nodeCall(id, o); if (o && o.drill && nodes[id] && !held) markDrill(id); return r; };
+
+    function frameOf(n) {   // the figure's view shape, around the node, holding it
+      var V = nowView(), a = V.w / V.h, w = Math.max(n.w, n.h * a) * 1.04, h = w / a;
+      return {x: n.x + n.w / 2 - w / 2, y: n.y + n.h / 2 - h / 2, w: w, h: h};
+    }
+    function portsOf(id) {   // the figure's links that end on the node: one port per neighbour and side
+      var out = [], seen = {};
+      nodes[id].links.forEach(function (lid) {
+        var L = links[lid], out0 = L.from === id, nb = out0 ? L.to : L.from, side = out0 ? L.s0 : L.s1;
+        var key = nb.replace(/^@+/, '');   // a port one level up stays the same port: '@db', not '@@db'
+        if (nb === id || seen[key]) return; seen[key] = 1;
+        var other = nodes[nb];
+        if (other && other.o.ghost) return;   // a junction of a fan, not a part
+        out.push({nb: key, side: side, name: nameOfNode(nb), t: out0 ? L.t0 : L.t1});
+      });
+      return out;
+    }
+    function addPorts(D, s, V) {
+      var given = D.o.ports || {}, bySide = {};
+      portsOf(D.id).forEach(function (p) {
+        var g = given[p.nb]; if (g === false) return;
+        if (g && g.side) p.side = g.side;
+        (bySide[p.side] = bySide[p.side] || []).push(p); p.g = g || {};
+      });
+      Object.keys(bySide).forEach(function (side) {
+        var list = bySide[side], horiz = side === 'top' || side === 'bottom';
+        list.sort(function (a, b) { return (a.t || 0.5) - (b.t || 0.5); });
+        list.forEach(function (p, i) {
+          var w = p.g.w || 150, h = p.g.h || 32, at = p.g.at != null ? p.g.at : (i + 1) / (list.length + 1), m = 14;
+          var x = side === 'left' ? V.x + m : side === 'right' ? V.x + V.w - m - w : V.x + V.w * at - w / 2;
+          var y = side === 'top' ? V.y + m : side === 'bottom' ? V.y + V.h - m - h : V.y + V.h * at - h / 2;
+          if (p.g.x != null) x = p.g.x; if (p.g.y != null) y = p.g.y;
+          s.node('@' + p.nb, {x: x, y: y, w: w, h: h, shape: 'pill', align: 'center', title: p.name, dashed: true,
+            info: p.g.info || 'Outside this block: ' + p.name + ', one level up.', _port: side});
+          s.items['@' + p.nb].el.classList.add('ed-port');
+          (D.ports = D.ports || []).push('@' + p.nb);
+        });
+      });
+    }
+    function rootSvg() { return parentLevel ? parentLevel.root : svg; }
+    function hostOf() {   // the div the inner diagrams are laid in, around the figure
+      if (parentLevel) return parentLevel.host;
+      if (!host) {
+        host = document.createElement('div'); host.className = 'ed-host';
+        svg.parentNode.insertBefore(host, svg); host.appendChild(svg);
+      }
+      return host;
+    }
+    function place(e) {   // over the figure, wherever it sits in its host (a min-width wider than the host)
+      var h = hostOf(), H = h.getBoundingClientRect(), R = rootSvg().getBoundingClientRect();
+      if (!H.width || !H.height) return;
+      e.style.left = ((R.left - H.left) / H.width * 100) + '%'; e.style.top = ((R.top - H.top) / H.height * 100) + '%';
+      e.style.width = (R.width / H.width * 100) + '%'; e.style.height = (R.height / H.height * 100) + '%';
+    }
+    function shrunk(D) {   // the inner diagram where the node's frame is in the view it opens from
+      var f = D.frame, V = D.home;
+      return 'translate(' + ((f.x - V.x) / V.w * 100) + '%,' + ((f.y - V.y) / V.h * 100) + '%) scale(' + (f.w / V.w) + ')';
+    }
+    function setTransform(e, t, instant) {
+      if (instant || reduce) { e.style.transition = 'none'; e.style.transform = t; e.getBoundingClientRect(); e.style.transition = ''; }
+      else e.style.transform = t;
+    }
+    function buildDrills() {
+      relayout();
+      Object.keys(drills).forEach(function (id) { if (!drills[id].sub) buildDrill(drills[id]); });
+      if (!parentLevel) {
+        if (svg.id && Object.keys(drills).length) ROOTS[svg.id] = api;
+        if (!crumbs && Object.keys(drills).length && options.crumbs !== false) makeCrumbs();
+        renderCrumbs();
+        if (!hashRead) { hashRead = true; readHash(); }
+      }
+    }
+    function buildDrill(D) {
+      var n = nodes[D.id], f = frameOf(n), V = viewOf(D.o.view) || {x: 0, y: 0, w: 960, h: Math.round(960 * f.h / f.w)};
+      var sid = (svg.id || 'ed' + self) + '-' + D.id;
+      var s = el('svg', {'class': 'ed-inner', id: sid, tabindex: '-1', role: 'img',
+        viewBox: [V.x, V.y, V.w, V.h].join(' '), preserveAspectRatio: 'xMidYMid meet', 'aria-label': D.title}, hostOf());
+      D.el = s; D.frame = f;
+      D.sub = create(s, Object.assign({}, options, {_parent: {api: api, id: D.id, host: hostOf(), root: rootSvg()}, crumbs: false, hash: false, title: D.title}));
+      if (D.o.ports !== false) addPorts(D, D.sub, V);
+      D.o.draw(D.sub);
+      D.sub.bindFocus();
+    }
+    function changed() { if (parentLevel) parentLevel.api._changed(); else { renderCrumbs(); writeHash(); } }
+    api._changed = changed;
+    api._drill = function () { return drilled ? drills[drilled] : null; };
+    api._linksOf = function (id) { return nodes[id] ? nodes[id].links.slice() : []; };
+    api._drills = drills;
+    api.open = function (id, instant) {
+      if (!drills[id]) throw new Error('EdgeDiagram: node ' + id + ' does not drill');
+      buildDrills();
+      if (drilled === id) return api;
+      if (drilled) api.close(true);
+      var D = drills[id], n = nodes[id];
+      clearFocus(true); clearAll();
+      D.home = nowView(); drilled = id;
+      place(D.el); setTransform(D.el, shrunk(D), true);
+      svg.classList.add('ed-zoomed', 'ed-drilled'); D.el.classList.add('ed-open');
+      setTransform(D.el, 'none', instant);
+      n.el.setAttribute('aria-expanded', 'true');
+      OPEN.push(api);
+      tween(D.home, D.frame, instant, function () { if (!instant) try { D.el.focus({preventScroll: true}); } catch (e) { /* old browsers */ } });
+      changed();
+      return api;
+    };
+    api.close = function (instant) {
+      if (!drilled) return api;
+      var D = drills[drilled], n = nodes[drilled];
+      if (D.sub._drill()) D.sub.close(true);
+      drilled = null;
+      var k = OPEN.indexOf(api); if (k >= 0) OPEN.splice(k, 1);
+      svg.classList.remove('ed-drilled'); D.el.classList.remove('ed-open');
+      setTransform(D.el, shrunk(D), instant);
+      n.el.setAttribute('aria-expanded', 'false');
+      tween(nowView(), D.home, instant, function () { if (!drilled) svg.classList.remove('ed-zoomed'); });
+      if (!instant) try { n.el.focus({preventScroll: true}); } catch (e) { /* old browsers */ }
+      changed();
+      return api;
+    };
+    api.path = function () { var D = api._drill(); return D ? [D.id].concat(D.sub.path()) : []; };
+    api.go = function (path, instant) {   // a path of node ids, as an array or 'a/b'; [] or '' is this level
+      if (typeof path === 'string') path = path.split('/').filter(Boolean);
+      buildDrills();
+      if (!path.length) return api.close(instant !== false);
+      if (drilled !== path[0]) api.open(path[0], instant !== false);
+      drills[path[0]].sub.go(path.slice(1), instant);
+      return api;
+    };
+    function makeCrumbs() {
+      crumbs = options.crumbs && options.crumbs.nodeType ? options.crumbs : document.createElement('nav');
+      crumbs.classList.add('ed-crumbs'); crumbs.setAttribute('aria-label', 'Diagram levels');
+      var h = hostOf();
+      if (!crumbs.parentNode) h.parentNode.insertBefore(crumbs, h);
+    }
+    function renderCrumbs() {
+      if (!crumbs) return;
+      var co = typeof options.crumbs === 'object' && !options.crumbs.nodeType ? options.crumbs : {};
+      var chain = [{name: co.home || options.title || 'Overview', level: api}], lv = api;
+      while (lv._drill()) { var D = lv._drill(); chain.push({name: D.title, level: D.sub}); lv = D.sub; }
+      crumbs.textContent = '';
+      if (chain.length === 1) {
+        var hint = document.createElement('span');
+        hint.textContent = co.hint || 'Click a block marked ⊕ to open it.'; crumbs.appendChild(hint); return;
+      }
+      function button(text, cls, fn) {
+        var b = document.createElement('button'); b.type = 'button'; b.textContent = text; if (cls) b.className = cls;
+        b.addEventListener('click', function (e) { e.stopPropagation(); fn(); }); crumbs.appendChild(b); return b;
+      }
+      var up = chain[chain.length - 2].level;
+      button('← Back', 'ed-back', function () { up.close(); }).setAttribute('aria-label', 'Back to ' + chain[chain.length - 2].name);
+      chain.forEach(function (c, i) {
+        if (i) { var sep = document.createElement('span'); sep.setAttribute('aria-hidden', 'true'); sep.textContent = '›'; crumbs.appendChild(sep); }
+        if (i < chain.length - 1) button(c.name, null, function () { c.level.close(); });
+        else { var cur = document.createElement('span'); cur.textContent = c.name; cur.setAttribute('aria-current', 'location'); crumbs.appendChild(cur); }
+      });
+    }
+    // {hash: true} and an svg id: the open level is in the address (#fig/broker/retention), and opens on load
+    function writeHash() {
+      if (!options.hash || !svg.id || !global.history || !global.history.replaceState) return;
+      var p = api.path(), h = p.length ? '#' + svg.id + '/' + p.join('/') : '';
+      if (h !== global.location.hash) global.history.replaceState(null, '', h || global.location.pathname + global.location.search);
+    }
+    function readHash() {
+      if (!options.hash || !svg.id) return;
+      var h = decodeURIComponent(global.location.hash || ''), pre = '#' + svg.id + '/';
+      if (h.indexOf(pre) === 0) try { api.go(h.slice(pre.length), true); } catch (e) { if (global.console) console.warn('[EdgeDiagram] ' + e.message); }
+    }
 
     /* ---------- steps: step 0 is the resting state; label sN is the state after step N ---------- */
     api.steps = function (list, opt) {
@@ -1538,6 +1784,7 @@
     function collect() {
       if (options.check === false) return [];   // a figure whose own timeline swaps overlapping items
       relayout();
+      if (Object.keys(drills).length) buildDrills();
       var out = [], seen = {}, fixes = {}, name = svg.id ? '#' + svg.id : 'svg';
       function add(msg, box, step) {
         if (seen[msg]) return; seen[msg] = 1;
@@ -1647,8 +1894,22 @@
           });
         });
       });
-      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page
-      if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
+      Object.keys(drills).forEach(function (id) {   // drill-down: every port linked inside, the mark clear of the node's text
+        var D = drills[id];
+        (D.ports || []).forEach(function (pid) {
+          if (D.sub && !D.sub._linksOf(pid).length) add('port ' + pid + ' of node ' + id + "'s inner diagram has no link inside it: link it, or leave it out with drill.ports", null);
+        });
+        if (D.badge) [].forEach.call(nodes[id].el.querySelectorAll('text'), function (t) {
+          var b = bboxOf(t); if (b && b.w && inter(b, D.badge, 0)) add('the drill mark of node ' + id + ' is on its text "' + t.textContent + '": make the node wider, or {drill: {mark: false}}', D.badge);
+        });
+      });
+      // contrast in both themes, wires over text, wires run together: lib/edgesketch.js, when it is on the page;
+      // an inner diagram, hidden until its node is opened, is shown for the while
+      var probe = svg.classList.contains('ed-inner') && !svg.classList.contains('ed-open');
+      if (probe) svg.classList.add('ed-probe');
+      try {
+        if (global.EdgeSketch && global.EdgeSketch.paint) global.EdgeSketch.paint(svg, name).forEach(function (i) { if (!seen[i.msg]) { seen[i.msg] = 1; out.push(i); } });
+      } finally { if (probe) svg.classList.remove('ed-probe'); }
       return out;
     }
     api.check = function () { return collect().map(function (i) { return i.msg; }); };
@@ -1684,6 +1945,8 @@
     pre.setAttribute('data-diagrams', keys.length);
   }
 
-  global.EdgeDiagram = {create: create, route: route, clearAll: clearAll, version: VERSION,
+  // EdgeDiagram.go('fig', 'broker/retention'): open a figure's level, at once (for a link, or shot.sh's js); '' goes back to the top
+  function go(id, path) { var d = ROOTS[id]; if (!d) throw new Error('EdgeDiagram.go: no figure #' + id + ' that drills'); return d.go(path || ''); }
+  global.EdgeDiagram = {create: create, route: route, clearAll: clearAll, go: go, version: VERSION,
     issues: function () { var out = []; Object.keys(ISSUES).forEach(function (k) { out = out.concat(ISSUES[k]); }); return out; }};
 })(window);

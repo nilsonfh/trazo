@@ -1,4 +1,4 @@
-/* EdgeSketch v1.4.1 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
+/* EdgeSketch v1.5.0 — helpers for SVG figures drawn by hand, and a layout check for any SVG.
  *
  *   var s = EdgeSketch.create(svg, {icons: window.EDGE_ICONS});
  *   s.zone(0, 0, 400, 300, {label: 'SERVICE'});
@@ -51,7 +51,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.4.1', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted', 'ink'];
 
   var CSS = [

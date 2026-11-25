@@ -53,6 +53,6 @@ g.actor('a', {title: 'A'}).actor('b', {title: 'B'}).self('s', {at: 'b', label: '
 g.render();
 var gc = g.check();
 if (gc.length) bad.push('a self call on the last actor: ' + gc.join(' / '));
-if (EdgeSequence.version !== '1.4.1') bad.push('version');
+if (EdgeSequence.version !== '1.5.0') bad.push('version');
 document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
 </script>
