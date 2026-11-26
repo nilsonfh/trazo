@@ -393,18 +393,41 @@ The lane titles take a column on the left (`labelW`) and the time axis the rest 
 | --- | --- |
 | `t.band(id, {title})` | A layer behind a group of lanes, its title in small capitals above them. A lane's `band` that is not defined yet is created with its id as the title |
 | `t.lane(id, o)` | A row. `title`, `sub` (a second, smaller line), `icon`, `band`, `h` (its height, else `row`), `info` (hovering it lights its items) |
-| `t.bar(id, o)` | A bar on `lane` from `start` to `end`. `label` goes inside when it fits and beside it when not, on the side clear of other bars, labels and arrows (`labelPos: 'inside'`, `'right'`, `'left'` choose). `tone` (`neutral`, `accent`, `add`, `gap`, `p3`, `muted`; `p3` and `muted` are dashed), `progress` (0 to 1, a fill from the left), `planned: true` (dashed, on the surface), `info`, `caption` and `with` (item steps) |
-| `t.milestone(id, o)` | A diamond on `lane` `at` a time, its `label` beside it. `tone` (default `neutral`), `line: true` (a dashed line across every lane, for a gate), `size` (8), `info`, `caption`, `with` |
-| `t.phase(id, o)` | A strip above the lanes from `start` to `end`, and a soft column behind the lanes in `lanes` (all by default). `label`, `tone`, `caption`, `info`. Overlapping phases take separate rows |
-| `t.dep(id, {from, to, info})` | Finish to start: an arrow from the end of a bar or milestone to the start of another. It runs straight in a lane; between lanes it goes out, down at the first column that crosses no bar, and in; when the target starts too soon for that, it runs along the boundary between lanes and comes back. Corners are rounded |
+| `t.bar(id, o)` | A bar on `lane` from `start` to `end`, or with a `dur` and `after` instead (see Plans below). `label` goes inside when it fits and beside it when not, on the side clear of other bars, labels and arrows (`labelPos: 'inside'`, `'right'`, `'left'` choose). `tone` (`neutral`, `accent`, `add`, `gap`, `p3`, `muted`; `p3` and `muted` are dashed), `progress` (0 to 1, a fill from the left), `planned: true` (dashed, on the surface), `info`, `caption` and `with` (item steps) |
+| `t.milestone(id, o)` | A diamond on `lane` `at` a time (or `after` items: on the last day of the latest), its `label` beside it. `tone` (default `neutral`), `line: true` (a dashed line across every lane, for a gate), `size` (8), `info`, `caption`, `with` |
+| `t.phase(id, o)` | A strip above the lanes from `start` to `end` (or `over: [ids]`: from the first of those items to the last), and a soft column behind the lanes in `lanes` (all by default). `label`, `tone`, `caption`, `info`. Overlapping phases take separate rows |
+| `t.task(id, o)` | A lane of its own, titled `title`, with one bar on it (dates or a `dur`) or, with neither, one milestone (`at`, or `after`). The lane's `sub`, `icon`, `band` and `h` are taken from `o`; the bar shows no label (the lane is its title) unless `barLabel`. The lane's id is `id + '.lane'` |
+| `t.update(id, o)` | Changes an item's options (dates, `dur`, `lag`, `progress`, `baseline`, `tone` ...; not its lane or what it comes after) and draws it again at the next `render` or `steps`; a refused change leaves the item as it was. After `steps`, call `render()` then `ctl.go(ctl.step)` |
+| `t.schedule()` | The plan as worked out: `{items: {id: {start, end, dur, lateStart, lateEnd, slack, critical}}, critical: [ids], finish, cycle}`. Dates as an item takes them (`'YYYY-MM-DD'`, an end inclusive; numbers on an abstract axis); a milestone has `at` for `start`; `slack` and `dur` are in working days with a calendar, else days (or the axis's units) |
+| `t.dep(id, {from, to, type, lag, info})` | Finish to start (`type` `SS`, `FF` or `SF` for the others, `lag` a duration, negative to overlap): an arrow from the end of a bar or milestone to the start of another. It runs straight in a lane; between lanes it goes out, down at the first column that crosses no bar, and in; when the target starts too soon for that, it runs along the boundary between lanes and comes back. Corners are rounded |
 | `t.steps(list, o)` returns `ctl` | With no list and some phases, step 0 shows the axis and the lanes and each later step one phase with the bars and milestones that start in it; with `o.by: 'item'` or no phases, one step per bar or milestone in time order (`with: true` joins the step before). A list is `[{show: [ids], caption}, ...]`. A dependency shows with the later of its ends. The items of the current step are drawn thicker; forward steps grow the bars from their start and draw the arrows, back steps jump. `o.onStep(k, step, ctl)` (ctl is passed because the first call comes before `steps` returns), `o.start` (a number or `'end'`), `o.caption0`. `ctl` has `next`, `prev`, `go(k)`, `end`, `step`, `count`, `steps` and `timeline` (with GSAP: a paused timeline with labels `s0..sN` and `onStep`, for an EdgeDeck build) |
 | `t.render()`, `t.check()` | Draw now; the layout check, returning the problems |
 
 `create` options: `start`, `end` (required), `unit`, `today` (a line down the lanes, labelled at its foot; `todayLabel`), `labelW` (170), `row` (lane height, 40), `barH` (22), `margin` (16), `right` (room right of the axis, 8), `tiers: 1` (no upper tier), `tickFormat(date or number)` and `upperFormat(date)` (the tiers' labels), `format(t0, t1)` (the span in tooltips, given in the axis's numbers: days since 1970 for dates, `t1` left out for a milestone), and, for abstract units, `prefix` (else `W`, `S`, `M`, `Q` ... from `unit`), `first` (the first cell's number, 1), `every` (units per cell, 1) and `upper: {every, prefix | label(i)}` (an upper tier), `debug`.
 
+**Plans.** A bar can take a duration instead of an end, and the items it waits for instead of a start, and the library works out its dates when it draws:
+
+```js
+var t = EdgeTimeline.create(svg, {start: '2027-03-01', end: '2027-07-31', unit: 'week', critical: true,
+  calendar: {workdays: 'mon-fri', holidays: ['2027-03-26', '2027-05-31']}});
+t.task('research', {title: 'User research', band: 'DISCOVER', start: '2027-03-01', dur: '2w'})
+ .task('api', {title: 'Backend API', band: 'BUILD', dur: '6w', after: 'research'})
+ .task('pay', {title: 'Payments', band: 'BUILD', dur: '3w', after: {id: 'api', type: 'SS', lag: '2w'}})
+ .task('launch', {title: 'Launch', band: 'SHIP', after: ['api', 'pay'], line: true});
+t.schedule().finish;   // '2027-04-26': research, then the API, are the critical path; payments have 5 days of slack
+```
+
+- `dur`: `'15d'` days, `'4w'` weeks, `'2m'` months (30.44 days), or a number of days (of units, on an abstract axis). With a calendar they are working days: `'4w'` is 20 of them on a five-day week, `'2m'` about 43.
+- `after`: an id, a list, or `{id, type, lag}` entries; the bar's `type` and `lag` apply to the entries that give none. Each makes a dependency `from + '>' + to`, drawn like any other. `type`: `FS` (default: it starts when the other ends), `SS` (starts when it starts), `FF` (ends when it ends), `SF` (ends when it starts); `lag` a duration, negative to overlap. SS arrows run left of both bars, FF arrows right of both.
+- A bar with `after` and no `start` starts as early as all of them allow; with neither, at the axis's start. `start` with a `dur` fixes the start (a dependency it cannot meet is a check issue); `end` with a `dur` fixes the end and works back. `start` and `end` fix both, as before; dependencies that reach them still count.
+- `calendar`: `'mon-fri'` (also `'lun-vie'`, `'mon,wed,fri'` or `[1, 2, 3, 4, 5]`, Sunday 0) or `{workdays, holidays}`; `holidays` (also a top-level option) a list or a comma-separated string of dates. Starts move on to the next working day, and bars run across weekends and holidays, which still show in their length. A calendar needs a date axis.
+- `critical: true` works out, after the earliest dates, the latest each item could have without moving the plan's end: the difference is its slack, drawn as a thin line with a tick after the bar (`slack: false` leaves it out), and the items with none are the critical path, drawn in `--ed-crit` (else the theme's `gap` tone) with the dependencies that drive them. The tooltip adds the slack or "critical"; the description names the path and the end.
+- `baseline: {start, end}` (or `'2027-03-15 .. 2027-03-31'`) on a bar draws where it was planned as a thin bar under it; the tooltip adds the baseline and the variance at the end ("+3 working days late").
+- A plan is one task per row as in most planners: `t.task` makes the lane and the bar together, the lane title naming it.
+
 Items with `info` are focusable. Hovering or focusing one dims the rest but its dependencies and their other ends (a phase keeps what it spans, a lane its items) and shows a tooltip with the info, the dates, the progress and what it waits for; `info` can be `{text, facts: [[key, value]]}`. A click, Enter or space pins it; Escape or a click elsewhere releases it. `EdgeTimeline.clearAll()` releases every tooltip; EdgeDeck calls it on every slide change.
 
-The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or crossing a bar, an item outside the time axis, a phase label wider than its phase, and text on text or outside the viewBox, and with `lib/edgesketch.js` on the page adds `EdgeSketch.paint` (contrast, wires through text, wires run together). With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
+The check finds a lane title running into the chart, a label overflowing its bar or running out of the chart, a beside label on another item or crossed by an arrow, bars overlapping in a lane, a dependency pointing backward in time (its target starts before its source ends) or not met (a fixed date earlier than an `SS`, `FF`, `SF` or lagged dependency allows) or crossing a bar, dependencies in a cycle, an item or a baseline outside the time axis (with the worked-out dates, to widen it), a phase label wider than its phase, and text on text or outside the viewBox, and with `lib/edgesketch.js` on the page adds `EdgeSketch.paint` (contrast, wires through text, wires run together). With `window.ED_DEBUG` it runs once the fonts have loaded and writes into the shared `<pre id="ed-issues">`, so `scripts/shot.sh --check` covers timelines; EdgeSketch's check leaves them alone. `EdgeTimeline.version` is the version.
 ## EdgeMatrix (`lib/edgematrix.js`)
 
 Matrices and coverage maps: what covers what, in which state. `templates/matrix.html` is a complete example of both modes.
@@ -528,9 +551,12 @@ Without a viewBox, the svg is 190 units per participant wide (560 to 1200).
 | `band PRODUCT` | The lanes after it are in this band |
 | `lane API`, or `lane api[API \| platform team] {opts}` | A lane; the bars and milestones after it are on it |
 | `bar Schema 2027-01-15 .. 2027-03-10 {progress: 1}` | A bar; its label is everything before the dates. `bar id[Label] ...` gives it an id |
-| `milestone Beta 2027-07-20 {tone: gap, line: true}` | A milestone |
-| `phase Design 2027-01 .. 2027-03 \| caption {tone: accent}` | A phase; the default steps go phase by phase (`timeline {by: item}`: item by item) |
-| `Schema -> Endpoints, Screens` | Dependencies, by label or id, after the items they join |
+| `bar Build 2027-02-01 15d`, `bar Build 4w after Design, API SS +2d` | A bar with a start and a `dur`, or a `dur` after other items (each with an optional type and lag); `after` may name items defined further down |
+| `milestone Beta 2027-07-20 {tone: gap, line: true}`, `milestone Beta after Build` | A milestone |
+| `task Design 2027-02-01 2w`, `task Launch after QA {line: true}` | A lane of its own with its bar or milestone (`t.task`), in the band above it |
+| `phase Design 2027-01 .. 2027-03 \| caption {tone: accent}`, `phase Build over API, App` | A phase; the default steps go phase by phase (`timeline {by: item}`: item by item) |
+| `Schema -> Endpoints, Screens {type: SS, lag: 2d}` | Dependencies, by label or id, after the items they join |
+| `timeline {critical: true, calendar: mon-fri, holidays: 2027-03-26, 2027-05-31}` | A plan's options on the header; a bar's `{baseline: 2027-03-15 .. 2027-03-31}` |
 
 ### `matrix`: EdgeMatrix
 

@@ -1,6 +1,6 @@
 [project]
 name = "trazo"
-version = "1.5.0"
+version = "1.6.0"
 description = "Architecture figures and slide decks as single HTML files, for people and their coding agents: an agent skill and its tools."
 readme = "README.md"
 license = "MIT"

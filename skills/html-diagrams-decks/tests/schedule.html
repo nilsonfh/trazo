@@ -1,0 +1,135 @@
+<!-- EdgeTimeline plans: durations and dependencies worked out into dates, working days, the critical path and slack, baselines, tasks, and the same written as text. Run with scripts/test.sh. -->
+<svg id="plan" viewBox="0 0 900 300" role="img" aria-label="a plan"></svg>
+<svg id="types" viewBox="0 0 900 300" role="img" aria-label="dependency types"></svg>
+<svg id="units" viewBox="0 0 700 200" role="img" aria-label="abstract units"></svg>
+<svg id="bad" viewBox="0 0 700 200" role="img" aria-label="broken"></svg>
+<svg id="txt" viewBox="0 0 900 300"></svg>
+<pre id="out"></pre>
+<script src="../lib/edgetimeline.js"></script>
+<script src="../lib/edgetext.js"></script>
+<script>
+var bad = [];
+function eq(got, want, what) { if (JSON.stringify(got) !== JSON.stringify(want)) bad.push(what + ': want ' + JSON.stringify(want) + ', got ' + JSON.stringify(got)); }
+function expect(list, want, what) {
+  want.forEach(function (w) { if (!list.some(function (m) { return m.indexOf(w) >= 0; })) bad.push(what + ': missing "' + w + '" in ' + JSON.stringify(list)); });
+}
+function throws(f, want, what) {
+  try { f(); bad.push(what + ': did not throw'); } catch (e) { if (e.message.indexOf(want) < 0) bad.push(what + ': ' + e.message); }
+}
+function rightAngles(pts) { for (var i = 1; i < pts.length; i++) if (pts[i][0] !== pts[i - 1][0] && pts[i][1] !== pts[i - 1][1]) return false; return true; }
+
+// a plan in working days: Monday to Friday, 9 Feb 2027 a holiday. 1 Feb 2027 is a Monday.
+var t = EdgeTimeline.create(document.getElementById('plan'), {start: '2027-02-01', end: '2027-02-28', unit: 'week',
+  calendar: {workdays: 'mon-fri', holidays: ['2027-02-09']}, critical: true});
+t.task('a', {title: 'Design', dur: '5d', start: '2027-02-01', band: 'Build', info: 'first'})
+ .task('b', {title: 'Build', dur: '3d', after: 'a', band: 'Build', info: 'second'})
+ .task('c', {title: 'Copy', dur: '1d', after: 'a', band: 'Build', baseline: '2027-02-04 .. 2027-02-05', info: 'third'})
+ .task('m', {title: 'Launch', after: ['b', 'c'], band: 'Ship', tone: 'gap', info: 'done'});
+var s = t.schedule();
+eq([s.items.a.start, s.items.a.end], ['2027-02-01', '2027-02-05'], 'five working days from a Monday');
+eq([s.items.b.start, s.items.b.end], ['2027-02-08', '2027-02-11'], 'after it, over the weekend and the holiday');
+eq([s.items.c.start, s.items.c.end, s.items.c.slack], ['2027-02-08', '2027-02-08', 2], 'a short branch has slack');
+eq(s.items.m.at, '2027-02-11', 'a milestone after two bars sits on the last day of the later');
+eq(s.critical, ['a', 'b', 'm'], 'the critical path');
+eq(s.finish, '2027-02-11', 'the plan ends');
+eq([s.items.c.lateStart, s.items.c.lateEnd], ['2027-02-11', '2027-02-11'], 'late dates');
+var c = t.check();
+if (c.length) bad.push('clean plan: ' + c.join(' / '));
+if (!t.items.a.g.classList.contains('crit') || t.items.c.g.classList.contains('crit')) bad.push('critical bars are marked crit, the others not');
+if (!t.items['a>b'].g.classList.contains('crit') || t.items['a>c'].g.classList.contains('crit')) bad.push('critical dependencies are marked crit');
+if (!t.items['a>b'].path.getAttribute('marker-end').match(/headc/)) bad.push('a critical dependency has its own arrowhead');
+if (!t.items.c.g.querySelector('.tl-slack') || t.items.b.g.querySelector('.tl-slack')) bad.push('slack is drawn after the bars that have it');
+if (!t.items.c.g.querySelector('.tl-base')) bad.push('a baseline is drawn under its bar');
+if (t.items.a.text) bad.push('a task bar has no label of its own: its lane is titled');
+if (!document.querySelector('#plan .tl-lane .tl-t') || document.querySelector('#plan .tl-lane .tl-t').textContent !== 'Design') bad.push('a task\'s lane takes its title');
+t.items.c.g.dispatchEvent(new Event('focus'));
+var tip = document.querySelector('#tl-tip-' + 1) || document.querySelector('.tl-tip:not([hidden])');
+var tx = document.querySelector('.tl-tip:not([hidden])') ? document.querySelector('.tl-tip:not([hidden])').textContent : '';
+['slack2 working days', 'afterDesign', 'baseline4 Feb 2027 – 5 Feb 2027', 'variance+1 working day late'].forEach(function (w) { if (tx.indexOf(w) < 0) bad.push('tooltip: no "' + w + '" in ' + tx); });
+t.items.c.g.dispatchEvent(new Event('blur'));
+var dsc = t.describe();
+if (dsc.indexOf('Critical path: Design, Build, Launch. The plan ends 11 Feb 2027.') < 0 || dsc.indexOf('Copy starts after Design ends') < 0) bad.push('description: ' + dsc);
+
+// update changes an item and the plan follows on the next render
+t.update('a', {dur: '6d'});
+eq([t.schedule().items.a.end, t.schedule().items.b.start], ['2027-02-08', '2027-02-10'], 'update: a day longer moves what follows');
+throws(function () { t.update('b', {after: 'c'}); }, 'cannot change after', 'update leaves the dependencies alone');
+throws(function () { t.update('b', {dur: 'x'}); }, 'is not a duration', 'a bad update');
+eq(t.schedule().items.b.end, '2027-02-12', 'a refused update leaves the item as it was');
+t.render();
+if (!t.items.b.g || !t.items.b.g.isConnected) bad.push('update: drawn again');
+
+// start to start, finish to finish, start to finish, lags, a phase over items, a fixed end
+var y = EdgeTimeline.create(document.getElementById('types'), {start: '2027-03-01', end: '2027-04-30', unit: 'week', critical: true});
+y.lane('l1', {title: 'One'}).lane('l2', {title: 'Two'}).lane('l3', {title: 'Three'}).lane('l4', {title: 'Four'}).lane('l5', {title: 'Five'});
+y.bar('p', {lane: 'l1', start: '2027-03-01', dur: '2w', label: 'Pour'})
+ .bar('q', {lane: 'l2', dur: '10d', after: {id: 'p', type: 'SS', lag: '3d'}, label: 'Quality'})
+ .bar('r', {lane: 'l3', dur: '4d', after: [{id: 'q', type: 'FF'}], label: 'Report'})
+ .bar('u', {lane: 'l4', dur: '5d', after: 'p', lag: '-2d', label: 'Overlap'})
+ .bar('v', {lane: 'l5', end: '2027-04-09', dur: '1w', label: 'Fixed end'})
+ .phase('ph', {over: ['p', 'r'], label: 'Works'});
+var z = y.schedule();
+eq([z.items.q.start, z.items.q.end], ['2027-03-04', '2027-03-13'], 'SS +3d');
+eq([z.items.r.start, z.items.r.end], ['2027-03-10', '2027-03-13'], 'FF: ends with it');
+eq(z.items.u.start, '2027-03-13', 'a negative lag overlaps');
+eq([z.items.v.start, z.items.v.end], ['2027-04-03', '2027-04-09'], 'a dur back from a fixed end');
+y.render();
+eq([y.items.ph.t0, y.items.ph.t1], [y.items.p.t0, y.items.p.t1], 'a phase over items spans them');
+var ss = y.items['p>q'].pts, ff = y.items['q>r'].pts;
+if (!rightAngles(ss) || ss[0][0] !== y.items.p.x0 || ss[ss.length - 1][0] !== y.items.q.x0 || ss[1][0] >= y.items.p.x0) bad.push('SS runs from start to start, left of both: ' + JSON.stringify(ss));
+if (!rightAngles(ff) || ff[0][0] !== y.items.q.x1 || ff[ff.length - 1][0] !== y.items.r.x1 || ff[1][0] <= y.items.q.x1) bad.push('FF runs from end to end, right of both: ' + JSON.stringify(ff));
+var yc = y.check();
+if (yc.length) bad.push('dependency types: ' + yc.join(' / '));
+
+// abstract units: a plan in weeks without dates
+var u = EdgeTimeline.create(document.getElementById('units'), {start: 0, end: 12, unit: 'week', critical: true});
+u.task('s1', {title: 'Sprint one', dur: 3}).task('s2', {title: 'Sprint two', dur: 3, after: 's1'}).task('doc', {title: 'Docs', dur: 2, after: 's1'})
+ .task('rel', {title: 'Release', after: ['s2', 'doc']});
+var w = u.schedule();
+eq([w.items.s2.start, w.items.s2.end, w.items.doc.slack, w.items.rel.at, w.finish], [3, 6, 1, 6, 6], 'abstract units');
+if (u.check().length) bad.push('units: ' + u.check().join(' / '));
+
+// a broken plan: a cycle, a fixed start a dependency cannot meet, a plan that runs past the axis
+var b = EdgeTimeline.create(document.getElementById('bad'), {start: '2027-01-01', end: '2027-01-31', unit: 'week'});
+b.lane('l', {title: 'L'}).lane('k', {title: 'K'}).lane('j', {title: 'J'});
+b.bar('x', {lane: 'l', dur: '3d', after: 'y'}).bar('y', {lane: 'k', dur: '3d', after: 'x'})
+ .bar('f', {lane: 'j', start: '2027-01-02', end: '2027-01-04'}).bar('g', {lane: 'j', start: '2027-01-05', dur: '2d', after: 'f', lag: '3d'})
+ .bar('long', {lane: 'l', start: '2027-01-20', dur: '3w'});
+expect(b.check(), ['dependencies run in a cycle: x → y → x', 'dependency f>g is not met: g starts 3 days too early', 'bar long runs outside the time axis'], 'broken plan');
+throws(function () { b.bar('h', {lane: 'l', start: '2027-01-02'}); }, 'needs start and end, or a dur', 'a bar without an end');
+throws(function () { b.bar('h2', {lane: 'l', dur: 'soon'}); }, 'is not a duration', 'a bad duration');
+throws(function () { EdgeTimeline.create(document.getElementById('bad'), {start: 0, end: 4, calendar: 'mon-fri'}); }, 'needs a date axis', 'a calendar on numbers');
+var b2 = EdgeTimeline.create(document.getElementById('bad'), {start: '2027-01-01', end: '2027-01-31'});
+b2.lane('l', {title: 'L'}).bar('a', {lane: 'l', dur: '2d', after: 'nothing'});
+throws(function () { b2.render(); }, 'a comes after nothing, which is no bar or milestone', 'after an unknown item');
+
+// the same plan written as text
+var r = EdgeText.render('#txt', [
+  'timeline {critical: true, calendar: mon-fri, holidays: 2027-02-09}',
+  'axis 2027-02-01 .. 2027-02-28 week',
+  'band Build',
+  'task Design 2027-02-01 5d',
+  'task Build 3d after Design',
+  'task Copy 1d after Design {baseline: 2027-02-04 .. 2027-02-05}',
+  'band Ship',
+  'task Launch after Build, Copy {tone: gap}',
+  'lane Extra',
+  'bar QA 2d after Build SS +1d',
+  'task Sign-off after QA',
+  'phase Work over Design, Build'
+].join('\n'));
+if (r.errors && r.errors.length) bad.push('text: ' + JSON.stringify(r.errors));
+else {
+  var rs = r.figure.schedule();
+  eq([rs.items.build.end, rs.items.copy.slack, rs.items.launch.at, rs.critical.join(',')], ['2027-02-11', 2, '2027-02-11', 'design,build,qa,launch,sign-off'], 'text plan');
+  eq([rs.items.qa.start, rs.items.qa.end, rs.items['sign-off'].at], ['2027-02-10', '2027-02-11', '2027-02-11'], 'text: SS +1d, a milestone after it');
+  if (!r.figure.items.copy.g.querySelector('.tl-base')) bad.push('text: a baseline option');
+  var rc = r.check();
+  if (rc.length) bad.push('text plan check: ' + rc.join(' / '));
+}
+var e = EdgeText.render(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), 'timeline\naxis 2027-01 .. 2027-03 month\ntask A 3d after Nope');
+if (!e.errors || !e.errors.length || e.errors[0].message.indexOf('no bar, milestone or task named Nope') < 0) bad.push('text: an unknown after: ' + JSON.stringify(e.errors));
+
+if (EdgeTimeline.version !== '1.6.0') bad.push('version');
+document.getElementById('out').textContent = bad.length ? bad.join(' | ') : 'ok';
+</script>

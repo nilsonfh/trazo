@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.0 (2026-11-26)
+
+Plans that work out their own dates: give EdgeTimeline's bars a duration and what they wait for, and it places them, in working days, with the critical path.
+
+- **Durations and dependencies**: `t.bar(id, {dur: '4w', after: ['a', 'b']})` starts as early as what it waits for allows. Dependencies take a `type` (`FS`, `SS`, `FF`, `SF`) and a `lag` (negative to overlap); SS and FF arrows run left and right of both bars. A `start` or an `end` with a `dur` fixes that end; milestones can come `after` items too; a phase can span items (`over`).
+- **Working days**: `calendar: 'mon-fri'` (or `{workdays, holidays}`) counts durations and lags in working days and moves starts past weekends and holidays.
+- **Critical path and slack**: `critical: true` marks the items and dependencies on the critical path (`--ed-crit`, else the `gap` tone) and draws every other bar's slack after it; tooltips and the description say both.
+- **Baselines**: a bar's `baseline: {start, end}` is drawn under it, and the tooltip gives the variance.
+- `t.task(id, o)`: a lane with one bar or milestone, the usual one-task-per-row Gantt. `t.update(id, o)` changes an item and the plan follows. `t.schedule()` returns the dates, late dates, slack, critical path and end.
+- The check finds dependency cycles, fixed dates a dependency cannot meet, and worked-out dates outside the axis.
+- EdgeText: `bar Build 4w after Design, API SS +2d`, `bar Build 2027-02-01 15d`, `milestone Beta after Build`, `task ...`, `phase Build over A, B`, `A -> B {type: SS, lag: 2d}`, and the plan options on the header.
+- `templates/schedule.html` (with a slider that changes one duration) and `tests/schedule.html`.
+
 ## 1.5.0 (2026-11-25)
 
 Block diagrams that open: a node with `drill` opens into its inner diagram, at any depth.

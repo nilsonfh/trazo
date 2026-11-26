@@ -1,4 +1,4 @@
-/* EdgeLayout v1.5.0 — automatic layout for EdgeDiagram: nodes and links declared without coordinates.
+/* EdgeLayout v1.6.0 — automatic layout for EdgeDiagram: nodes and links declared without coordinates.
  *
  *   const d = EdgeDiagram.create(svg, {icons: SPRITE});
  *   d.zone('edge', {label: 'EDGE'});                              // no x, y: drawn around its nodes
@@ -34,7 +34,7 @@
  */
 (function (global) {
   'use strict';
-  var VERSION = '1.5.0';
+  var VERSION = '1.6.0';
   var LABEL = 22;   // room above a zone's nodes for its label
 
   function num(a, b) { return a - b; }

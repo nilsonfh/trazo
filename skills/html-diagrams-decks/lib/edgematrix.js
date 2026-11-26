@@ -1,4 +1,4 @@
-/* EdgeMatrix v1.5.0 — matrices, coverage maps and planes for single-file HTML pages and decks.
+/* EdgeMatrix v1.6.0 — matrices, coverage maps and planes for single-file HTML pages and decks.
  *
  *   var m = EdgeMatrix.create(svg, {status: document.getElementById('info')});
  *   m.colGroup('io', {label: 'INPUTS'}).col('c1', {label: 'Sensor feed', group: 'io'});
@@ -38,7 +38,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.6.0', UID = 0;
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TONES = {neutral: ['ink2', 'surface'], accent: ['accent', 'accent-soft'], add: ['add', 'add-soft'], gap: ['gap', 'gap-soft'],
                bad: ['bad', 'bad-soft'], p3: ['p3', 'p3-soft'], muted: ['muted', 'layer'], ink: ['ink', 'layer']};

@@ -1,4 +1,4 @@
-/* EdgeText v1.5.0 — figures written as a few lines of text, drawn by the other libraries.
+/* EdgeText v1.6.0 — figures written as a few lines of text, drawn by the other libraries.
  *
  *   <svg id="f" role="img" aria-label="..."></svg>
  *   <script type="text/trazo" data-target="#f" data-caption="#cap">
@@ -29,7 +29,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0;
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.6.0', UID = 0;
   var KINDS = {flow: 'flow', graph: 'flow', flowchart: 'flow', sequence: 'sequence', sequencediagram: 'sequence',
     state: 'state', statediagram: 'state', 'statediagram-v2': 'state', timeline: 'timeline', gantt: 'timeline', matrix: 'matrix'};
   var NEEDS = {flow: ['EdgeDiagram', 'EdgeLayout'], state: ['EdgeDiagram', 'EdgeLayout'], sequence: ['EdgeSequence'],
@@ -525,7 +525,7 @@
   }
 
   /* ---------- timeline ---------- */
-  var TIME = '(\\d{4}(?:-\\d{2}(?:-\\d{2})?)?|\\d+(?:\\.\\d+)?)';
+  var TIME = '(\\d{4}(?:-\\d{2}(?:-\\d{2})?)?|\\d+(?:\\.\\d+)?)', DATE = '(\\d{4}-\\d{2}(?:-\\d{2})?)', DUR = '(\\d+(?:\\.\\d+)?[dwm]?)';
   function parseTimeline(L, M) {
     var bands = [], lanes = [], items = [], deps = [], used = {}, lane = null, band = null, byName = {};
     L.forEach(function (ln) {
@@ -545,23 +545,51 @@
         lanes.push(lane);
         return;
       }
-      if ((m = /^(bar|phase|milestone)\s+(.+)$/i.exec(t))) {
+      if ((m = /^(bar|phase|milestone|task)\s+(.+)$/i.exec(t))) {
         var kind = m[1].toLowerCase();
         to = takeOpts(m[2], line);
-        var cap = splitBar(to.rest), body = cap[0];
-        var rx = kind === 'milestone' ? new RegExp('^(.+?)\\s+' + TIME + '$') : new RegExp('^(.+?)\\s+' + TIME + '\\s*\\.\\.\\s*' + TIME + '$');
-        var p = rx.exec(body);
-        if (!p) throw Err(line, kind === 'milestone' ? 'a milestone is "milestone Label 2027-07-20"' : 'a ' + kind + ' is "' + kind + ' Label 2027-01-15 .. 2027-03-10"');
-        if (kind !== 'phase' && !lane) throw Err(line, 'a ' + kind + ' needs a "lane" line before it');
+        var cap = splitBar(to.rest), body = cap[0], when = {}, aft = null, over = null, p;
+        if (kind !== 'phase' && (p = /^(.*\S)\s+after\s+(\S.*)$/i.exec(body))) { body = p[1]; aft = p[2]; }
+        if (kind === 'phase' && (p = /^(.*\S)\s+over\s+(\S.*)$/i.exec(body))) { body = p[1]; over = p[2]; }
+        var range = new RegExp('^(.+?)\\s+' + TIME + '\\s*\\.\\.\\s*' + TIME + '$'), at = new RegExp('^(.+?)\\s+' + TIME + '$');
+        var dated = new RegExp('^(.+?)\\s+' + DATE + '\\s+' + DUR + '$'), dur = new RegExp('^(.+?)\\s+' + DUR + '$');
+        if (over) p = [null, body];
+        else if ((p = range.exec(body))) when = {start: p[2], end: p[3]};
+        else if (kind !== 'phase' && (p = dated.exec(body))) when = {start: p[2], dur: p[3]};
+        else if (kind !== 'phase' && (p = dur.exec(body)) && (/\D$/.test(p[2]) || aft || kind !== 'milestone')) when = kind === 'milestone' ? {at: p[2]} : {dur: p[2]};
+        else if (kind !== 'phase' && (p = at.exec(body))) when = {at: p[2]};
+        else if (aft && kind !== 'phase') p = [null, body];
+        else p = null;
+        var isMs = kind === 'milestone' || (kind === 'task' && when.dur == null && when.start == null);
+        if (when.at != null && !isMs) p = null;
+        if (when.dur != null && kind === 'milestone') p = null;
+        if (!p) throw Err(line, kind === 'milestone' ? 'a milestone is "milestone Label 2027-07-20" or "milestone Label after Other"' :
+          kind === 'phase' ? 'a phase is "phase Label 2027-01-15 .. 2027-03-10" or "phase Label over A, B"' :
+          'a ' + kind + ' is "' + kind + ' Label 2027-01-15 .. 2027-03-10", "' + kind + ' Label 2027-01-15 10d" or "' + kind + ' Label 10d after Other"');
+        if (kind !== 'phase' && kind !== 'task' && !lane) throw Err(line, 'a ' + kind + ' needs a "lane" line before it');
         var lbl = p[1].trim(), idm = /^([\w-]+)\[(.*)\]$/.exec(lbl);
         if (idm) lbl = idm[2].trim();
-        var it = {id: uniq(used, idm ? idm[1] : slug(lbl)), kind: kind, line: line,
-          o: Object.assign({label: lbl}, kind === 'milestone' ? {at: p[2]} : {start: p[2], end: p[3]}, kind !== 'phase' ? {lane: lane.id} : {}, cap[1] != null ? {caption: cap[1]} : {}, to.o)};
+        var iid = uniq(used, idm ? idm[1] : slug(lbl)), lo = {};
+        if (kind === 'task') {   // a lane of its own, titled with the label, and its bar or milestone
+          var tl = {id: uniq(used, iid + '.lane'), o: Object.assign({title: lbl}, band ? {band: band.id} : {}), line: line};
+          ['sub', 'icon', 'h'].forEach(function (k) { if (to.o[k] != null) { tl.o[k] = to.o[k]; delete to.o[k]; } });
+          lanes.push(tl); lo = {lane: tl.id, showLabel: false};
+          if (to.o.barLabel != null) { lo.label = to.o.barLabel; delete lo.showLabel; delete to.o.barLabel; }
+        } else if (kind !== 'phase') lo = {lane: lane.id};
+        var it = {id: iid, kind: kind === 'task' ? (isMs ? 'milestone' : 'bar') : kind, line: line,
+          o: Object.assign({label: lbl}, when, lo, cap[1] != null ? {caption: cap[1]} : {}, to.o)};
+        if (aft) it.after = aft.split(/\s*,\s*/).map(function (x) {
+          var q = /^(.+?)(?:\s+(FS|SS|FF|SF))?(?:\s+([+\-\u2212]\d+(?:\.\d+)?[dwm]?))?$/i.exec(x.trim());
+          if (!q) throw Err(line, 'after names items: "after A, B SS +2d"');
+          return {name: q[1], type: q[2], lag: q[3]};
+        });
+        if (over) it.over = over.split(/\s*,\s*/);
         items.push(it);
         byName[it.id] = it; if (!byName['@' + lbl.toLowerCase()]) byName['@' + lbl.toLowerCase()] = it;
         return;
       }
-      if (/->/.test(t)) {   // dependencies: Schema -> Endpoints, Screens
+      if (/->/.test(t)) {   // dependencies: Schema -> Endpoints, Screens {type: SS, lag: 2d}
+        var dto = takeOpts(t, line); t = dto.rest;
         var parts = t.split(/\s*->\s*/);
         if (parts.length !== 2 || !parts[0] || !parts[1]) throw Err(line, 'a dependency is "A -> B" (or "A -> B, C")');
         var find = function (n) {
@@ -571,10 +599,20 @@
           return x.id;
         };
         var a = find(parts[0]);
-        parts[1].split(/\s*,\s*/).forEach(function (b) { deps.push({id: uniq(used, 'dep-' + a + '-' + find(b)), from: a, to: find(b), line: line}); });
+        parts[1].split(/\s*,\s*/).forEach(function (b) { deps.push({id: uniq(used, 'dep-' + a + '-' + find(b)), from: a, to: find(b), o: dto.o, line: line}); });
         return;
       }
-      throw Err(line, 'not a timeline line: ' + t + ' (axis, band, lane, bar, milestone, phase, A -> B)');
+      throw Err(line, 'not a timeline line: ' + t + ' (axis, band, lane, bar, milestone, phase, task, A -> B)');
+    });
+    items.forEach(function (it) {   // after and over may name items defined further down
+      function find(n) {
+        n = n.trim();
+        var x = byName[n] || byName['@' + n.toLowerCase()] || byName[slug(n)];
+        if (!x || x.kind === 'phase') throw Err(it.line, 'no bar, milestone or task named ' + n);
+        return x.id;
+      }
+      if (it.after) it.o.after = it.after.map(function (a) { return Object.assign({id: find(a.name)}, a.type ? {type: a.type} : {}, a.lag ? {lag: a.lag.replace('\u2212', '-')} : {}); });
+      if (it.over) it.o.over = it.over.map(find);
     });
     if (!M.axis) throw Err(M.headerLine, 'a timeline needs an axis line: "axis 2027-01 .. 2027-12 month"');
     if (!lanes.length) throw Err(M.headerLine, 'a timeline needs at least one lane');
@@ -591,7 +629,7 @@
     M.bands.forEach(function (b) { at(b.line); t.band(b.id, {title: b.title}); });
     M.lanes.forEach(function (l) { at(l.line); t.lane(l.id, l.o); });
     M.items.forEach(function (it) { at(it.line); t[it.kind](it.id, it.o); });
-    M.deps.forEach(function (dp) { at(dp.line); t.dep(dp.id, {from: dp.from, to: dp.to}); });
+    M.deps.forEach(function (dp) { at(dp.line); t.dep(dp.id, Object.assign({}, dp.o, {from: dp.from, to: dp.to})); });
     at(M.headerLine);
     t.render();
     return {figure: t, steps: function (opt) { return t.steps(null, Object.assign({caption0: M.title || ''}, by ? {by: by} : {}, opt)); }};

@@ -1,0 +1,146 @@
+<title>Mobile App Launch Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="../themes/engineering.css">
+<style>
+/* The theme (../themes) defines every colour and the three faces as tokens, light and dark.
+   Swap the link above to change it; scripts/check_theme.py checks a new one. */
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:28px 40px}
+.wrap{max-width:1180px;margin-inline:auto;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:28px clamp(16px,3vw,32px);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.cap{font-size:19px;line-height:1.5;min-height:3.2em;margin:0;max-width:62ch}
+.cap b{display:block;font-family:var(--mono);font-weight:500;font-size:12px;color:var(--accent);margin-bottom:6px;letter-spacing:.06em}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.stage{overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:720px;height:auto}
+.facts{display:flex;flex-wrap:wrap;gap:10px 28px;margin:0;padding:0;list-style:none}
+.facts li{display:grid;gap:2px}
+.facts dt,.facts span{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.facts b{font-family:var(--display);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.what-if{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:14px;padding:12px 14px;border:1px dashed var(--rule);border-radius:10px}
+.what-if label{font-weight:600}
+.what-if input{accent-color:var(--accent);width:min(260px,100%)}
+.what-if output{font-family:var(--mono);font-variant-numeric:tabular-nums;min-width:6ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--ink2);margin:0;padding:0;list-style:none}
+.legend li{display:flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:26px;height:12px;border-radius:3px;border:1.3px solid var(--ink2);background:var(--ed-layer)}
+.legend i.crit{border:2.2px solid var(--ed-crit, var(--ed-gap))}
+.legend i.slack{border:0;background:none;height:9px;border-top:1.5px solid var(--muted);border-right:1.5px solid var(--muted);border-radius:0;transform:translateY(4px)}
+.legend i.base{height:4px;border:0;background:var(--muted);opacity:.6}
+.legend i.ms{width:12px;height:12px;border:0;border-radius:1px;background:var(--ed-crit, var(--ed-gap));transform:rotate(45deg) scale(.85)}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.controls button{font:inherit;font-size:14px;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.controls button:hover{border-color:var(--accent)}
+.controls button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.dots{display:flex;gap:6px;margin-left:auto}
+.dots i{width:26px;height:5px;border-radius:3px;background:var(--rule)}
+.dots i.on{background:var(--accent)}
+.skip{position:absolute;left:-10000px}
+.skip:focus{left:max(16px, env(safe-area-inset-left, 0px));top:12px;z-index:10;background:var(--card);color:var(--accent);border:2px solid var(--accent);border-radius:8px;padding:6px 12px;font-family:var(--sans);font-size:14px}
+[tabindex="-1"]:focus{outline:none}
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">Template · plan</p>
+  <h1>A mobile app, from research to the stores</h1>
+  <p class="cap" id="cap"></p>
+  <ul class="facts" aria-live="polite">
+    <li><span>Launch</span><b id="f-end"></b></li>
+    <li><span>Critical path</span><b id="f-crit"></b></li>
+    <li><span>Working days</span><b id="f-days"></b></li>
+  </ul>
+  <a class="skip" href="#controls">Skip the figure</a>
+  <div class="stage"><svg id="plan" viewBox="0 0 1100 500" role="img" aria-label="A plan worked out from durations and dependencies: research, screens, backend, app, payments, integration, beta, store review and launch, with the critical path marked."></svg></div>
+  <div class="what-if">
+    <label for="api-weeks">What if the backend API takes</label>
+    <input type="range" id="api-weeks" min="4" max="12" step="1" value="6">
+    <output id="api-out" for="api-weeks">6 weeks</output>
+    <span class="hint">Every date below it moves; the critical path changes when another branch becomes the longest.</span>
+  </div>
+  <ul class="legend" aria-hidden="true">
+    <li><i class="crit"></i>on the critical path</li>
+    <li><i class="slack"></i>slack: how far it can slip</li>
+    <li><i class="base"></i>baseline: where it was planned</li>
+    <li><i class="ms"></i>milestone</li>
+  </ul>
+  <p class="hint">Dates are worked out in working days (Monday to Friday, two public holidays). Each step adds one phase. Hover a bar for its dates, slack and what it waits for. Arrow keys step.</p>
+  <div class="controls" id="controls" tabindex="-1">
+    <button type="button" id="prev">Previous</button>
+    <button type="button" id="next">Next</button>
+    <button type="button" id="restart">Walk through</button>
+    <div class="dots" id="dots" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="../lib/edgetimeline.js"></script>
+<script>
+(function () {
+  /* A plan: give each task a duration and what it waits for, and the library works out the dates in
+     working days, the critical path and each other task's slack. One task per row (t.task), in bands. */
+  var t = EdgeTimeline.create(document.getElementById('plan'), {start: '2027-03-01', end: '2027-07-31', unit: 'week',
+    today: '2027-03-24', critical: true, calendar: {workdays: 'mon-fri', holidays: ['2027-03-26', '2027-05-31']}});
+
+  t.task('research', {title: 'User research', band: 'DISCOVER', start: '2027-03-01', dur: '2w', tone: 'accent', progress: 1,
+       info: 'Interviews with twelve customers and a review of the support tickets.'})
+   .task('screens', {title: 'Screens', band: 'DISCOVER', dur: '3w', after: 'research', tone: 'accent', progress: 0.5,
+       baseline: '2027-03-15 .. 2027-03-31', info: 'Sign-in, catalogue, basket and checkout, tested on paper first.'})
+   .task('app', {title: 'App screens', band: 'BUILD', dur: '5w', after: 'screens', tone: 'add',
+       info: 'iOS and Android from one code base.'})
+   .task('api', {title: 'Backend API', band: 'BUILD', dur: '6w', after: 'research', tone: 'add',
+       info: 'Accounts, catalogue and orders behind one gateway.'})
+   .task('pay', {title: 'Payments', band: 'BUILD', dur: '3w', after: {id: 'api', type: 'SS', lag: '2w'}, tone: 'add',
+       info: 'Starts two weeks into the API, once the order model has settled.'})
+   .task('integ', {title: 'Integration', band: 'BUILD', dur: '2w', after: ['api', 'app'], tone: 'add',
+       info: 'The app against the real API, end to end.'})
+   .task('site', {title: 'Marketing site', band: 'LAUNCH', dur: '3w', after: 'research',
+       info: 'Needs only the research: weeks to spare.'})
+   .task('beta', {title: 'Beta', band: 'LAUNCH', dur: '2w', after: 'integ',
+       info: 'Two hundred customers through the test tracks.'})
+   .task('store', {title: 'Store review', band: 'LAUNCH', dur: '1w', after: 'beta',
+       info: 'Apple and Google review the release build.'})
+   .task('launch', {title: 'Launch', band: 'LAUNCH', after: ['store', 'site', 'pay'], tone: 'gap', line: true,
+       info: 'In both stores, with the site live.'});
+
+  t.phase('discover', {over: ['research', 'screens'], label: 'Discover', tone: 'accent',
+      caption: 'Discover: research first; the screens were planned to finish in March and now run three days later.'})
+   .phase('build', {over: ['app', 'api', 'pay', 'integ'], label: 'Build', tone: 'add',
+      caption: 'Build: the API and the app run side by side; integration waits for both, payments start two weeks into the API.'})
+   .phase('ship', {over: ['beta', 'store', 'launch'], label: 'Launch', tone: 'p3',
+      caption: 'Launch: beta, store review and launch follow integration one after the other; the marketing site has weeks to spare.'});
+
+  var cap = document.getElementById('cap'), dots = document.getElementById('dots'), ctl;
+  function facts() {   // the schedule as worked out, for the numbers above the figure
+    var s = t.schedule(), d = new Date(s.finish + 'T00:00:00Z');
+    document.getElementById('f-end').textContent = d.getUTCDate() + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+    document.getElementById('f-crit').textContent = s.critical.length + ' tasks';
+    var days = 0; s.critical.forEach(function (id) { days += s.items[id].dur || 0; });
+    document.getElementById('f-days').textContent = days;
+  }
+  ctl = t.steps(null, {caption0: 'Ten tasks in three phases, worked out from their durations and what each waits for.', onStep: function (k, s, ctl) {
+    cap.innerHTML = '<b>' + (k + 1) + ' / ' + ctl.count + '</b>';
+    cap.appendChild(document.createTextNode(s.caption || ''));
+    [].forEach.call(dots.children, function (el, i) { el.classList.toggle('on', i <= k); });
+  }, start: 'end'});
+  ctl.steps.forEach(function () { dots.appendChild(document.createElement('i')); });
+  ctl.go(ctl.count - 1);
+  facts();
+
+  var range = document.getElementById('api-weeks'), out = document.getElementById('api-out');
+  range.addEventListener('input', function () {
+    out.textContent = range.value + ' weeks';
+    t.update('api', {dur: range.value + 'w'}).render();   // the dates are worked out again
+    ctl.go(ctl.step);
+    facts();
+  });
+
+  document.getElementById('next').addEventListener('click', ctl.next);
+  document.getElementById('prev').addEventListener('click', ctl.prev);
+  document.getElementById('restart').addEventListener('click', function () { ctl.go(0); });
+  document.addEventListener('keydown', function (e) {
+    if (e.target === range) return;
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); ctl.next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); ctl.prev(); }
+  });
+})();
+</script>

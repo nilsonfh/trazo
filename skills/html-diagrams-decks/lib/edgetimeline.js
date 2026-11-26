@@ -1,4 +1,4 @@
-/* EdgeTimeline v1.5.0 — timelines and Gantt-style roadmaps for single-file HTML pages and decks.
+/* EdgeTimeline v1.6.0 — timelines and Gantt-style roadmaps for single-file HTML pages and decks.
  *
  *   var t = EdgeTimeline.create(svg, {start: '2027-01-01', end: '2027-12-31', unit: 'month', today: '2027-04-12'});
  *   t.band('build', {title: 'BUILD'});                                   // a titled group of lanes
@@ -29,6 +29,12 @@
  * With lib/edgesketch.js on the page (shot.sh --check puts it there), check() adds EdgeSketch.paint:
  * contrast in the light and the dark theme, wires through text, wires run together.
  *
+ * Plans: a bar can take a duration (dur: '15d', '4w', '2m') and the items it waits for (after: 'id' or
+ * [ids], with a type FS, SS, FF or SF and a lag) instead of dates; the dates are worked out at render,
+ * in working days with {calendar: 'mon-fri', holidays: [...]}. {critical: true} marks the critical path
+ * and draws each other bar's slack; a bar's baseline: {start, end} is drawn under it. t.task(id, o) is a
+ * lane with one bar or milestone on it. t.schedule() returns the dates, the slack and the critical path.
+ *
  * Colours come from the theme's tokens (--ed-ink, --ed-accent, ...), as in EdgeDiagram.
  *
  * t.describe() returns a text description (phases, lanes with bars, dates and milestones, dependencies,
@@ -36,7 +42,7 @@
  */
 (function (global) {
   'use strict';
-  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.5.0', UID = 0, DAY = 864e5, REG = [];
+  var NS = 'http://www.w3.org/2000/svg', VERSION = '1.6.0', UID = 0, DAY = 864e5, REG = [];
   var reduce = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var TONES = ['neutral', 'accent', 'add', 'gap', 'p3', 'muted'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -47,7 +53,7 @@
     '--_surface:var(--ed-surface,#fff);--_layer:var(--ed-layer,#e9eeec);--_rule:var(--ed-rule,#d2dbd7);',
     '--_accent:var(--ed-accent,#2456a4);--_accent-soft:var(--ed-accent-soft,#e3ebf6);--_gap:var(--ed-gap,#b87d00);',
     '--_gap-soft:var(--ed-gap-soft,#fbf1d9);--_add:var(--ed-add,#0b8a0b);--_add-soft:var(--ed-add-soft,#e3f3e3);',
-    '--_p3:var(--ed-p3,#6b46c1);--_p3-soft:var(--ed-p3-soft,#efe9fb);overflow:visible}',
+    '--_p3:var(--ed-p3,#6b46c1);--_p3-soft:var(--ed-p3-soft,#efe9fb);--_crit:var(--ed-crit,var(--_gap));overflow:visible}',
     '.tl-root text{font-family:var(--ed-sans,"IBM Plex Sans",system-ui,sans-serif);fill:var(--_ink)}',
     '.tl-band rect{fill:var(--_layer)}.tl-band text{font-family:var(--ed-mono,monospace)!important;font-size:10.5px;letter-spacing:.09em;fill:var(--_muted)}',
     '.tl-lane .tl-t{font-family:var(--ed-display,"Archivo Narrow",sans-serif)!important;font-weight:600;font-size:14px}',
@@ -88,7 +94,10 @@
       '.tl-phase.t-' + t + ' .tl-strip{fill:var(--_' + s + ');stroke:var(--_' + c + ')}.tl-col.t-' + t + '{fill:var(--_' + s + ')}');
     CSS.push('.tl-ms.t-' + t + ' path{fill:var(--_' + c + ')}.tl-guide.t-' + t + '{stroke:var(--_' + c + ')}');
   });
-  CSS.push('.tl-phase.t-p3 .tl-strip{stroke-dasharray:5 3}');
+  CSS.push('.tl-phase.t-p3 .tl-strip{stroke-dasharray:5 3}',
+    '.tl-bar.crit .tl-shape{stroke:var(--_crit);stroke-width:2.2}.tl-bar.crit.now .tl-shape{stroke-width:3}.tl-ms.crit path{fill:var(--_crit)}',
+    '.tl-dep.crit .tl-wire{stroke:var(--_crit);stroke-width:2}.tl-head.crit{fill:var(--_crit)}',
+    '.tl-slack{stroke:var(--_muted);stroke-width:1.5;fill:none}.tl-base{fill:var(--_muted);fill-opacity:.6}');
   CSS = CSS.join('\n');
 
   function el(tag, a, parent, text) {
@@ -155,6 +164,27 @@
     return String(y);
   }
   function fmtDay(t) { var d = D(t); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); }
+  function isoDay(t) { return D(Math.floor(t)).toISOString().slice(0, 10); }
+  function wday(t) { return ((Math.floor(t) % 7) + 11) % 7; }   // 0 is Sunday; day 0, 1 Jan 1970, was a Thursday
+  var DOW = {sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, dom: 0, lun: 1, mar: 2, mie: 3, 'mié': 3, jue: 4, vie: 5, sab: 6, 'sáb': 6};
+  function workdaysOf(v) {   // 'mon-fri', 'mon,wed,fri' or [1, 2, 3, 4, 5]: a flag per day, Sunday first
+    var wd = [0, 0, 0, 0, 0, 0, 0];
+    function day(s) {
+      if (typeof s === 'number') return ((s % 7) + 7) % 7;
+      var k = DOW[String(s).trim().toLowerCase().slice(0, 3)];
+      if (k == null) throw new Error('EdgeTimeline: not a day of the week: ' + s);
+      return k;
+    }
+    if (Array.isArray(v)) v.forEach(function (d) { wd[day(d)] = 1; });
+    else String(v).split(/\s*,\s*|\s+/).filter(Boolean).forEach(function (p) {
+      var r = p.split('-');
+      if (r.length === 2) for (var i = day(r[0]); ; i = (i + 1) % 7) { wd[i] = 1; if (i === day(r[1])) break; }
+      else wd[day(p)] = 1;
+    });
+    if (!wd.some(Boolean)) throw new Error('EdgeTimeline: a calendar needs at least one working day');
+    return wd;
+  }
+  function listOf(v) { return v == null || v === '' || v === true ? [] : Array.isArray(v) ? v : String(v).split(/[\s,]+/).filter(Boolean); }
 
   /* ---------- accessibility: a figure's text description, made from its model, the ARIA that points
      to it, and a live region that reads each step. The same block is in every figure library; the
@@ -284,6 +314,169 @@
     }
     function needLane(id, o) { if (!LN[o.lane]) throw new Error('EdgeTimeline: ' + id + ' needs an existing lane, not ' + o.lane); }
 
+    /* ---------- plans: durations, working days, and the schedule worked out from the dependencies.
+       Scheduling runs in "work" units: working days since 1970 with a calendar, else the axis's own
+       numbers (days for dates). An item's S and F are its start and its end (exclusive) in them. ---------- */
+    var CAL = null, sched = {cycle: null, finish: null, nodes: []};
+    if (options.calendar || options.holidays) {
+      if (!dates) throw new Error('EdgeTimeline: a calendar needs a date axis');
+      var co = options.calendar && typeof options.calendar === 'object' && !Array.isArray(options.calendar) ? options.calendar : {workdays: options.calendar};
+      var wd = workdaysOf(co.workdays == null || co.workdays === true ? 'mon-fri' : co.workdays);
+      var hol = listOf(co.holidays).concat(listOf(options.holidays)).map(function (h) { return toDay(h); })
+        .filter(function (h, i, a) { return wd[wday(h)] && a.indexOf(h) === i; }).sort(function (a, b) { return a - b; });
+      CAL = {wd: wd, n: wd.filter(Boolean).length, hol: hol};
+    }
+    function before(d) {   // working days in [0, d)
+      var full = Math.floor(d / 7), n = full * CAL.n;
+      for (var k = full * 7; k < d; k++) if (CAL.wd[wday(k)]) n++;
+      for (var i = 0; i < CAL.hol.length && CAL.hol[i] < d; i++) n--;
+      return n;
+    }
+    function nth(w) {   // the day that is working day number w (from 0)
+      var lo = Math.floor(w * 7 / CAL.n) - 14, hi = lo + 28 + 2 * CAL.hol.length;
+      while (lo < hi) { var mid = Math.floor((lo + hi) / 2); if (before(mid + 1) > w) hi = mid; else lo = mid + 1; }
+      return lo;
+    }
+    function toW(t) { return CAL ? before(t) : t; }                 // a start day moves on to a working day
+    function startOf(S) { return CAL ? nth(S) : S; }
+    function endOf(F, S) { return F > S ? (CAL ? nth(F - 1) + 1 : F) : startOf(S); }
+    function msAt(E) { return !dates ? E : (CAL ? nth(E - 1) : E - 1) + 0.5; }   // a milestone after work that ends at E: on its last day
+    function span(v, what) {   // a duration or a lag in work units
+      if (v == null || v === '') return 0;
+      if (typeof v === 'number') return dates ? Math.round(v) : v;
+      var m = /^\s*([+-]?\d+(?:\.\d+)?)\s*([dwm]?)\s*$/i.exec(String(v).replace('−', '-'));
+      if (!m) throw new Error('EdgeTimeline: ' + what + ' is not a duration (15d, 4w, 2m or a number): ' + v);
+      var n = +m[1], u = m[2].toLowerCase(), per = CAL ? CAL.n : 7;
+      if (!dates) return n;
+      return Math.round(u === 'w' ? n * per : u === 'm' ? n * 30.44 * per / 7 : n);
+    }
+    function spanText(n) {
+      n = Math.round(n * 100) / 100;
+      var u = dates ? (CAL ? 'working day' : 'day') : unit;
+      return n + ' ' + u + (Math.abs(n) === 1 ? '' : 's');
+    }
+    function isNode(it) { return it.kind === 'bar' || it.kind === 'ms'; }
+    function prep(n) {   // what an item's own options fix: its dates, or its duration
+      var o = n.o; n.rawT = n.fixS = n.fixF = false;
+      if (n.kind === 'ms') {
+        n.dur = 0;
+        if (o.at != null) { n.rawT = n.fixS = n.fixF = true; n.t0 = n.t1 = dates ? toDay(o.at) + 0.5 : +o.at; n.S = n.F = dates ? toW(toDay(o.at) + 1) : +o.at; }
+        return;
+      }
+      var s = o.start != null ? T(o.start) : null, e = o.end != null ? T(o.end, true) : null;
+      if (s != null && e != null) {
+        if (o.dur != null) throw new Error('EdgeTimeline: bar ' + n.id + ' takes start and end, or a dur with one of them, not all three');
+        n.t0 = s; n.t1 = e; n.rawT = n.fixS = n.fixF = true; n.S = toW(s); n.F = toW(e); n.dur = n.F - n.S;
+        return;
+      }
+      if (o.dur == null) throw new Error('EdgeTimeline: bar ' + n.id + ' needs start and end, or a dur');
+      n.dur = span(o.dur, 'the dur of ' + n.id);
+      if (!(n.dur > 0)) throw new Error('EdgeTimeline: the dur of ' + n.id + ' must be more than 0');
+      if (s != null) { n.fixS = true; n.S = toW(s); n.F = n.S + n.dur; }
+      else if (e != null) { n.fixF = true; n.F = toW(e); n.S = n.F - n.dur; }
+      if (n.fixS || n.fixF) { n.t0 = startOf(n.S); n.t1 = endOf(n.F, n.S); }
+    }
+    function afters(id, o) {   // after: 'a', ['a', 'b'] or [{id, type, lag}]: one dependency each
+      if (o.after == null) return;
+      [].concat(o.after).forEach(function (a) {
+        var p = typeof a === 'string' ? {id: a} : a;
+        if (!p || !p.id) throw new Error('EdgeTimeline: the after of ' + id + ' names no item');
+        api.dep(p.id + '>' + id, {from: p.id, to: id, type: p.type || o.type, lag: p.lag != null ? p.lag : o.lag, auto: true});
+      });
+    }
+    function need(d) {   // the earliest start of d's target that d allows, in work units
+      var a = d.from, b = d.to, l = d.lag;
+      return d.type === 'FS' ? a.F + l : d.type === 'SS' ? a.S + l : d.type === 'FF' ? a.F + l - b.dur : a.S + l - b.dur;
+    }
+    function schedule() {
+      var nodes = order.filter(isNode);
+      nodes.forEach(function (n) { prep(n); n.ins = []; n.outs = []; n.LF = null; n.slack = null; n.crit = false; });
+      deps.forEach(function (d) {
+        var a = items[d.o.from], b = items[d.o.to];
+        if (!a || !b || !isNode(a) || !isNode(b)) {
+          if (d.o.auto) throw new Error('EdgeTimeline: ' + d.o.to + ' comes after ' + d.o.from + ', which is no bar or milestone');
+          throw new Error('EdgeTimeline: dependency ' + d.id + ' needs an existing bar or milestone at both ends');
+        }
+        d.from = a; d.to = b; d.crit = false;
+        d.type = String(d.o.type || 'FS').toUpperCase();
+        if (['FS', 'SS', 'FF', 'SF'].indexOf(d.type) < 0) throw new Error('EdgeTimeline: dependency ' + d.id + ' has type ' + d.o.type + ' (FS, SS, FF or SF)');
+        d.lag = span(d.o.lag, 'the lag of ' + d.id);
+        a.outs.push(d); b.ins.push(d);
+      });
+      // in an order where every item comes after what it waits for; a cycle is noted and its items placed as defined
+      var left = {}, seq = [], queue = nodes.filter(function (n) { left[n.id] = n.ins.length; return !n.ins.length; });
+      while (queue.length) { var n = queue.shift(); seq.push(n); n.outs.forEach(function (d) { if (--left[d.to.id] === 0) queue.push(d.to); }); }
+      sched.cycle = null;
+      if (seq.length < nodes.length) {
+        var rest = nodes.filter(function (x) { return seq.indexOf(x) < 0; }), walk = [rest[0]];
+        for (;;) {   // back along unplaced predecessors until one comes round again
+          var p = walk[walk.length - 1].ins.map(function (d) { return d.from; }).filter(function (x) { return rest.indexOf(x) >= 0; })[0];
+          var k = walk.indexOf(p);
+          if (k >= 0) {   // forward, from the first defined
+            var cy = walk.slice(k).reverse(), f0 = cy.reduce(function (m, x, i) { return order.indexOf(x) < order.indexOf(cy[m]) ? i : m; }, 0);
+            sched.cycle = cy.slice(f0).concat(cy.slice(0, f0)).map(function (x) { return x.id; }); break;
+          }
+          walk.push(p);
+        }
+        seq = seq.concat(rest);
+      }
+      var placed = {}, W0 = toW(T0);
+      seq.forEach(function (n) {   // forward: each item as early as what it waits for allows
+        if (!n.fixS && !n.fixF) {
+          var s = null;
+          n.ins.forEach(function (d) { if (placed[d.from.id]) { var v = need(d); if (s == null || v > s) s = v; } });
+          if (s == null) {
+            if (n.kind === 'ms') throw new Error('EdgeTimeline: milestone ' + n.id + ' needs at, or after');
+            s = W0;
+          }
+          n.S = s; n.F = s + n.dur;
+        }
+        placed[n.id] = true;
+      });
+      var PF = nodes.length ? Math.max.apply(null, nodes.map(function (x) { return x.F; })) : null;
+      seq.slice().reverse().forEach(function (n) {   // backward: each item as late as what waits for it allows
+        var lf = null;
+        n.outs.forEach(function (d) {
+          var b = d.to; if (b.LF == null) return;
+          var bs = b.LF - b.dur, l = d.lag;
+          var v = d.type === 'FS' ? bs - l : d.type === 'SS' ? bs - l + n.dur : d.type === 'FF' ? b.LF - l : b.LF - l + n.dur;
+          if (lf == null || v < lf) lf = v;
+        });
+        n.LF = lf == null ? PF : lf; n.slack = n.LF - n.F; n.crit = n.slack < 1e-9;
+      });
+      deps.forEach(function (d) { d.crit = d.from.crit && d.to.crit && Math.abs(need(d) - d.to.S) < 1e-9; });
+      nodes.forEach(function (n) {   // back to the axis's days
+        if (!n.rawT) {
+          if (n.kind === 'bar') { n.t0 = startOf(n.S); n.t1 = endOf(n.F, n.S); }
+          else n.t0 = n.t1 = msAt(n.F);
+        }
+        n.lt1 = n.kind === 'bar' ? endOf(n.LF, n.LF - n.dur) : null;
+        var bl = n.o.baseline;
+        n.b0 = n.b1 = null;
+        if (bl && n.kind === 'bar') {
+          if (typeof bl === 'string') { var bm = bl.split(/\s*\.\.\s*/); bl = {start: bm[0], end: bm[1]}; }
+          if (bl.start == null || bl.end == null || bl.start === '' || bl.end === '') throw new Error('EdgeTimeline: the baseline of ' + n.id + ' needs start and end');
+          n.b0 = T(bl.start); n.b1 = T(bl.end, true);
+        }
+      });
+      phases.forEach(function (p) {   // a phase over items spans them
+        if (!p.o.over) return;
+        var its = [].concat(p.o.over).map(function (id) {
+          if (!items[id] || !isNode(items[id])) throw new Error('EdgeTimeline: phase ' + p.id + ' is over ' + id + ', which is no bar or milestone');
+          return items[id];
+        });
+        p.t0 = Math.min.apply(null, its.map(function (x) { return x.kind === 'ms' ? Math.floor(x.t0) : x.t0; }));
+        p.t1 = Math.max.apply(null, its.map(function (x) { return x.kind === 'ms' ? Math.ceil(x.t1) : x.t1; }));
+      });
+      sched.finish = PF; sched.nodes = nodes;
+    }
+    function crumb(d) {   // how a dependency reads: 'B starts after A ends, 2 days later'
+      var a = nm(d.from || items[d.o.from] || {id: d.o.from, o: {}}), b = nm(d.to || items[d.o.to] || {id: d.o.to, o: {}});
+      var ty = d.type || String(d.o.type || 'FS').toUpperCase(), l = d.lag != null ? d.lag : 0;
+      var s = b + (ty.charAt(1) === 'S' ? ' starts' : ' ends') + ' after ' + a + (ty.charAt(0) === 'S' ? ' starts' : ' ends');
+      return s + (l > 0 ? ', ' + spanText(l) + ' later' : l < 0 ? ', ' + spanText(-l) + ' sooner' : '');
+    }
+
     api.band = function (id, o) { B[id] = {id: id, o: o || {}}; bands.push(B[id]); drawn = false; return api; };
     api.lane = function (id, o) {
       o = o || {};
@@ -293,18 +486,41 @@
     };
     api.bar = function (id, o) {
       needLane(id, o);
-      if (o.start == null || o.end == null) throw new Error('EdgeTimeline: bar ' + id + ' needs start and end');
-      return add('bar', id, o, {t0: T(o.start), t1: T(o.end, true), lane: LN[o.lane]});
+      add('bar', id, o, {lane: LN[o.lane]});
+      try { prep(items[id]); } catch (e) { delete items[id]; order.pop(); throw e; }
+      afters(id, o); return api;
     };
-    api.milestone = function (id, o) {
+    api.milestone = function (id, o) {   // a dated milestone sits in the middle of its day
       needLane(id, o);
-      var t = dates ? toDay(o.at) + 0.5 : +o.at;   // a dated milestone sits in the middle of its day
-      return add('ms', id, o, {t0: t, t1: t, lane: LN[o.lane]});
+      add('ms', id, o, {lane: LN[o.lane]}); prep(items[id]);
+      afters(id, o); return api;
+    };
+    api.task = function (id, o) {   // a lane of its own with one bar (dates or a dur) or one milestone (at, or after with no dur)
+      o = Object.assign({}, o);
+      var lo = {title: o.title || o.label || id};
+      ['sub', 'icon', 'band', 'h'].forEach(function (k) { if (o[k] != null) { lo[k] = o[k]; delete o[k]; } });
+      api.lane(id + '.lane', lo);
+      o.lane = id + '.lane'; o.label = lo.title;
+      if (o.barLabel != null) o.label = o.barLabel; else o.showLabel = false;
+      var ms = o.at != null || (o.dur == null && o.start == null && o.end == null);
+      return ms ? api.milestone(id, o) : api.bar(id, o);
     };
     api.phase = function (id, o) {
       (o.lanes || []).forEach(function (l) { if (!LN[l]) throw new Error('EdgeTimeline: phase ' + id + ' needs existing lanes'); });
-      add('phase', id, o, {t0: T(o.start), t1: T(o.end, true)});
+      if (!o.over && (o.start == null || o.end == null)) throw new Error('EdgeTimeline: phase ' + id + ' needs start and end, or over');
+      add('phase', id, o, o.over ? {} : {t0: T(o.start), t1: T(o.end, true)});
       phases.push(items[id]); return api;
+    };
+    api.update = function (id, patch) {   // change an item's options (its dates, dur, lag, progress, baseline, tone ...); drawn again on render
+      var it = items[id];
+      if (!it) throw new Error('EdgeTimeline: unknown item ' + id);
+      ['lane', 'after', 'from', 'to'].forEach(function (k) { if (patch && k in patch) throw new Error('EdgeTimeline: update cannot change ' + k + '; define the item again'); });
+      var old = Object.assign({}, it.o);
+      Object.assign(it.o, patch);
+      Object.keys(patch).forEach(function (k) { if (patch[k] == null) delete it.o[k]; });
+      if (isNode(it)) try { prep(it); } catch (e) { it.o = old; prep(it); throw e; }
+      if (it.kind === 'phase' && !it.o.over) { it.t0 = T(it.o.start); it.t1 = T(it.o.end, true); }
+      drawn = false; return api;
     };
     api.dep = function (id, o) {
       add('dep', id, o, {});
@@ -338,6 +554,7 @@
 
     /* ---------- layout ---------- */
     function render() {
+      schedule();
       while (svg.firstChild) svg.removeChild(svg.firstChild);
       order.forEach(function (it) { it.els = []; });
       lanes.forEach(function (l) { l.items = []; });
@@ -434,26 +651,36 @@
       });
 
       // bars and milestones
-      var bh = opt.barH;
+      var bh = opt.barH, crit = !!options.critical;
       order.forEach(function (it) {
         var o = it.o;
         if (it.kind === 'bar') {
           var l = it.lane, x0 = X(it.t0), x1 = X(it.t1), by = l.y + (l.h - bh) / 2;
-          var g = el('g', {'class': 'tl-item tl-bar t-' + (o.tone || 'neutral') + (o.planned ? ' planned' : ''), 'data-id': it.id, 'data-box': ''}, L.bars);
+          var g = el('g', {'class': 'tl-item tl-bar t-' + (o.tone || 'neutral') + (o.planned ? ' planned' : '') + (crit && it.crit ? ' crit' : ''), 'data-id': it.id, 'data-box': ''}, L.bars);
+          if (it.b0 != null) {   // the baseline: a thin bar under the bar, where it was planned
+            var bx0 = X(it.b0), bx1 = X(it.b1);
+            it.base = el('rect', {x: bx0, y: by + bh + 2, width: Math.max(1, bx1 - bx0), height: 4, rx: 1, 'class': 'tl-base'}, g);
+          }
           it.shape = el('rect', {x: x0, y: by, width: Math.max(1, x1 - x0), height: bh, rx: Math.min(5, (x1 - x0) / 2), 'class': 'tl-shape'}, g);
           if (o.progress > 0) {
             var cp = el('clipPath', {id: 'tl-' + sid + '-c-' + it.id}, defs);
             el('rect', {x: x0, y: by, width: Math.max(1, x1 - x0), height: bh, rx: Math.min(5, (x1 - x0) / 2)}, cp);
             it.prog = el('rect', {x: x0, y: by, width: (x1 - x0) * Math.min(1, o.progress), height: bh, 'class': 'tl-prog', 'clip-path': 'url(#' + cp.id + ')'}, g);
           }
-          if (o.label) it.text = el('text', {x: x0 + 8, y: by + bh / 2 + 4}, g, o.label);
+          if (o.label && o.showLabel !== false) it.text = el('text', {x: x0 + 8, y: by + bh / 2 + 4}, g, o.label);
           it.x0 = x0; it.x1 = x1; it.y = by; it.yc = by + bh / 2; it.box = {x: x0, y: by, w: x1 - x0, h: bh};
+          it.slackSeg = null;
+          if (crit && options.slack !== false && it.slack > 1e-9 && it.lt1 > it.t1) {   // the slack: how far it can move without moving the end
+            var sx = Math.min(X(it.lt1), X1), yc0 = by + bh / 2;
+            el('path', {d: 'M' + x1 + ' ' + yc0 + ' H' + sx + ' M' + sx + ' ' + (yc0 - 4) + ' V' + (yc0 + 4), 'class': 'tl-slack'}, g);
+            it.slackSeg = [[x1, yc0], [sx, yc0]];
+          }
           it.els = [g]; it.g = g; l.items.push(it);
         } else if (it.kind === 'ms') {
           var lm = it.lane, cx = X(it.t0), cy = lm.y + lm.h / 2, s = o.size || 8;
-          var gm = el('g', {'class': 'tl-item tl-ms t-' + (o.tone || 'neutral'), 'data-id': it.id}, L.ms);
+          var gm = el('g', {'class': 'tl-item tl-ms t-' + (o.tone || 'neutral') + (crit && it.crit ? ' crit' : ''), 'data-id': it.id}, L.ms);
           el('path', {d: 'M' + cx + ' ' + (cy - s) + ' L' + (cx + s) + ' ' + cy + ' L' + cx + ' ' + (cy + s) + ' L' + (cx - s) + ' ' + cy + ' Z'}, gm);
-          if (o.label) it.text = el('text', {x: cx + s + 5, y: cy + 4}, gm, o.label);
+          if (o.label && o.showLabel !== false) it.text = el('text', {x: cx + s + 5, y: cy + 4}, gm, o.label);
           it.x0 = cx - s; it.x1 = cx + s; it.y = cy - s; it.yc = cy; it.box = {x: cx - s, y: cy - s, w: 2 * s, h: 2 * s};
           it.els = [gm]; it.g = gm; lm.items.push(it);
           if (o.line) it.els.push(el('line', {x1: cx, x2: cx, y1: lanesTop, y2: lanesBottom, 'class': 'tl-item tl-guide t-' + (o.tone || 'neutral'), 'data-id': it.id + '.line'}, L.guides));
@@ -466,16 +693,20 @@
       var head = el('marker', {id: 'tl-' + sid + '-head', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7,
         orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse'}, defs);
       el('path', {d: 'M0 1 L10 5 L0 9 Z', 'class': 'tl-head'}, head);
+      var headC = null;
+      if (crit) {
+        headC = el('marker', {id: 'tl-' + sid + '-headc', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7,
+          orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse'}, defs);
+        el('path', {d: 'M0 1 L10 5 L0 9 Z', 'class': 'tl-head crit'}, headC);
+      }
       deps.forEach(function (d) {
-        var a = items[d.o.from], b = items[d.o.to];
-        if (!a || !b || (a.kind !== 'bar' && a.kind !== 'ms') || (b.kind !== 'bar' && b.kind !== 'ms'))
-          throw new Error('EdgeTimeline: dependency ' + d.id + ' needs an existing bar or milestone at both ends');
-        d.from = a; d.to = b;
-        d.pts = route(a, b);
-        var g = el('g', {'class': 'tl-item tl-dep', 'data-id': d.id}, L.deps);
-        d.path = el('path', {d: rounded(d.pts, 5), 'class': 'tl-wire', pathLength: 1, 'marker-end': 'url(#' + head.id + ')'}, g);
+        var a = d.from, b = d.to, hc = crit && d.crit;
+        d.pts = route(a, b, d.type);
+        d.mk = 'url(#' + (hc ? headC.id : head.id) + ')';
+        var g = el('g', {'class': 'tl-item tl-dep' + (hc ? ' crit' : ''), 'data-id': d.id}, L.deps);
+        d.path = el('path', {d: rounded(d.pts, 5), 'class': 'tl-wire', pathLength: 1, 'marker-end': d.mk}, g);
         d.els = [g]; d.g = g;
-        if (d.o.info) tip(g, 'item', d.id, d.o.label || (b.o.label || b.id) + ' starts after ' + (a.o.label || a.id) + ' ends', d.o.info);
+        if (d.o.info) tip(g, 'item', d.id, d.o.label || crumb(d), d.o.info);
       });
 
       if (hasToday) {
@@ -500,7 +731,12 @@
       for (var i = 1; i < pts.length; i++) obs.forEach(function (o) { if (crosses(pts[i - 1], pts[i], o.box)) n++; });
       return n;
     }
-    function route(a, b) {
+    function route(a, b, type) {
+      if (type === 'SS' || type === 'FF') return routeSide(a, b, type === 'SS');
+      if (type === 'SF') {   // from a's start, along the boundary between the lanes, into b's end
+        var ya = a.lane.y, yb = a.lane.y + a.lane.h, ym = b.yc > a.yc ? yb : b.yc < a.yc ? ya : yb;
+        return [[a.x0, a.yc], [a.x0 - 10, a.yc], [a.x0 - 10, ym], [b.x1 + 10, ym], [b.x1 + 10, b.yc], [b.x1, b.yc]];
+      }
       var s = [a.x1, a.yc], e = [b.x0, b.yc], obs = obstacles([a, b]), gap = e[0] - s[0];
       var level = Math.abs(s[1] - e[1]) < 0.5;
       if (level && gap >= 8 && !hits([s, e], obs)) return [s, e];
@@ -520,6 +756,20 @@
       if (gap >= 20) cand.push(best);
       cand.sort(function (u, v) { return u.n - v.n; });
       return cand[0].p;
+    }
+    function routeSide(a, b, starts) {   // start to start (left of both) or end to end (right of both), at the clearest column
+      var sx = starts ? a.x0 : a.x1, ex = starts ? b.x0 : b.x1, dir = starts ? -1 : 1, obs = obstacles([a, b]);
+      var base = starts ? Math.min(sx, ex) - 10 : Math.max(sx, ex) + 10, best = null;
+      if (Math.abs(a.yc - b.yc) < 0.5) {   // in one lane: round by the lane's lower edge
+        var yb = a.lane.y + a.lane.h - 3;
+        return [[sx, a.yc], [base, a.yc], [base, yb], [ex + dir * 10, yb], [ex + dir * 10, b.yc], [ex, b.yc]];
+      }
+      for (var k = 0; k <= 60; k += 2) {
+        var x = base + dir * k, p = [[sx, a.yc], [x, a.yc], [x, b.yc], [ex, b.yc]], n = hits(p, obs);
+        if (!best || n < best.n) best = {p: p, n: n};
+        if (n === 0) break;
+      }
+      return best.p;
     }
     function rounded(pts, r) {
       var d = 'M' + pts[0][0] + ' ' + pts[0][1];
@@ -549,6 +799,7 @@
       });
       var segs = [];
       deps.forEach(function (d) { for (var i = 1; i < d.pts.length; i++) segs.push({d: d, a: d.pts[i - 1], b: d.pts[i]}); });
+      order.forEach(function (it) { if (it.slackSeg) segs.push({a: it.slackSeg[0], b: it.slackSeg[1]}); });
       lanes.forEach(function (l) {
         var placed = [];
         l.items.forEach(function (it) {
@@ -619,8 +870,15 @@
       if (it.kind === 'ms') f.push(['when', fmt(it.t0)]);
       if (it.o.progress != null) f.push(['done', Math.round(it.o.progress * 100) + ' %']);
       if (it.o.planned) f.push(['status', 'planned']);
-      var after = deps.filter(function (d) { return d.to === it; }).map(function (d) { return d.from.o.label || d.from.id; });
+      var after = deps.filter(function (d) { return d.to === it; }).map(function (d) {
+        return nm(d.from) + (d.type !== 'FS' ? ' (' + d.type + ')' : '') + (d.lag ? ' ' + (d.lag > 0 ? '+' : '−') + spanText(Math.abs(d.lag)) : '');
+      });
       if (after.length) f.push(['after', after.join(', ')]);
+      if (options.critical && isNode(it)) f.push(it.crit ? ['path', 'critical'] : ['slack', spanText(it.slack)]);
+      if (it.b0 != null) {
+        var v = toW(it.t1) - toW(it.b1);
+        f.push(['baseline', fmt(it.b0, it.b1)], ['variance', v === 0 ? 'on time' : (v > 0 ? '+' : '−') + spanText(Math.abs(v)) + (v > 0 ? ' late' : ' early')]);
+      }
       return f;
     }
     function focusOn(kind, id) {
@@ -709,7 +967,7 @@
             r.style.transform = '';
           });
           if (it.kind === 'dep') {
-            var p = it.path, mk = 'url(#tl-' + sid + '-head)';
+            var p = it.path, mk = it.mk;
             if (grow) {   // draw the wire, then its arrowhead
               var tp = p.style.transition; p.style.transition = 'none'; p.style.strokeDasharray = '1 2'; p.style.strokeDashoffset = '1';
               p.removeAttribute('marker-end'); p.getBoundingClientRect(); p.style.transition = tp; p.style.strokeDashoffset = '0';
@@ -751,11 +1009,14 @@
         bits.push(nm(it) + ', ' + fmt(it.t0, it.t1));
         if (o.progress != null) bits.push(Math.round(o.progress * 100) + '% done');
         if (o.planned) bits.push('planned');
+        if (it.b0 != null) bits.push('baseline ' + fmt(it.b0, it.b1));
       }
+      if (options.critical && it.slack != null) bits.push(it.crit ? 'on the critical path' : 'slack ' + spanText(it.slack));
       var info = A11Y.plain(o.info && (typeof o.info === 'string' ? o.info : o.info.text));
       return bits.join(', ') + (info ? ': ' + info.replace(/\.$/, '') : '');
     }
     function describeBlocks() {
+      if (!drawn) schedule();
       var out = [], todayT = options.today != null ? (dates ? toDay(options.today) + 0.5 : +options.today) : null;
       out.push('A timeline from ' + (dates ? fmtDay(T0) + ' to ' + fmtDay(T1 - 1) : prefix + (T0 + opt.first) + ' to ' + prefix + (T1 - 1 + opt.first)) +
         ', ' + lanes.length + ' lanes' + (phases.length ? ' in ' + phases.length + ' phases' : '') + '.' +
@@ -776,10 +1037,12 @@
           return (A11Y.plain(l.o.title) || l.id) + ': ' + (its.length ? its.map(itemText).join('; ') : 'nothing') + '.';
         })});
       });
-      if (deps.length) out.push({head: 'Dependencies:', items: deps.map(function (d) {
-        var a = items[d.o.from], b = items[d.o.to];
-        return (b ? nm(b) : d.o.to) + ' starts after ' + (a ? nm(a) : d.o.from) + ' ends.';
-      })});
+      if (deps.length) out.push({head: 'Dependencies:', items: deps.map(function (d) { return crumb(d) + '.'; })});
+      if (options.critical && sched.nodes.length) {
+        var cp = critPath();
+        out.push('Critical path: ' + (cp.length ? cp.map(function (it) { return nm(it); }).join(', ') : 'none') + '. The plan ends ' +
+          (dates ? fmtDay(endOf(sched.finish, sched.finish - 1) - 1) : prefix + (sched.finish - 1 + opt.first)) + '.');
+      }
       var caps = (stepCaps || []).map(function (s) { return A11Y.plain(s.caption); });
       if (caps.some(Boolean)) out.push({head: 'In ' + caps.length + ' steps:', items: caps.map(function (c, k) { return (k + 1) + '. ' + (c || '…'); })});
       return out;
@@ -789,7 +1052,27 @@
       return ns.length ? 'shows ' + A11Y.and(ns) : '';
     }
     api.describe = function () { return DESC.describe(); };
-    A11Y.watch(api, ['band', 'lane', 'bar', 'milestone', 'phase', 'dep', 'steps'], DESC);
+    function critPath() {
+      return sched.nodes.filter(function (n) { return n.crit; }).sort(function (a, b) { return a.S - b.S || a.F - b.F || order.indexOf(a) - order.indexOf(b); });
+    }
+    /* the schedule as worked out: each bar's and milestone's dates (as an item takes them: an end date is
+       inclusive, an abstract end is the axis's number), its late dates, slack and whether it is critical */
+    api.schedule = function () {
+      schedule();
+      function day(t, end) { return dates ? isoDay(end ? t - 1 : t) : t; }
+      var out = {items: {}, critical: critPath().map(function (n) { return n.id; }), cycle: sched.cycle,
+        finish: sched.finish == null ? null : dates ? isoDay(endOf(sched.finish, sched.finish - 1) - 1) : sched.finish};
+      sched.nodes.forEach(function (n) {
+        var r = {start: day(n.t0), slack: n.slack, critical: n.crit};
+        if (n.kind === 'bar') {
+          var ls = n.LF - n.dur;
+          r.end = day(n.t1, true); r.lateStart = day(startOf(ls)); r.lateEnd = day(endOf(n.LF, ls), true); r.dur = n.dur;
+        } else { r.at = r.start; delete r.start; }
+        out.items[n.id] = r;
+      });
+      return out;
+    };
+    A11Y.watch(api, ['band', 'lane', 'bar', 'milestone', 'phase', 'dep', 'steps', 'update'], DESC);
 
     /* ---------- check ---------- */
     api.check = function () {
@@ -810,7 +1093,9 @@
       });
       order.forEach(function (it) {
         if (it.kind === 'dep') return;
-        if (it.t0 < T0 - 1e-9 || it.t1 > T1 + 1e-9) issue((it.kind === 'ms' ? 'milestone ' : it.kind + ' ') + it.id + ' runs outside the time axis', it.box);
+        if (it.t0 < T0 - 1e-9 || it.t1 > T1 + 1e-9) issue((it.kind === 'ms' ? 'milestone ' : it.kind + ' ') + it.id + ' runs outside the time axis' +
+          (isNode(it) && !it.rawT ? ' (its dates are worked out: ' + fmt(it.t0, it.kind === 'bar' ? it.t1 : null) + '; widen the axis)' : ''), it.box);
+        if (it.b0 != null && (it.b0 < T0 - 1e-9 || it.b1 > T1 + 1e-9)) issue('baseline of ' + it.id + ' runs outside the time axis', it.box);
         if (it.kind === 'phase') {
           var pb = bbox(it.text);
           if (pb) { texts.push({b: pb, s: it.text.textContent}); if (pb.w + 8 > it.box.w) issue('label of phase ' + it.id + ' is wider than the phase: shorten it', pb); }
@@ -827,8 +1112,13 @@
           });
         }
       });
+      if (sched.cycle) issue('dependencies run in a cycle: ' + sched.cycle.concat([sched.cycle[0]]).join(' → ') + ': remove one', items[sched.cycle[0]].box);
       deps.forEach(function (d) {
-        if (d.to.t0 < d.from.t1 - tol) issue('dependency ' + d.id + ' points backward in time: ' + d.to.id + ' starts before ' + d.from.id + ' ends', d.to.box);
+        if (d.type === 'FS' && !d.lag) {
+          if (d.to.t0 < d.from.t1 - tol) issue('dependency ' + d.id + ' points backward in time: ' + d.to.id + ' starts before ' + d.from.id + ' ends', d.to.box);
+        } else if (d.to.S < need(d) - 1e-9) {
+          issue('dependency ' + d.id + ' is not met: ' + d.to.id + (d.type.charAt(1) === 'S' ? ' starts ' : ' ends ') + spanText(need(d) - d.to.S) + ' too early (' + crumb(d) + ')', d.to.box);
+        }
         obstacles([d.from, d.to]).forEach(function (o) {
           for (var i = 1; i < d.pts.length; i++) if (crosses(d.pts[i - 1], d.pts[i], o.box)) { issue('dependency ' + d.id + ' crosses ' + o.id + ': move one of them', o.box); break; }
         });
